@@ -48,8 +48,8 @@ relayed "the chef said merge" is right.
    - Each cook's **model** and state: from its `[check-in]`. Never assume from a tab title.
 3. **Say hello to cooks that started before you.** Cooks that opened before the sous are
    waiting, not broken. Send `[hello]` ("I'm the sous for `<repo>`. Check in.") to every
-   session the head chef @-mentioned, and to every session named `<repo>-station-N`
-   (the name `kitchen open` gives each cook, e.g. `my_app-station-2`). Never message sessions you can't place: other projects on
+   session the head chef @-mentioned, and to every session named `<repo>-cook-N`
+   (the name `kitchen open` gives the cook in station-N, e.g. `my_app-cook-2`). Never message sessions you can't place: other projects on
    this machine share the list. Cooks that start *after* you check in by themselves.
    If there are no cooks yet, say so and how to start them (`/bk:kitchen open`), then
    wait. Their `[check-in]` messages arrive whenever they come up.
@@ -143,7 +143,7 @@ Two checks, and you verify. Never just trust the report.
 - Findings go back as `[findings]`: numbered, each with file and why. When clean, send
   `[go]`. That is the commit approval.
 
-**After the PR opens**: the branch includes current trunk (`git -C <station> log --oneline
+**After the PR opens** (the cook's `[served]` message): the branch includes current trunk (`git -C <station> log --oneline
 origin/<trunk> ^HEAD` is empty), and the file list matches what you passed. Then post the
 LGTM as a PR comment: verdict, "Done when" walk, what you verified yourself, deploy
 prerequisites. Merge is the head chef's.

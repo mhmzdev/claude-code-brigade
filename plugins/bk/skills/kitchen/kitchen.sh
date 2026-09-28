@@ -33,7 +33,8 @@
 #
 # Env overrides:
 #   BRIGADE_TRUNK, BRIGADE_KITCHEN_MODE, BRIGADE_KITCHEN, BRIGADE_STATIONS, BRIGADE_MODEL (default sonnet),
-#   BRIGADE_PERMISSION_MODE (default: acceptEdits), BRIGADE_TERMINAL
+#   BRIGADE_PERMISSION_MODE (default: auto — cooks run unattended, so a mode that
+#   stops on every permission would stall them), BRIGADE_TERMINAL
 #
 # Requires: git, claude. Optional: gh (status), Warp or tmux (open).
 # =============================================================================
@@ -99,7 +100,7 @@ INSTALL="$(cfg install)"
 COPY_FILES="$(cfg copy_into_stations)"
 MIGRATIONS="$(cfg migrations)"; [[ "$MIGRATIONS" == "none" ]] && MIGRATIONS=""
 MODEL="${BRIGADE_MODEL:-sonnet}"
-PERMISSION_MODE="${BRIGADE_PERMISSION_MODE:-acceptEdits}"
+PERMISSION_MODE="${BRIGADE_PERMISSION_MODE:-$(cfg permission_mode)}"; PERMISSION_MODE="${PERMISSION_MODE:-auto}"
 TERMINAL="${BRIGADE_TERMINAL:-}"
 BARE=false
 NO_LAUNCH=false
@@ -151,9 +152,14 @@ model_for() {  # model_for <index>
 }
 
 # session_name <station dir> → the display name the cook's session gets:
-# <repo>-station-N. The repo prefix keeps it unique when several kitchens run
-# on one machine, since every session shares one ListAgents list.
-session_name() { printf '%s-%s' "$REPO_NAME" "$(basename "$1")"; }
+# <repo>-cook-N for station-N. The station is the place, the cook is who works
+# there. The repo prefix keeps it unique when several kitchens run on one
+# machine, since every session shares one ListAgents list.
+session_name() { printf '%s-cook-%s' "$REPO_NAME" "$(basename "$1" | sed 's/^station-//')"; }
+
+# CLAUDE_CONFIG_DIR is passed through only when the launching shell has it set
+# (someone running several Claude profiles). Sessions only see each other
+# within one profile, so cooks must inherit the sous's. Unset → plain `claude`.
 
 claude_cmd() {  # claude_cmd <model> <station dir>
   local prefix=""

@@ -159,9 +159,12 @@ A cook's plan and checklist are written in its station and reach trunk with its 
 before. Specs and tickets are written by the sous in the main checkout and reach trunk
 straight away.
 
-**Cook names.** `kitchen open` names each session `<repo>-station-N` (Claude Code's
-`--name`), e.g. `my_app-station-2`: that's the name in the terminal title, in `/resume`,
-and in the sous's session list. The repo prefix keeps two kitchens on one machine apart.
+**Cook names.** `kitchen open` names the session in station-N `<repo>-cook-N` (Claude
+Code's `--name`), e.g. `my_app-cook-2`: the station is the place, the cook is who works
+there. It's the name in the terminal title, in `/resume`, and in the sous's session list;
+the repo prefix keeps two kitchens on one machine apart. Cooks start in Claude Code's
+`auto` permission mode, since nobody watches their terminals between gates (set
+`permission_mode:` in the config to change it).
 
 **The start order doesn't matter.** A cook that comes up before the sous says it's waiting;
 when the sous starts it sends `[hello]` to cooks in its stations, and they check in. Prefer

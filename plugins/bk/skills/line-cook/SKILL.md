@@ -25,7 +25,7 @@ plan in *this* terminal, and merges.
 ## Check in
 
 1. Load `ListAgents` and `SendMessage` with `ToolSearch` if they're deferred. Your own name,
-   if `kitchen open` started you, is `<repo>-station-N`. Find the sous: the session named
+   if `kitchen open` started you, is `<repo>-cook-N` (you work in station-N). Find the sous: the session named
    in the invocation, else the one running in the main checkout (the repo that owns this
    station). Not sure which one it is? Don't guess: wait for its `[hello]`.
 2. Look at your station: `pwd`, `git branch --show-current`, `git status --short`.
