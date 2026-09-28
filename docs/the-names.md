@@ -15,8 +15,8 @@ here and from the plugin contract. Renaming stays a one-line change.
 |---|---|---|
 | **The Brigade** | the whole kitchen team | lead + workers + human, on one machine |
 | **Head Chef** | owns the menu, has the final say | the human: signs off plans, merges, deploys |
-| **Sous Chef** | runs the line, stands at the pass | the lead session, `/brigade:sous-chef` |
-| **Line Cook** | owns one station, one order at a time | a worker session, `/brigade:line-cook` |
+| **Sous Chef** | runs the line, stands at the pass | the lead session, `/bk:sous-chef` |
+| **Line Cook** | owns one station, one order at a time | a worker session, `/bk:line-cook` |
 | **Station** | a cook's own bench | one gitignored clone, `stations/station-N` |
 | **The Walk-in** | the one shared fridge | shared local resources: a database, a docker stack, a port |
 | **The Rail** | where fired tickets hang | the ticket store: markdown in `docs/`, GitHub Projects, or Jira |
@@ -33,7 +33,7 @@ here and from the plugin contract. Renaming stays a one-line change.
 |---|---|---|
 | A | **Specials** | a spec, sliced into tickets |
 | B | **À la carte** | standalone tickets already on the rail |
-| C | **Clean as you go** | the kitchen generates them: `/brigade:clean scan` |
+| C | **Clean as you go** | the kitchen generates them: `/bk:clean scan` |
 
 ## Why a kitchen
 

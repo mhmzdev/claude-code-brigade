@@ -10,8 +10,8 @@
   },
   "plugins": [
     {
-      "name": "brigade",
-      "source": "./plugins/brigade",
+      "name": "bk",
+      "source": "./plugins/bk",
       "description": "Sous chef + line cooks over SendMessage, a markdown/GitHub/Jira rail, and the full lifecycle: brainstorm, grill-me, spec, file-tickets, pick-ticket, plan, implement, review, open-pr, clean."
     }
   ]

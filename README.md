@@ -50,7 +50,7 @@ The full table, plus an Urdu alternate (Qafila), is in [`docs/the-names.md`](doc
 |---|---|---|
 | **A — Specials** | a spec, sliced into tickets | brainstorm → grill-me → spec → file-tickets → create-plan → implement → review → open-pr |
 | **B — À la carte** | tickets already on the rail | pick-ticket → (grill-me) → create-plan → implement → review → open-pr |
-| **C — Clean as you go** | the kitchen finds its own mess: `/brigade:clean scan` | pick-ticket → implement → open-pr |
+| **C — Clean as you go** | the kitchen finds its own mess: `/bk:clean scan` | pick-ticket → implement → open-pr |
 
 ## The rules
 
@@ -69,7 +69,7 @@ In Claude Code:
 
 ```
 /plugin marketplace add mhmzdev/claude-code-brigade
-/plugin install brigade@claude-code-brigade
+/plugin install bk@claude-code-brigade
 ```
 
 Or commit it for your whole team in `.claude/settings.json`:
@@ -81,7 +81,7 @@ Or commit it for your whole team in `.claude/settings.json`:
       "source": { "source": "github", "repo": "mhmzdev/claude-code-brigade" }
     }
   },
-  "enabledPlugins": { "brigade@claude-code-brigade": true }
+  "enabledPlugins": { "bk@claude-code-brigade": true }
 }
 ```
 
@@ -94,7 +94,7 @@ same `CLAUDE_CONFIG_DIR`.
 At the repo root, with a clean working tree:
 
 ```
-/brigade:setup
+/bk:setup
 ```
 
 It reads the repo, asks one round of questions, and writes:
@@ -112,9 +112,9 @@ Tickets carry their status in frontmatter. There is no summary page to keep in s
 
 ## Run a service
 
-1. `/brigade:kitchen open` opens one bare Claude session per station.
-2. In the main checkout: `/brigade:sous-chef`.
-3. In each station: `/brigade:line-cook`.
+1. `/bk:kitchen open` opens one bare Claude session per station.
+2. In the main checkout: `/bk:sous-chef`.
+3. In each station: `/bk:line-cook`.
 4. Tell the sous which ticket to fire, or ask it to propose one per lane.
 
 ## What's in the box
@@ -130,7 +130,7 @@ Tickets carry their status in frontmatter. There is no summary page to keep in s
 | `clean` | lane C: count the mess, file hygiene tickets, pre-review inspection |
 
 Every skill works **solo** too: without a sous, you are both chef and sous.
-The shared rules every skill follows are in [`plugins/brigade/skills/README.md`](plugins/brigade/skills/README.md).
+The shared rules every skill follows are in [`plugins/bk/skills/README.md`](plugins/bk/skills/README.md).
 
 ## Honest limits
 
