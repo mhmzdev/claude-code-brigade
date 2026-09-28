@@ -134,7 +134,7 @@ Body, every section filled with specifics:
 3. **Run the self-check** below.
 4. **Present it and stop. Don't ask "does this look right?"** Show the path, the phases in
    one line each, the files, and anything notable (a migration, a risky phase). End with
-   exactly what the sign-off is: *"Your sign-off is typing `/bk:implement <ID>` here. That
+   exactly what the sign-off is: *"Your sign-off is typing `/bk:implement` here (it finds this plan by itself). That
    authorises every commit under this plan, after the sous's pass. To change something,
    just say what; to stress-test it first, `/bk:grill-me <plan>`."*
 5. Leave `status: draft`: `/bk:implement` flips it when the human types it. A cook tells

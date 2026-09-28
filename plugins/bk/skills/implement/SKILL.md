@@ -1,7 +1,7 @@
 ---
 name: implement
 description: Carry out an approved plan phase by phase — run the config's check after every phase, tick criteria honestly, keep the plan's status and the rail current — then hand off to review (lanes A/B) or open-pr (lane C). Hygiene (HYG) tickets run straight from the ticket body with no plan; the proof is the counter going down. Refuses a plan that isn't approved or still carries open questions. Never commits. Use when the user says "implement this", "build the plan", "start coding", "execute BKLG-004", "work HYG-002", "/bk:implement".
-argument-hint: "<plan path | ticket id>"
+argument-hint: "[plan path | ticket id] (usually nothing: it finds this station's plan)"
 allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, AskUserQuestion, ListAgents, SendMessage, ToolSearch
 disable-model-invocation: true
 ---
@@ -29,7 +29,17 @@ approved the plan and every commit under it. **Follow the plan, don't redesign i
 ## Step 0 — Find the work and gate it
 
 1. **A `HYG-*` ticket?** Go to [Lane C](#lane-c--hygiene-tickets).
-2. **Find the plan.** A path → read it fully. A ticket id → `<docs.plans>/<id>-*.md`. None → stop and route to `/bk:create-plan <ID>`. A plan is never written here.
+2. **Find the plan.** A path → read it fully. A ticket id → `<docs.plans>/<id>-*.md`.
+   **Nothing** (the usual case in a station: the chef just types `/bk:implement`) → work
+   it out, in this order:
+   - the ticket id in the branch name (`bklg-004-fix-login` → `BKLG-004`,
+     `s001-02-…` → `S001-02`), then `<docs.plans>/<ID>-*.md`;
+   - else the one plan in `<docs.plans>/` with `status: draft` that this branch or working
+     tree added (`git status --porcelain -uall` plus `git diff --name-only origin/<trunk>...HEAD`).
+
+   Say which plan you picked in the scope line, so a wrong guess is visible at once. Several
+   candidates → list them and ask which (the one question this skill may ask up front).
+   None → stop and route to `/bk:create-plan <ID>`. A plan is never written here.
 3. **The gates — fail loudly, no override flag.**
 
    ```bash
