@@ -1,5 +1,7 @@
 # The Brigade
 
+<!-- Hero image goes here once generated: ![The Brigade](docs/assets/hero.png) -->
+
 Run a kitchen of Claude Code sessions. One **sous chef** leads, a few **line cooks** work
 one ticket each at their own **station**, and you are the **head chef**: you approve
 plans and you merge. The sessions talk to each other with `SendMessage`. There is no
@@ -19,7 +21,9 @@ daemon, no queue, and no database.
 - [Install](#install)
 - [Set up a repo](#set-up-a-repo)
 - [Run a service](#run-a-service)
+- [What a service looks like](#what-a-service-looks-like)
 - [What's in the box](#whats-in-the-box)
+- [Troubleshooting](#troubleshooting)
 - [Honest limits](#honest-limits)
 - [Status](#status)
 
@@ -65,6 +69,8 @@ The full table, plus an Urdu alternate (Qafila), is in [`docs/the-names.md`](doc
 
 ## Install
 
+Skills are invoked as `/bk:<skill>`, where `bk` is short for *brigade kitchen*.
+
 In Claude Code:
 
 ```
@@ -107,6 +113,10 @@ docs/plans/  docs/checklists/  docs/research/  docs/brainstorm/
 stations/station-1 …        # gitignored clones, one per cook
 ```
 
+It ends with **one** question: *commit, push, create the stations and open the kitchen?*
+It's one step because stations are fresh clones of `origin/<trunk>`: until the setup is
+pushed, a station would start without it.
+
 Tickets carry their status in frontmatter. There is no summary page to keep in sync:
 `kitchen.sh rail` computes the board each time.
 
@@ -116,6 +126,26 @@ Tickets carry their status in frontmatter. There is no summary page to keep in s
 2. In the main checkout: `/bk:sous-chef`.
 3. In each station: `/bk:line-cook`.
 4. Tell the sous which ticket to fire, or ask it to propose one per lane.
+
+## What a service looks like
+
+Sessions talk in short typed messages, so you can follow a ticket by reading them:
+
+```
+cook  → sous   [check-in]  station-1 · Opus · main · clean · no ticket
+sous  → cook   [brief]     BKLG-001: /abs/path/to/ticket.md, constraints, the loop
+cook  → sous   [rail]      claim BKLG-001 todo
+                           … the cook writes the plan; YOU sign it off in the cook's terminal …
+cook  → sous   [rail]      BKLG-001 → in-progress
+cook  → sous   [gate]      "two ways to do X, I recommend A" → sous answers
+cook  → sous   [handoff]   ready for the pass: branch, files, check green, inspector clean
+sous  → cook   [findings]  1. file:line — why   (or)   [go]
+cook  → sous   [served]    PR #12
+                           … YOU merge; the sous closes BKLG-001 on the rail …
+```
+
+Only two moments need you: the plan sign-off and the merge. Real design forks reach you
+too; everything routine stays between the sous and the cooks.
 
 ## What's in the box
 
@@ -132,6 +162,15 @@ Tickets carry their status in frontmatter. There is no summary page to keep in s
 Every skill works **solo** too: without a sous, you are both chef and sous.
 The shared rules every skill follows are in [`plugins/bk/skills/README.md`](plugins/bk/skills/README.md).
 
+## Troubleshooting
+
+| You see | Why | Do |
+|---|---|---|
+| `kitchen open`: "No stations yet" | stations haven't been created, usually because the setup isn't pushed | commit + push the setup, then `/bk:kitchen setup` (or just run `/bk:kitchen open` and say yes) |
+| a station is **dirty right after setup** | the install step, or an edit that reached into `stations/`, changed tracked files | `git -C stations/station-N diff`, fix the cause in the main checkout, then `git -C stations/station-N checkout -- .` |
+| the sous can't find a cook (or the reverse) | sessions only see each other under the same Claude Code profile | start every session with the same `CLAUDE_CONFIG_DIR` (`kitchen open` passes yours through) |
+| "1 plugin failed to update" after upgrading from 0.1 | 0.2 renamed the plugin `brigade` → `bk` | `/plugin uninstall brigade@claude-code-brigade`, `/plugin install bk@claude-code-brigade`, and drop any `brigade@…` line from `.claude/settings*.json` |
+
 ## Honest limits
 
 - One machine. Two to five cooks, not a fleet.
@@ -142,7 +181,8 @@ The shared rules every skill follows are in [`plugins/bk/skills/README.md`](plug
 
 ## Status
 
-v0.1: the skills are written and `kitchen.sh` is tested; a full end-to-end service on a
-real repo hasn't been run yet. Issues and PRs welcome.
+**v0.2.** Tried on a real repo (a Flutter package): setup, stations, `kitchen open`, and
+the sous ↔ cook check-in all work. A full ticket, from brief to merged PR, is the next
+thing being run. Issues and PRs welcome.
 
 MIT © Muhammad Hamza
