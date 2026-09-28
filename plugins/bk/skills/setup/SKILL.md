@@ -59,7 +59,12 @@ Note for the summary:
 - **Migrations folder**, if any.
 - **Existing trackers**: a GitHub Project on the repo, Jira keys in branches or commits,
   an existing `docs/` layout for specs or plans.
-- **Tools that don't read `.gitignore`** and would see `stations/`: `tsconfig.json`
+- **Which kitchen mode fits** (Contract 8). Recommend **`worktree`** when either is true,
+  else **`clone`**:
+  - the repo sits inside another git repo (`git -C .. rev-parse --show-toplevel` succeeds):
+    a workspace checkout that holds several repos;
+  - the checkout is big (`du -sh .git` over ~1 GB): N full clones would cost N copies.
+- **Tools that don't read `.gitignore`** and would see `stations/` (clone mode only): `tsconfig.json`
   include globs, test-runner configs, linter configs, `pytest.ini`, `.dockerignore`.
 - **Lane C counters** that fit the stack: knip or ts-prune (JS/TS), vulture (Python),
   `staticcheck -checks U1000` (Go), `cargo udeps` (Rust), plus a TODO/FIXME count.
@@ -70,7 +75,9 @@ Ask together, skipping any the repo answered (say what you found):
 
 1. **Where should tickets live?** Recommend markdown in `docs/` unless the repo clearly runs
    on GitHub Projects or Jira. Options: markdown · GitHub Projects · Jira · mixed.
-2. **How many stations?** Recommend 2.
+2. **How many stations, and which kind?** Recommend 2, and the mode from step 2 with its
+   one-line reason: *clones inside the repo* (simplest) or *worktrees in
+   `../<repo>-stations/`* (shared history; for workspaces and big repos).
 3. **Is this the check command?**
 4. **Are these the shared resources and their destructive commands?**
 5. **Can the sous commit rail changes straight to trunk?** Recommend yes unless trunk is
@@ -83,7 +90,10 @@ flat keys on one line each: `kitchen.sh` reads them. Put repo-specific notes in 
 as plain sentences.
 
 Create `.claude/brigade.local.md` (one placeholder line) and add it to `.gitignore`.
-Add `/stations/` to `.gitignore` too (and `stations/` to `.dockerignore` if it exists).
+In **clone** mode, add `/stations/` to `.gitignore` too (and `stations/` to `.dockerignore`
+if it exists). In **worktree** mode, set `kitchen_mode: worktree` and leave `kitchen:` out
+(it defaults to `../<repo>-stations`); `kitchen.sh setup` adds the ignore line to whichever
+repo contains that folder, and says which.
 
 For each tool from step 2 that doesn't read `.gitignore`, propose the one-line exclude and
 apply it once the human agrees. Example: `"exclude": ["stations"]` in `tsconfig.json`, or
@@ -110,7 +120,8 @@ mapping in the config's body.
 
 ## 6. The CLAUDE.md section
 
-Append (create the file if needed). Keep it this short; the detail lives in the plugin.
+Append (create the file if needed). Keep it this short; the detail lives in the plugin. Fill in
+`<stations path>` and keep only the bullet line for the chosen mode.
 
 ```markdown
 ## The Brigade
@@ -120,12 +131,14 @@ This repo can run several Claude Code sessions at once. Config: `.claude/brigade
 - **Head Chef** (the human) signs off plans, merges, deploys. **Sous Chef**
   (`/bk:sous-chef`, in this checkout) assigns tickets, answers routine questions,
   reviews every diff before commit, and is the **only session that writes the rail**.
-  **Line Cooks** (`/bk:line-cook`) work one ticket each in `stations/station-N`.
+  **Line Cooks** (`/bk:line-cook`) work one ticket each in `<stations path>/station-N`.
 - **The rail is the claim.** A ticket not in `backlog` or `blocked` belongs to someone.
   Cooks ask the sous to change a ticket; they never edit ticket files.
 - **Ask before touching the walk-in** (`walk_in:` in the config). One migration in flight at a time.
 - **One ticket per session.** Pull trunk into your branch before opening a PR, and re-run the check.
-- **Never `git clean -fdx` here**: `stations/` is ignored, so `-x` deletes every station.
+- Clone mode: **never `git clean -fdx` here**: `stations/` is ignored, so `-x` deletes every station.
+  Worktree mode: stashes are shared, so stash with `-m "<station>: …"` and apply only your own;
+  remove stations with `kitchen.sh remove`, never `rm -rf`.
 ```
 
 ## 7. Show, then commit

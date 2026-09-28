@@ -50,7 +50,8 @@ trunk: main
 check: "npm run check"
 install: "npm install"
 copy_into_stations: ".env .env.local"   # space-separated; names only
-kitchen: stations                        # stations dir, relative to repo root
+kitchen_mode: clone                      # clone (default) | worktree — see Contract 8
+kitchen: stations                        # stations dir, relative to repo root (worktree default: ../<repo>-stations)
 stations: 2
 migrations: none                         # path, or none
 
@@ -255,9 +256,17 @@ database, a docker stack, a fixed port.
 
 ## Contract 8 — Stations
 
-Stations are full git clones at **`<repo>/<kitchen>/station-N`** (default
-`stations/station-1` …), inside the repo and **gitignored**. `kitchen.sh` creates them,
-adds the ignore lines, copies `copy_into_stations`, and runs `install`.
+A station is where one cook works. `kitchen.sh` creates it, adds the ignore line, copies
+`copy_into_stations`, and runs `install`. There are two kinds, picked by `kitchen_mode:`.
+
+| Mode | Where | What it is | Use it for |
+|---|---|---|---|
+| **`clone`** (default) | `<repo>/stations/station-N`, gitignored | a full clone | one standalone repo: the simplest setup |
+| **`worktree`** | `../<repo>-stations/station-N`, next to the repo | a git worktree of the main checkout | big repos, and repos that live inside a workspace repo |
+
+A config without `kitchen_mode:` is clone mode, so existing setups don't change.
+
+### Clone mode
 
 Things this layout needs you to know:
 
@@ -272,6 +281,31 @@ Things this layout needs you to know:
   Claude Code reads `CLAUDE.md` files up the directory tree. Both are the same file at
   possibly different commits. The station's own copy describes the station's branch;
   prefer it where they differ.
+
+### Worktree mode
+
+A worktree is a second working folder backed by the **same** repo: one object store, one
+set of branches, one `git fetch` for everyone. Stations cost only their checked-out files.
+
+- **Idle stations are detached at `origin/<trunk>`.** Git lets a branch be checked out in
+  one worktree only, and the main checkout already holds trunk. A cook branches off
+  `origin/<trunk>` as usual; `kitchen.sh sync` re-detaches idle stations.
+- **Stashes are shared across stations.** A cook stashes with
+  `git stash push -m "<station>: …"` and applies only its own entry, by name, never a
+  bare `git stash pop`. Parking work on a named branch is safer still.
+- **Branches are shared too.** That's why branch names carry the ticket id: two cooks
+  can't collide. Removing a station keeps its branch and commits.
+- **Remove with `kitchen.sh remove`, never `rm -rf`.** It uses `git worktree remove`,
+  which refuses a station with uncommitted work, then prunes git's records.
+- **Dependencies are per station** (`node_modules`, `.dart_tool`, Pods, virtualenvs): the
+  install step still runs in each one.
+- **The sibling folder may sit inside another repo**, e.g. a workspace checkout that holds
+  several product repos. `kitchen.sh setup` adds the ignore line to **that** repo's
+  `.gitignore`, and a cook there loads the workspace's `CLAUDE.md` as well as the repo's.
+- Run from anywhere, including inside a station: `kitchen.sh` finds the main checkout
+  through git's common directory.
+
+### Both modes
 
 **The sous reads stations and never writes in them.** No edits, resets or branch
 switches. Running the check command or the inspector inside a station is fine. A finding

@@ -20,6 +20,7 @@ daemon, no queue, and no database.
 - [The rules](#the-rules)
 - [Install](#install)
 - [Set up a repo](#set-up-a-repo)
+- [Stations: clones or worktrees](#stations-clones-or-worktrees)
 - [Run a service](#run-a-service)
 - [What a service looks like](#what-a-service-looks-like)
 - [What's in the box](#whats-in-the-box)
@@ -120,6 +121,27 @@ pushed, a station would start without it.
 Tickets carry their status in frontmatter. There is no summary page to keep in sync:
 `kitchen.sh rail` computes the board each time.
 
+## Stations: clones or worktrees
+
+Each cook works in a **station**. There are two kinds, set by `kitchen_mode:` in
+`.claude/brigade.md`:
+
+| | `clone` (default) | `worktree` |
+|---|---|---|
+| Where | `<repo>/stations/station-N`, gitignored | `../<repo>-stations/station-N`, next to the repo |
+| What | a full clone | a git worktree: one shared history, one `git fetch` |
+| Best for | one standalone repo | big repos, and repos inside a workspace repo |
+| Idle station | on trunk | detached at `origin/<trunk>` (trunk is checked out in your main folder) |
+
+A workspace that holds several repos, each gitignored by the outer repo, can't be cloned
+per station. Worktrees handle it: `sastaticket-mobile-app/` keeps its stations in
+`sastaticket-mobile-app-stations/`, and setup adds that folder to the **workspace's**
+`.gitignore`. Cooks there also load the workspace's `CLAUDE.md`.
+
+Two worktree habits: stashes are shared between stations (stash with
+`-m "<station>: …"` and apply only your own), and remove stations with
+`/bk:kitchen remove`, never `rm -rf`. `/bk:setup` recommends the mode for you.
+
 ## Run a service
 
 1. `/bk:kitchen open` opens one bare Claude session per station.
@@ -181,8 +203,9 @@ The shared rules every skill follows are in [`plugins/bk/skills/README.md`](plug
 
 ## Status
 
-**v0.2.** Tried on a real repo (a Flutter package): setup, stations, `kitchen open`, and
-the sous ↔ cook check-in all work. A full ticket, from brief to merged PR, is the next
+**v0.3.** Tried on a real repo (a Flutter package): setup, stations, `kitchen open`, and
+the sous ↔ cook check-in all work. v0.3 adds worktree stations, tested in a nested
+workspace layout; clone mode is unchanged. A full ticket, from brief to merged PR, is the next
 thing being run. Issues and PRs welcome.
 
 MIT © Muhammad Hamza

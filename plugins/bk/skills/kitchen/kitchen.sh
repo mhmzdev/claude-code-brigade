@@ -2,14 +2,18 @@
 # =============================================================================
 # kitchen.sh — the Brigade's station manager
 #
-# Stations are full git clones inside the repo, at <repo>/<kitchen>/station-N
-# (default: stations/station-1 …), gitignored. One Claude Code line cook works
-# in each. Assignment happens through the sous chef over SendMessage, never
+# Two kinds of station, picked by `kitchen_mode:` in .claude/brigade.md:
+#   clone    (default) full git clones inside the repo, <repo>/stations/station-N,
+#            gitignored. Simplest; right for one standalone repo.
+#   worktree git worktrees of the main checkout, by default in a sibling folder
+#            ../<repo>-stations/station-N. Shares one object store, so it suits
+#            big repos and repos that live inside a workspace repo.
+# One Claude Code line cook works in each. Assignment happens through the sous chef over SendMessage, never
 # through this script: sessions open BARE and wait for a brief.
 #
 # Run from anywhere inside the main checkout. Settings come from the flat keys
-# in .claude/brigade.md (trunk, install, copy_into_stations, kitchen, stations,
-# migrations); env vars override them.
+# in .claude/brigade.md (trunk, install, copy_into_stations, kitchen_mode,
+# kitchen, stations, migrations); env vars override them.
 #
 # Usage:
 #   kitchen.sh setup  [-n N]              create N stations (clone, gitignore,
@@ -26,7 +30,7 @@
 #   kitchen.sh remove                     delete every station (asks first)
 #
 # Env overrides:
-#   BRIGADE_TRUNK, BRIGADE_KITCHEN, BRIGADE_STATIONS, BRIGADE_MODEL (default sonnet),
+#   BRIGADE_TRUNK, BRIGADE_KITCHEN_MODE, BRIGADE_KITCHEN, BRIGADE_STATIONS, BRIGADE_MODEL (default sonnet),
 #   BRIGADE_PERMISSION_MODE (default: acceptEdits), BRIGADE_TERMINAL
 #
 # Requires: git, claude. Optional: gh (status), Warp or tmux (open).
@@ -35,8 +39,14 @@
 set -uo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "Not inside a git repo." >&2; exit 1; }
-# Run from inside a station? Climb to the main checkout that owns it.
-if [[ "$(basename "$ROOT")" == station-* ]]; then
+# Run from inside a station? Find the main checkout that owns it.
+# A worktree station knows its owner: its common git dir is the main repo's .git.
+COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+GIT_DIR_ABS="$(git rev-parse --absolute-git-dir 2>/dev/null || true)"
+if [[ -n "$COMMON_DIR" && "$COMMON_DIR" != "$GIT_DIR_ABS" && "$(basename "$COMMON_DIR")" == .git ]]; then
+  ROOT="$(dirname "$COMMON_DIR")"
+# A clone station sits two levels below its owner: <owner>/stations/station-N.
+elif [[ "$(basename "$ROOT")" == station-* ]]; then
   OWNER="$(git -C "$(dirname "$(dirname "$ROOT")")" rev-parse --show-toplevel 2>/dev/null || true)"
   [[ -n "$OWNER" && -f "$OWNER/.claude/brigade.md" ]] && ROOT="$OWNER"
 fi
@@ -70,8 +80,18 @@ cfg_docs() {
 TRUNK="${BRIGADE_TRUNK:-$(cfg trunk)}"
 TRUNK="${TRUNK:-$(git -C "$ROOT" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')}"
 TRUNK="${TRUNK:-main}"
-KITCHEN_REL="${BRIGADE_KITCHEN:-$(cfg kitchen)}"; KITCHEN_REL="${KITCHEN_REL:-stations}"
-KITCHEN="$ROOT/$KITCHEN_REL"
+MODE="${BRIGADE_KITCHEN_MODE:-$(cfg kitchen_mode)}"; MODE="${MODE:-clone}"
+case "$MODE" in clone|worktree) ;; *) echo "kitchen_mode must be clone or worktree (got: $MODE)" >&2; exit 1 ;; esac
+KITCHEN_REL="${BRIGADE_KITCHEN:-$(cfg kitchen)}"
+if [[ -z "$KITCHEN_REL" ]]; then
+  [[ "$MODE" == worktree ]] && KITCHEN_REL="../${REPO_NAME}-stations" || KITCHEN_REL="stations"
+fi
+[[ "$KITCHEN_REL" == /* ]] && KITCHEN="$KITCHEN_REL" || KITCHEN="$ROOT/$KITCHEN_REL"
+# Normalise ../ so paths print cleanly and compare reliably.
+if [[ -d "$(dirname "$KITCHEN")" ]]; then
+  KITCHEN="$(cd "$(dirname "$KITCHEN")" && pwd -P)/$(basename "$KITCHEN")"
+fi
+ROOT_REAL="$(cd "$ROOT" && pwd -P)"
 N="${BRIGADE_STATIONS:-$(cfg stations)}"; N="${N:-2}"
 INSTALL="$(cfg install)"
 COPY_FILES="$(cfg copy_into_stations)"
@@ -102,7 +122,7 @@ done
 # ---------------------------------------------------------------------------
 stations() {
   local d
-  for d in "$KITCHEN"/station-*; do [[ -d "$d/.git" ]] && echo "$d"; done
+  for d in "$KITCHEN"/station-*; do [[ -e "$d/.git" ]] && echo "$d"; done
   return 0
 }
 
@@ -133,8 +153,33 @@ claude_cmd() {  # claude_cmd <model>
 ensure_ignored() {  # ensure_ignored <file> <line>
   local file="$1" line="$2"
   [[ -f "$file" ]] && grep -qxF "$line" "$file" && return 1
-  printf '\n# The Brigade: line-cook stations (full clones, never committed)\n%s\n' "$line" >> "$file"
+  printf '\n# The Brigade: line-cook stations (never committed)\n%s\n' "$line" >> "$file"
   return 0
+}
+
+where() {  # where <station> → branch name, or "detached @ <sha>"
+  local b; b=$(git -C "$1" branch --show-current)
+  [[ -n "$b" ]] && printf '%s' "$b" || printf 'detached @ %s' "$(git -C "$1" rev-parse --short HEAD)"
+}
+
+# ignore_kitchen → add the kitchen folder to the .gitignore of whichever repo
+# contains it: this repo (clone mode) or an enclosing workspace repo (a sibling
+# worktree folder inside e.g. a docker/workspace checkout). Outside any repo:
+# nothing to ignore.
+ignore_kitchen() {
+  local parent owner rel
+  parent="$(dirname "$KITCHEN")"
+  owner="$(git -C "$parent" rev-parse --show-toplevel 2>/dev/null || true)"
+  [[ -z "$owner" ]] && return 0
+  owner="$(cd "$owner" && pwd -P)"
+  rel="${KITCHEN#"$owner"/}"
+  if ensure_ignored "$owner/.gitignore" "/$rel/"; then
+    if [[ "$owner" == "$ROOT_REAL" ]]; then echo "  .gitignore: added /$rel/ (commit this)"
+    else echo "  $owner/.gitignore: added /$rel/ (the enclosing repo — commit it there)"; fi
+  fi
+  if [[ "$owner" == "$ROOT_REAL" && -f "$ROOT/.dockerignore" ]] && ensure_ignored "$ROOT/.dockerignore" "$rel/"; then
+    echo "  .dockerignore: added $rel/"
+  fi
 }
 
 changed_files() {  # committed-but-unmerged ∪ working tree, deduped
@@ -157,7 +202,8 @@ cmd_setup() {
 
   Not yet: origin/$TRUNK has no .claude/brigade.md.
 
-  Stations are fresh clones of origin/$TRUNK, so they'd start without the
+  Stations start from origin/$TRUNK (a fresh clone, or a worktree detached
+  there), so they'd start without the
   Brigade setup (config, CLAUDE.md section, docs/ folders). Commit and push
   the setup first, then run this again:
 
@@ -166,25 +212,32 @@ EOF2
     exit 1
   fi
 
-  if ensure_ignored "$ROOT/.gitignore" "/$KITCHEN_REL/"; then
-    echo "  .gitignore: added /$KITCHEN_REL/ (commit this)"
-  fi
-  if [[ -f "$ROOT/.dockerignore" ]] && ensure_ignored "$ROOT/.dockerignore" "$KITCHEN_REL/"; then
-    echo "  .dockerignore: added $KITCHEN_REL/"
-  fi
+  ignore_kitchen
 
   echo ""
-  echo "  Creating $N station(s) of $remote in $KITCHEN_REL/ (trunk: $TRUNK)"
+  if [[ "$MODE" == worktree ]]; then
+    echo "  Creating $N worktree station(s) in $KITCHEN (detached at origin/$TRUNK)"
+  else
+    echo "  Creating $N station(s) of $remote in $KITCHEN_REL/ (trunk: $TRUNK)"
+  fi
   mkdir -p "$KITCHEN"
   local i st f
   for i in $(seq 1 "$N"); do
     st="$KITCHEN/station-$i"
-    if [[ -d "$st/.git" ]]; then
-      echo "  station-$i: exists ($(git -C "$st" branch --show-current)) — left alone"
+    if [[ -e "$st/.git" ]]; then
+      echo "  station-$i: exists ($(where "$st")) — left alone"
       continue
     fi
-    echo "  station-$i: cloning ..."
-    git clone --quiet "$remote" "$st" && git -C "$st" checkout --quiet "$TRUNK" 2>/dev/null || true
+    if [[ "$MODE" == worktree ]]; then
+      # Detached, because trunk is already checked out in the main checkout and
+      # git allows one worktree per branch. The cook branches off origin/<trunk>.
+      echo "  station-$i: adding worktree ..."
+      git -C "$ROOT" worktree add --quiet --detach "$st" "origin/$TRUNK" \
+        || { echo "  station-$i: 'git worktree add' failed — skipped"; continue; }
+    else
+      echo "  station-$i: cloning ..."
+      git clone --quiet "$remote" "$st" && git -C "$st" checkout --quiet "$TRUNK" 2>/dev/null || true
+    fi
 
     for f in $COPY_FILES; do
       [[ -f "$ROOT/$f" && ! -f "$st/$f" ]] && cp "$ROOT/$f" "$st/$f" && echo "  station-$i: copied $f"
@@ -207,10 +260,13 @@ EOF
       echo "  station-$i: permissions seeded (.claude/settings.local.json)"
     fi
     # Keep that file (and the copied env files) out of the station's own status.
-    grep -qxF ".claude/settings.local.json" "$st/.git/info/exclude" 2>/dev/null \
-      || echo ".claude/settings.local.json" >> "$st/.git/info/exclude"
+    # For a worktree this resolves to the shared info/exclude, which also hides
+    # them in the main checkout; both are machine-local files, so that's fine.
+    local excl; excl="$(git -C "$st" rev-parse --path-format=absolute --git-path info/exclude)"
+    mkdir -p "$(dirname "$excl")"
+    grep -qxF ".claude/settings.local.json" "$excl" 2>/dev/null || echo ".claude/settings.local.json" >> "$excl"
     for f in $COPY_FILES; do
-      grep -qxF "$f" "$st/.git/info/exclude" 2>/dev/null || echo "$f" >> "$st/.git/info/exclude"
+      grep -qxF "$f" "$excl" 2>/dev/null || echo "$f" >> "$excl"
     done
 
     if [[ -n "$INSTALL" ]]; then
@@ -229,15 +285,27 @@ EOF
     fi
   done
 
-  cat <<EOF
-
-  Done: $N station(s) in $KITCHEN_REL/.
-
+  echo ""
+  echo "  Done: $N station(s) in $KITCHEN_REL/."
+  echo ""
+  if [[ "$KITCHEN" == "$ROOT_REAL"/* ]]; then
+    cat <<EOF
   ⚠️  Never run 'git clean -fdx' in this repo: -x deletes ignored files,
       which means every station and its uncommitted work.
   ⚠️  Tools that don't read .gitignore will see $KITCHEN_REL/. Exclude it where
       it applies: tsconfig "exclude", test-runner excludes, linter ignores,
       file watchers, pytest norecursedirs.
+EOF
+  fi
+  if [[ "$MODE" == worktree ]]; then
+    cat <<EOF
+  ⚠️  Worktrees share one repo. Stashes are shared too: a cook stashes with
+      'git stash push -m "<station>: …"' and applies only its own, by name.
+  ⚠️  Remove stations with 'kitchen.sh remove', never rm -rf: git keeps a
+      record of every worktree and would be left with stale ones.
+EOF
+  fi
+  cat <<EOF
 
   Next: kitchen.sh open   (then /bk:sous-chef here, /bk:line-cook in each station)
 EOF
@@ -318,20 +386,28 @@ cmd_sync() {
     if [[ -n "$(git -C "$s" status --porcelain)" ]]; then
       echo "  $name: dirty — skipped (a cook may be mid-ticket; ask the sous)"; continue
     fi
-    git -C "$s" fetch --quiet origin "$TRUNK" \
-      && git -C "$s" checkout --quiet "$TRUNK" \
-      && git -C "$s" reset --quiet --hard "origin/$TRUNK" \
-      && echo "  $name: synced to origin/$TRUNK ($(git -C "$s" rev-parse --short HEAD))"
+    if [[ "$MODE" == worktree ]]; then
+      # Trunk is checked out in the main checkout, so an idle worktree sits
+      # detached at origin/<trunk> instead.
+      git -C "$s" fetch --quiet origin "$TRUNK" \
+        && git -C "$s" switch --quiet --detach "origin/$TRUNK" \
+        && echo "  $name: synced, detached at origin/$TRUNK ($(git -C "$s" rev-parse --short HEAD))"
+    else
+      git -C "$s" fetch --quiet origin "$TRUNK" \
+        && git -C "$s" checkout --quiet "$TRUNK" \
+        && git -C "$s" reset --quiet --hard "origin/$TRUNK" \
+        && echo "  $name: synced to origin/$TRUNK ($(git -C "$s" rev-parse --short HEAD))"
+    fi
   done < <(stations)
   $found || echo "No stations in $KITCHEN_REL/."
 }
 
 cmd_status() {
   local s found=false
-  echo ""; echo "Stations ($KITCHEN_REL/, trunk $TRUNK):"
+  echo ""; echo "Stations ($MODE, $KITCHEN_REL/, trunk $TRUNK):"
   while IFS= read -r s; do
     found=true
-    printf '  %-11s %-44s %-6s +%s\n' "$(basename "$s")" "$(git -C "$s" branch --show-current)" \
+    printf '  %-11s %-44s %-6s +%s\n' "$(basename "$s")" "$(where "$s")" \
       "$([[ -n "$(git -C "$s" status --porcelain)" ]] && echo dirty || echo clean)" \
       "$(git -C "$s" rev-list --count "origin/$TRUNK..HEAD" 2>/dev/null || echo '?')"
   done < <(stations)
@@ -351,7 +427,7 @@ cmd_files() {
     found=true
     local files=()
     while IFS= read -r f; do [[ -n "$f" ]] && files+=("$f"); done < <(changed_files "$s")
-    printf '  %-11s %-36s %d file(s)\n' "$(basename "$s")" "$(git -C "$s" branch --show-current)" "${#files[@]}"
+    printf '  %-11s %-36s %d file(s)\n' "$(basename "$s")" "$(where "$s")" "${#files[@]}"
     for f in "${files[@]+"${files[@]}"}"; do
       if [[ -n "$MIGRATIONS" && "$f" == "$MIGRATIONS"/* ]]; then echo "      ⚠️  $f  (UNMERGED MIGRATION)"
       elif [[ "$f" == "$plans"/* && "$(basename "$f")" != INDEX.md ]]; then echo "      $f  (plan)"
@@ -395,10 +471,28 @@ cmd_rail() {
 cmd_remove() {
   [[ -d "$KITCHEN" ]] || { echo "No $KITCHEN_REL/ to remove."; exit 0; }
   cmd_status || true
-  echo ""; echo "This deletes $KITCHEN_REL/ — every station, including unpushed branches and uncommitted work."
+  echo ""
+  if [[ "$MODE" == worktree ]]; then
+    echo "This removes every worktree in $KITCHEN_REL/. Branches and commits stay in the repo;"
+    echo "a station with uncommitted work is refused, not deleted."
+  else
+    echo "This deletes $KITCHEN_REL/ — every station, including unpushed branches and uncommitted work."
+  fi
   read -r -p "Type 'delete' to confirm: " answer
   [[ "$answer" == delete ]] || { echo "Aborted."; exit 1; }
-  rm -rf "$KITCHEN"; echo "Removed."
+  if [[ "$MODE" == worktree ]]; then
+    # git worktree remove refuses a dirty worktree, which is the point: it
+    # would otherwise delete a cook's uncommitted work. Stash or commit first.
+    local s failed=false
+    while IFS= read -r s; do
+      git -C "$ROOT" worktree remove "$s" && echo "  $(basename "$s"): removed" \
+        || { echo "  $(basename "$s"): NOT removed (dirty? commit or stash it first)"; failed=true; }
+    done < <(stations)
+    git -C "$ROOT" worktree prune
+    $failed || { rmdir "$KITCHEN" 2>/dev/null; echo "Removed."; }
+  else
+    rm -rf "$KITCHEN"; echo "Removed."
+  fi
 }
 
 case "$CMD" in

@@ -22,13 +22,13 @@ from the main checkout; it reads the flat keys in `.claude/brigade.md`.
 
 | Command | Does |
 |---|---|
-| `setup [-n N]` | clone N stations into `<kitchen>/station-N`, add `/<kitchen>/` to `.gitignore` (and `.dockerignore` if present), copy `copy_into_stations`, seed a small `settings.local.json`, run `install`. Existing stations are left alone |
+| `setup [-n N]` | create N stations (clones in `stations/`, or worktrees in `../<repo>-stations/` when `kitchen_mode: worktree`), add the ignore line to whichever repo contains them (and `.dockerignore` if present), copy `copy_into_stations`, seed a small `settings.local.json`, run `install`. Existing stations are left alone |
 | `open [-n N] [-m "O S"] [--terminal …]` | open one **bare** `claude` session per station. `-m` takes one model per station in order (O/S/H/F or full names; one value covers all). Terminal defaults to Warp if installed, else tmux, else printed commands |
-| `sync` | reset **clean** stations to `origin/<trunk>`. Dirty ones are skipped: a cook may be mid-ticket |
+| `sync` | reset **clean** stations to `origin/<trunk>` (worktrees: detached there). Dirty ones are skipped: a cook may be mid-ticket |
 | `status` | branch, dirty/clean, commits ahead per station, plus open PRs against trunk |
 | `files` | files in flight per station vs `origin/<trunk>` (committed and uncommitted), plans, and **unmerged migrations** flagged |
 | `rail` | the markdown rail's board, computed from ticket frontmatter; `done` tickets hidden |
-| `remove` | delete every station, after showing status and asking for `delete` |
+| `remove` | delete every station, after showing status and asking for `delete`. Worktree mode uses `git worktree remove`, which refuses a dirty station and keeps every branch |
 
 ## How to run it
 

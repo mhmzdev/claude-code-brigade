@@ -33,7 +33,13 @@ plan in *this* terminal, and merges.
 4. Wait for a `[brief]`. Don't pick work yourself.
 
 If you're dirty from a previous cook, say so in the check-in and do what the brief says:
-finish it or park it (`git stash` with a clear message). Never silently discard it.
+finish it or park it (`git stash push -m "<station>: <what>"`). Never silently discard it.
+
+**In a worktree station** (`git rev-parse --git-common-dir` isn't your own `.git`), two
+things differ. Idle, you sit detached at `origin/<trunk>`, which is normal: trunk is checked
+out in the main checkout. And stashes are shared with every other station, so only ever
+apply your own entry: find it with `git stash list | grep '<station>:'`, then
+`git stash apply stash@{N}` with that entry's number. Never a bare `git stash pop`.
 
 ## Where each question goes
 
