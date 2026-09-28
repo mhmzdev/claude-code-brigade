@@ -1,0 +1,18 @@
+{
+  "name": "claude-code-brigade",
+  "owner": {
+    "name": "Muhammad Hamza",
+    "url": "https://github.com/mhmzdev"
+  },
+  "description": "The Brigade: run a kitchen of Claude Code sessions. A sous chef leads, line cooks work one ticket each in their own station, and you are the head chef.",
+  "metadata": {
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "brigade",
+      "source": "./plugins/brigade",
+      "description": "Sous chef + line cooks over SendMessage, a markdown/GitHub/Jira rail, and the full lifecycle: brainstorm, grill-me, spec, file-tickets, pick-ticket, plan, implement, review, open-pr, clean."
+    }
+  ]
+}

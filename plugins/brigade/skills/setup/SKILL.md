@@ -1,0 +1,145 @@
+---
+name: setup
+description: Set up The Brigade in the current repo, bottom to top — detect trunk, check command, install command and shared resources; ask one round of questions; write .claude/brigade.md; build the markdown rail folders in docs/; add a short "The Brigade" section to CLAUDE.md; gitignore the stations; commit on the human's go; then create the stations. Use when the user says "set up the brigade", "brigade setup", "install the brigade here", "/brigade:setup".
+argument-hint: "(none)"
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, ToolSearch
+disable-model-invocation: true
+---
+
+# /brigade:setup
+
+Honour `${CLAUDE_SKILL_DIR}/../README.md` (the plugin contract). This skill writes the
+per-repo half of the Brigade. The skills themselves stay in the plugin; never copy them in.
+
+## Contents
+
+- [Ground rules](#ground-rules)
+- [1. Preflight](#1-preflight)
+- [2. Read the repo](#2-read-the-repo)
+- [3. One round of questions](#3-one-round-of-questions)
+- [4. Write the config](#4-write-the-config)
+- [5. Build the rail](#5-build-the-rail)
+- [6. The CLAUDE.md section](#6-the-claudemd-section)
+- [7. Show, then commit](#7-show-then-commit)
+- [8. Open the kitchen](#8-open-the-kitchen)
+- [9. First service](#9-first-service)
+
+## Ground rules
+
+- Detect before you ask. Only ask what the repo can't tell you.
+- One round of questions, plain words, recommended answer first.
+- Merge into existing files (`CLAUDE.md`, `.gitignore`, `.claude/settings.json`); never replace them.
+  Show every change to an existing file before writing it.
+- Nothing is committed or pushed until the human says go (step 7).
+- If a step fails, stop and say plainly what failed.
+
+## 1. Preflight
+
+Stop if any of these fail:
+
+1. It's a git repo with an `origin` remote.
+2. The working tree is clean. If not, ask the human to commit or stash first.
+3. `ListAgents` and `SendMessage` load (use `ToolSearch`). Without them the sous and cooks
+   can't talk. Say to update Claude Code.
+4. `.claude/brigade.md` doesn't already exist. If it does, offer to review it instead.
+
+## 2. Read the repo
+
+Note for the summary:
+
+- **Trunk**: the branch PRs target. Recent merged PRs (`gh pr list --state merged --limit 20
+  --json baseRefName`) beat the GitHub default.
+- **Check command**: an existing aggregate in `package.json`, `Makefile`, `justfile`,
+  `pyproject.toml`, `Cargo.toml`, `go.mod`, or CI. None? Propose lint + typecheck + test in
+  this stack's terms.
+- **Install command**, and untracked files a clone needs (`.env`, `.env.local`, …). Names
+  only. Never print their contents.
+- **Walk-in candidates**: `docker-compose*.yml`, a local database, a fixed dev port,
+  seed/reset scripts. For each, its destructive commands and a safe alternative.
+- **Migrations folder**, if any.
+- **Existing trackers**: a GitHub Project on the repo, Jira keys in branches or commits,
+  an existing `docs/` layout for specs or plans.
+- **Tools that don't read `.gitignore`** and would see `stations/`: `tsconfig.json`
+  include globs, test-runner configs, linter configs, `pytest.ini`, `.dockerignore`.
+- **Lane C counters** that fit the stack: knip or ts-prune (JS/TS), vulture (Python),
+  `staticcheck -checks U1000` (Go), `cargo udeps` (Rust), plus a TODO/FIXME count.
+
+## 3. One round of questions
+
+Ask together, skipping any the repo answered (say what you found):
+
+1. **Where should tickets live?** Recommend markdown in `docs/` unless the repo clearly runs
+   on GitHub Projects or Jira. Options: markdown · GitHub Projects · Jira · mixed.
+2. **How many stations?** Recommend 2.
+3. **Is this the check command?**
+4. **Are these the shared resources and their destructive commands?**
+5. **Can the sous commit rail changes straight to trunk?** Recommend yes unless trunk is
+   protected; otherwise one rail PR a day.
+
+## 4. Write the config
+
+Write `.claude/brigade.md` with the shape in Contract 2, filled from steps 2–3. Keep the
+flat keys on one line each: `kitchen.sh` reads them. Put repo-specific notes in the body
+as plain sentences.
+
+Create `.claude/brigade.local.md` (one placeholder line) and add it to `.gitignore`.
+Add `/stations/` to `.gitignore` too (and `stations/` to `.dockerignore` if it exists).
+
+For each tool from step 2 that doesn't read `.gitignore`, propose the one-line exclude and
+apply it once the human agrees. Example: `"exclude": ["stations"]` in `tsconfig.json`.
+
+## 5. Build the rail
+
+Create each folder that doesn't exist yet, with an `INDEX.md` (one-line purpose, then a
+table with one row per file):
+
+- always: `docs/specs/`, `docs/plans/`, `docs/checklists/`, `docs/research/`, `docs/brainstorm/`
+- markdown or mixed-with-markdown-tickets rail: `docs/backlog/`
+
+Names and ids are Contract 4, exactly. Don't create sample tickets here; step 9 offers one.
+
+For a **github** or **jira** rail, check you can read the project (`gh project view <n>
+--owner <o>`, or the Jira MCP/CLI). Record the six statuses → real column/transition
+mapping in the config's body.
+
+## 6. The CLAUDE.md section
+
+Append (create the file if needed). Keep it this short; the detail lives in the plugin.
+
+```markdown
+## The Brigade
+
+This repo can run several Claude Code sessions at once. Config: `.claude/brigade.md`.
+
+- **Head Chef** (the human) signs off plans, merges, deploys. **Sous Chef**
+  (`/brigade:sous-chef`, in this checkout) assigns tickets, answers routine questions,
+  reviews every diff before commit, and is the **only session that writes the rail**.
+  **Line Cooks** (`/brigade:line-cook`) work one ticket each in `stations/station-N`.
+- **The rail is the claim.** A ticket not in `backlog` or `blocked` belongs to someone.
+  Cooks ask the sous to change a ticket; they never edit ticket files.
+- **Ask before touching the walk-in** (`walk_in:` in the config). One migration in flight at a time.
+- **One ticket per session.** Pull trunk into your branch before opening a PR, and re-run the check.
+- **Never `git clean -fdx` here**: `stations/` is ignored, so `-x` deletes every station.
+```
+
+## 7. Show, then commit
+
+Show: every file created or changed, the config values, anything you couldn't detect.
+Wait for the human's go. Then commit on trunk (or a `brigade-setup` branch if trunk is
+protected) as `chore: set up The Brigade`, and push.
+
+## 8. Open the kitchen
+
+Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" setup` and relay its output, including both
+warnings. Then tell the human how to start:
+
+1. `kitchen.sh open` (or open one terminal per station by hand).
+2. Here: `/brigade:sous-chef`. In each station: `/brigade:line-cook`.
+3. Tell the sous which ticket to fire, or ask it to propose one per lane.
+
+And the one-line reminder: the sous never merges or deploys.
+
+## 9. First service
+
+Offer to fire one small demo ticket through `/brigade:rail fire`: a real but harmless fix
+you noticed while reading the repo. Print the rail afterwards with `kitchen.sh rail`.

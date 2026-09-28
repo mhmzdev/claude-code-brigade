@@ -1,0 +1,51 @@
+---
+name: kitchen
+description: Manage the Brigade's stations — the gitignored full clones under stations/ where line cooks work. Create them, open one bare Claude session per station (Warp, tmux, or printed commands), sync clean ones to trunk, and print the status, files-in-flight and rail boards the sous chef reads. Use when the user says "set up stations", "open the kitchen", "open the line cooks", "station status", "what's in flight", "show the rail", "/brigade:kitchen".
+argument-hint: "setup [-n N] | open [-n N] [-m \"O S\"] [--terminal warp|tmux|print] | sync | status | files | rail | remove"
+allowed-tools: Bash, Read
+---
+
+# /brigade:kitchen
+
+Honour `${CLAUDE_SKILL_DIR}/../README.md` (the plugin contract), especially Contract 8 (stations).
+
+This skill is a thin wrapper around one script: **`${CLAUDE_SKILL_DIR}/kitchen.sh`**. Run it
+from the main checkout; it reads the flat keys in `.claude/brigade.md`.
+
+## Contents
+
+- [Subcommands](#subcommands)
+- [How to run it](#how-to-run-it)
+- [Rules](#rules)
+
+## Subcommands
+
+| Command | Does |
+|---|---|
+| `setup [-n N]` | clone N stations into `<kitchen>/station-N`, add `/<kitchen>/` to `.gitignore` (and `.dockerignore` if present), copy `copy_into_stations`, seed a small `settings.local.json`, run `install`. Existing stations are left alone |
+| `open [-n N] [-m "O S"] [--terminal …]` | open one **bare** `claude` session per station. `-m` takes one model per station in order (O/S/H/F or full names; one value covers all). Terminal defaults to Warp if installed, else tmux, else printed commands |
+| `sync` | reset **clean** stations to `origin/<trunk>`. Dirty ones are skipped: a cook may be mid-ticket |
+| `status` | branch, dirty/clean, commits ahead per station, plus open PRs against trunk |
+| `files` | files in flight per station vs `origin/<trunk>` (committed and uncommitted), plans, and **unmerged migrations** flagged |
+| `rail` | the markdown rail's board, computed from ticket frontmatter; `done` tickets hidden |
+| `remove` | delete every station, after showing status and asking for `delete` |
+
+## How to run it
+
+```bash
+"${CLAUDE_SKILL_DIR}/kitchen.sh" <subcommand> [flags]
+```
+
+Show the user the script's output as it is; don't reformat the boards into prose. For
+`setup`, relay the two warnings it prints (`git clean -fdx`, and tools that don't read
+`.gitignore`) and tell the user to commit the `.gitignore` change.
+
+`setup` and `remove` change the machine. Run `setup` when asked. Run `remove` only when
+the user asks for it by name; the script's own prompt is theirs to answer.
+
+## Rules
+
+- The script never assigns work. Sessions open bare and wait for the sous chef's `[brief]`.
+- Never run `sync` to "clean up" a dirty station: dirty is a cook's work in progress.
+- Every session must run under the same `CLAUDE_CONFIG_DIR` as the sous, or `ListAgents`
+  won't see it. `open` passes the current one through.
