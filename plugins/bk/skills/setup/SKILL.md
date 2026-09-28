@@ -1,7 +1,7 @@
 ---
 name: setup
 description: Set up The Brigade in the current repo, bottom to top — detect trunk, check command, install command and shared resources; ask one round of questions; write .claude/brigade.md; build the markdown rail folders in docs/; add a short "The Brigade" section to CLAUDE.md; gitignore the stations; commit on the human's go; then create the stations. Use when the user says "set up the brigade", "brigade setup", "install the brigade here", "/bk:setup".
-argument-hint: "(none)"
+argument-hint: "[--worktree | --clone]"
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, ToolSearch
 disable-model-invocation: true
 ---
@@ -13,6 +13,7 @@ per-repo half of the Brigade. The skills themselves stay in the plugin; never co
 
 ## Contents
 
+- [Flags](#flags)
 - [Ground rules](#ground-rules)
 - [1. Preflight](#1-preflight)
 - [2. Read the repo](#2-read-the-repo)
@@ -23,6 +24,19 @@ per-repo half of the Brigade. The skills themselves stay in the plugin; never co
 - [7. Show, then commit](#7-show-then-commit)
 - [8. Open the kitchen](#8-open-the-kitchen)
 - [9. First service](#9-first-service)
+
+## Flags
+
+| Flag | Effect |
+|---|---|
+| *(none)* | detect the kitchen mode in step 2 and recommend it in step 3 |
+| `--worktree` | use worktree stations in `../<repo>-stations/`; step 3 asks only how many |
+| `--clone` | use clone stations in `stations/`; step 3 asks only how many |
+
+Passing both is an error: say so and stop. A flag settles the mode, so don't argue with it.
+If `--clone` goes against what step 2 finds (a workspace-nested or very large repo), say so
+in one line in the summary, with the reason (e.g. "3 full clones of a 7 GB repo"), and
+carry on.
 
 ## Ground rules
 
@@ -42,6 +56,24 @@ Stop if any of these fail:
 3. `ListAgents` and `SendMessage` load (use `ToolSearch`). Without them the sous and cooks
    can't talk. Say to update Claude Code.
 4. `.claude/brigade.md` doesn't already exist. If it does, offer to review it instead.
+5. **This isn't a workspace root.** A workspace root is a repo that holds other repos as
+   gitignored folders (one checkout with several product repos inside it). A station can't
+   be made of it: a clone of the workspace contains none of the repos inside it. Find
+   nested repos with:
+
+   ```bash
+   find . -mindepth 2 -maxdepth 3 -name .git -not -path './stations/*' -not -path './.git/*' \
+     | sed 's#^\./##; s#/\.git$##' \
+     | while read -r d; do
+         grep -qsF "path = $d" .gitmodules && continue   # submodules are fine
+         git check-ignore -q "$d" && echo "$d"            # an ignored nested repo
+       done
+   ```
+
+   If it prints anything, **stop**, whatever flag was passed. Say, in plain words: *"This
+   looks like a workspace: it holds N repos (list up to five). The Brigade runs one
+   kitchen per product repo. `cd` into the repo you want to work on and run `/bk:setup`
+   there; it will recommend worktree stations next to it."* Don't write any files.
 
 ## 2. Read the repo
 
@@ -59,8 +91,8 @@ Note for the summary:
 - **Migrations folder**, if any.
 - **Existing trackers**: a GitHub Project on the repo, Jira keys in branches or commits,
   an existing `docs/` layout for specs or plans.
-- **Which kitchen mode fits** (Contract 8). Recommend **`worktree`** when either is true,
-  else **`clone`**:
+- **Which kitchen mode fits** (Contract 8), unless a flag already settled it. Recommend
+  **`worktree`** when either is true, else **`clone`**:
   - the repo sits inside another git repo (`git -C .. rev-parse --show-toplevel` succeeds):
     a workspace checkout that holds several repos;
   - the checkout is big (`du -sh .git` over ~1 GB): N full clones would cost N copies.
@@ -75,7 +107,8 @@ Ask together, skipping any the repo answered (say what you found):
 
 1. **Where should tickets live?** Recommend markdown in `docs/` unless the repo clearly runs
    on GitHub Projects or Jira. Options: markdown · GitHub Projects · Jira · mixed.
-2. **How many stations, and which kind?** Recommend 2, and the mode from step 2 with its
+2. **How many stations, and which kind?** (With a flag, ask only how many.) Recommend 2,
+   and the mode from step 2 with its
    one-line reason: *clones inside the repo* (simplest) or *worktrees in
    `../<repo>-stations/`* (shared history; for workspaces and big repos).
 3. **Is this the check command?**

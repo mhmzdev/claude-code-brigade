@@ -348,7 +348,7 @@ Every chat reply is read by one busy human.
 
 | Skill | Lane | Does |
 |---|---|---|
-| `/bk:setup` | — | set up the Brigade in a repo: config, rail folders, `CLAUDE.md` section |
+| `/bk:setup [--worktree \| --clone]` | — | set up the Brigade in a repo: config, rail folders, `CLAUDE.md` section. Refuses a workspace root |
 | `/bk:kitchen` | — | stations: setup, open, sync, status, files, rail board |
 | `/bk:sous-chef` | — | take the lead role for the rest of the session |
 | `/bk:line-cook` | — | take a station's worker role for the rest of the session |

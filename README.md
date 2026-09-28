@@ -101,8 +101,14 @@ same `CLAUDE_CONFIG_DIR`.
 At the repo root, with a clean working tree:
 
 ```
-/bk:setup
+/bk:setup               # detects the station kind and recommends it
+/bk:setup --worktree    # or pick it yourself: worktrees next to the repo
+/bk:setup --clone       #                      clones inside the repo
 ```
+
+Run it **inside the product repo** you want to work on. In a workspace that holds several
+repos, `cd` into one of them first. Setup refuses a workspace root, because a station
+cloned from it would contain none of the repos inside it.
 
 It reads the repo, asks one round of questions, and writes:
 
@@ -140,7 +146,7 @@ per station. Worktrees handle it: `sastaticket-mobile-app/` keeps its stations i
 
 Two worktree habits: stashes are shared between stations (stash with
 `-m "<station>: …"` and apply only your own), and remove stations with
-`/bk:kitchen remove`, never `rm -rf`. `/bk:setup` recommends the mode for you.
+`/bk:kitchen remove`, never `rm -rf`. `/bk:setup` recommends the mode for you, or pass `--worktree` / `--clone`.
 
 ## Run a service
 
