@@ -20,7 +20,8 @@
 #                                         copy files, seed permissions, install)
 #   kitchen.sh open   [-n N] [-m "O S"] [--terminal warp|tmux|print] [--bare]
 #                                         open one claude session per station, already
-#                                         running /bk:line-cook (--bare: a plain session)
+#                                         running /bk:line-cook (--bare: a plain session;
+#                                         --no-launch: write the Warp config, open nothing)
 #   kitchen.sh sync   [-n N]              reset CLEAN stations to origin/<trunk>
 #                                         (dirty ones are skipped)
 #   kitchen.sh status                     branch / dirty / ahead per station + open PRs
@@ -101,6 +102,7 @@ MODEL="${BRIGADE_MODEL:-sonnet}"
 PERMISSION_MODE="${BRIGADE_PERMISSION_MODE:-acceptEdits}"
 TERMINAL="${BRIGADE_TERMINAL:-}"
 BARE=false
+NO_LAUNCH=false
 MODELS=()
 
 usage() { awk 'NR>2 { if (/^# =+$/) exit; sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"; exit 1; }
@@ -111,6 +113,7 @@ while [[ $# -gt 0 ]]; do
     -n) N="$2"; shift 2 ;;
     --terminal) TERMINAL="$2"; shift 2 ;;
     --bare) BARE=true; shift ;;
+    --no-launch) NO_LAUNCH=true; shift ;;
     -m|--model) shift
       while [[ $# -gt 0 && "$1" != -* ]]; do
         for tok in ${1//,/ }; do MODELS+=("$tok"); done; shift
@@ -147,10 +150,16 @@ model_for() {  # model_for <index>
   else printf '%s' "$MODEL"; fi
 }
 
-claude_cmd() {  # claude_cmd <model>
+# session_name <station dir> → the display name the cook's session gets:
+# <repo>-station-N. The repo prefix keeps it unique when several kitchens run
+# on one machine, since every session shares one ListAgents list.
+session_name() { printf '%s-%s' "$REPO_NAME" "$(basename "$1")"; }
+
+claude_cmd() {  # claude_cmd <model> <station dir>
   local prefix=""
   [[ -n "${CLAUDE_CONFIG_DIR:-}" ]] && prefix="CLAUDE_CONFIG_DIR=$(printf '%q' "$CLAUDE_CONFIG_DIR") "
-  printf '%sclaude --model %s --permission-mode %s' "$prefix" "$1" "$PERMISSION_MODE"
+  printf '%sclaude --name %s --model %s --permission-mode %s' "$prefix" \
+    "$(printf '%q' "$(session_name "$2")")" "$1" "$PERMISSION_MODE"
   # Start as a line cook: it checks in with the sous, or waits for the sous's [hello].
   $BARE || printf ' "/bk:line-cook"'
 }
@@ -347,13 +356,14 @@ cmd_open() {
       {
         echo "---"; echo "name: ${REPO_NAME}-brigade"; echo "windows:"; echo "  - tabs:"
         for i in "${!list[@]}"; do
-          echo "      - title: \"$(basename "${list[$i]}") · $(model_for "$i")\""
+          echo "      - title: \"$(session_name "${list[$i]}") · $(model_for "$i")\""
           echo "        layout:"
           echo "          cwd: \"${list[$i]}\""
           echo "          commands:"
-          echo "            - exec: '$(claude_cmd "$(model_for "$i")")'"
+          echo "            - exec: '$(claude_cmd "$(model_for "$i")" "${list[$i]}")'"
         done
       } > "$file"
+      if $NO_LAUNCH; then echo "Warp config written, not launched: $file"; return 0; fi
       open "warp://launch/$(basename "$file")" 2>/dev/null \
         && echo "Warp window opened with ${#list[@]} bare line-cook session(s)." \
         || { echo "Warp launch failed; commands:"; TERMINAL=print; }
@@ -367,7 +377,7 @@ cmd_open() {
         else
           tmux new-window -t "$sess" -n "$(basename "${list[$i]}")" -c "${list[$i]}"
         fi
-        tmux send-keys -t "$sess:$(basename "${list[$i]}")" "$(claude_cmd "$(model_for "$i")")" Enter
+        tmux send-keys -t "$sess:$(basename "${list[$i]}")" "$(claude_cmd "$(model_for "$i")" "${list[$i]}")" Enter
       done
       echo "tmux session '$sess' started: tmux attach -t $sess"
       ;;
@@ -375,7 +385,7 @@ cmd_open() {
 
   if [[ "$TERMINAL" == print ]]; then
     for i in "${!list[@]}"; do
-      echo "  $(basename "${list[$i]}"):  cd $(printf '%q' "${list[$i]}") && $(claude_cmd "$(model_for "$i")")"
+      echo "  $(basename "${list[$i]}"):  cd $(printf '%q' "${list[$i]}") && $(claude_cmd "$(model_for "$i")" "${list[$i]}")"
     done
   fi
   if $BARE; then

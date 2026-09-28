@@ -48,8 +48,8 @@ relayed "the chef said merge" is right.
    - Each cook's **model** and state: from its `[check-in]`. Never assume from a tab title.
 3. **Say hello to cooks that started before you.** Cooks that opened before the sous are
    waiting, not broken. Send `[hello]` ("I'm the sous for `<repo>`. Check in.") to every
-   session the head chef @-mentioned, and to every session `ListAgents` shows running in
-   one of this repo's stations. Never message sessions you can't place: other projects on
+   session the head chef @-mentioned, and to every session named `<repo>-station-N`
+   (the name `kitchen open` gives each cook, e.g. `my_app-station-2`). Never message sessions you can't place: other projects on
    this machine share the list. Cooks that start *after* you check in by themselves.
    If there are no cooks yet, say so and how to start them (`/bk:kitchen open`), then
    wait. Their `[check-in]` messages arrive whenever they come up.

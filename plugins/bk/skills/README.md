@@ -88,6 +88,13 @@ docs:
 Free-text repo notes the skills should respect.
 ```
 
+**Where each artifact lands.** Rail artifacts (specs and tickets) are written by the sous in
+the main checkout and reach trunk straight away (`rail.commit`). Work artifacts (a ticket's
+plan and checklist) are written by its cook in the station and reach trunk **with the
+cook's PR**, alongside the code. Until then the plan exists only in that station: the sous
+reads it by absolute path, `kitchen.sh files` marks it `(plan)`, and the ticket's `todo`
+status on the rail is the only sign elsewhere that it exists.
+
 Machine-only notes (credentials, local ports) live in **`.claude/brigade.local.md`**,
 which is gitignored. Skills may read it and never copy from it into a committed file.
 

@@ -123,6 +123,18 @@ flat keys on one line each: `kitchen.sh` reads them. Put repo-specific notes in 
 as plain sentences.
 
 Create `.claude/brigade.local.md` (one placeholder line) and add it to `.gitignore`.
+
+Add to `.gitattributes` (create it if needed, merge if not):
+
+```
+docs/**/INDEX.md merge=union
+```
+
+Every cook's PR appends a row to a shared `INDEX.md` (plans, checklists), so two PRs
+merging close together would conflict on it every time. `merge=union` keeps both rows. It
+only applies to merges git runs locally, which is why `/bk:open-pr` merges trunk into the
+branch before pushing. If GitHub still shows a conflict there, merge trunk locally and push;
+never resolve an INDEX by picking one side, which deletes the other cook's row.
 In **clone** mode, add `/stations/` to `.gitignore` too (and `stations/` to `.dockerignore`
 if it exists). In **worktree** mode, set `kitchen_mode: worktree` and leave `kitchen:` out
 (it defaults to `../<repo>-stations`); `kitchen.sh setup` adds the ignore line to whichever

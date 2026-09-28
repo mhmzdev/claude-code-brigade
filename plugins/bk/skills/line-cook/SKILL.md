@@ -24,9 +24,10 @@ plan in *this* terminal, and merges.
 
 ## Check in
 
-1. Load `ListAgents` and `SendMessage` with `ToolSearch` if they're deferred. Find the sous:
-   the session named in the invocation, or the one running in the main checkout (the
-   repo that owns this station).
+1. Load `ListAgents` and `SendMessage` with `ToolSearch` if they're deferred. Your own name,
+   if `kitchen open` started you, is `<repo>-station-N`. Find the sous: the session named
+   in the invocation, else the one running in the main checkout (the repo that owns this
+   station). Not sure which one it is? Don't guess: wait for its `[hello]`.
 2. Look at your station: `pwd`, `git branch --show-current`, `git status --short`.
 3. **Sous found:** send `[check-in]` with your station name, your model, branch, clean or
    dirty (and what's dirty), and any ticket you're already on.

@@ -155,6 +155,14 @@ Two worktree habits: stashes are shared between stations (stash with
    `/bk:line-cook`**, finds the sous and checks in. There's nothing to type in the stations.
 3. Tell the sous which ticket to fire, or ask it to propose one per lane.
 
+A cook's plan and checklist are written in its station and reach trunk with its PR, not
+before. Specs and tickets are written by the sous in the main checkout and reach trunk
+straight away.
+
+**Cook names.** `kitchen open` names each session `<repo>-station-N` (Claude Code's
+`--name`), e.g. `my_app-station-2`: that's the name in the terminal title, in `/resume`,
+and in the sous's session list. The repo prefix keeps two kitchens on one machine apart.
+
 **The start order doesn't matter.** A cook that comes up before the sous says it's waiting;
 when the sous starts it sends `[hello]` to cooks in its stations, and they check in. Prefer
 plain sessions? `kitchen open --bare`, then name them to the sous (`/bk:sous-chef @one @two`);
