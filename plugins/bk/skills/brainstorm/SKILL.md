@@ -12,7 +12,7 @@ Honour the plugin contract: the `README.md` in this skill's parent folder, `${CL
 Pin down **WHAT** to build and **WHY**. Never HOW: no file lists, no phases, no code. Those belong to `/bk:create-plan`. This is the first stop of lane A:
 
 ```
-brainstorm → grill-me → spec → file-tickets → create-plan → implement → review → open-pr
+brainstorm → grill-me → spec → file-tickets → create-plan → implement → review-task → open-pr
 ```
 
 ## Contents

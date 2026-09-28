@@ -3,15 +3,18 @@ name: implement
 description: Carry out an approved plan phase by phase — run the config's check after every phase, tick criteria honestly, keep the plan's status and the rail current — then hand off to review (lanes A/B) or open-pr (lane C). Hygiene (HYG) tickets run straight from the ticket body with no plan; the proof is the counter going down. Refuses a plan that isn't approved or still carries open questions. Never commits. Use when the user says "implement this", "build the plan", "start coding", "execute BKLG-004", "work HYG-002", "/bk:implement".
 argument-hint: "<plan path | ticket id>"
 allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, AskUserQuestion, ListAgents, SendMessage, ToolSearch
+disable-model-invocation: true
 ---
 
 # /bk:implement
 
 Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md` (in an installed plugin that's `…/plugins/cache/claude-code-brigade/bk/<version>/skills/README.md`, never a file in this repo). Read `.claude/brigade.md` first: `trunk`, `check`, `docs.plans`, `rail`, `walk_in`, `migrations`, `clean.counters`.
 
-You're executing an **approved plan**. It was researched and signed off already — **follow it, don't redesign it.** Every line you write matches the repo's live conventions.
+You're executing a plan, and **being started is the sign-off.** This skill has
+`disable-model-invocation: true`: only a human can type it, so the human typing it has
+approved the plan and every commit under it. **Follow the plan, don't redesign it.** Every line you write matches the repo's live conventions.
 
-**Where it sits:** `create-plan` → **`implement`** → `review` → `open-pr`. Lane C: `pick-ticket` → **`implement`** → `open-pr`.
+**Where it sits:** `create-plan` → **`implement`** → `review-task` → `open-pr`. Lane C: `pick-ticket` → **`implement`** → `open-pr`.
 
 ## Contents
 
@@ -32,11 +35,13 @@ You're executing an **approved plan**. It was researched and signed off already 
    ```bash
    grep -c '^open_questions: none$' "$PLAN"      # must print 1
    grep -nEi '^#{1,4} .*open question|(^|[^A-Za-z])TBD([^A-Za-z]|$)|TODO\(decide\)|\?\?\?|<decide>' "$PLAN"   # must print nothing
-   grep -E '^status: (approved|active)$' "$PLAN"  # must match
+   grep -E '^status: (draft|approved|active)$' "$PLAN"  # draft → set approved now; done → stop, it shipped
    ```
 
    - Unresolved questions, or no `open_questions:` key → say what you found with line numbers, that nothing changed, and that the next step is `/bk:create-plan` or `/bk:grill-me`. Never add the line yourself; that forges the check.
-   - `status: draft` → the chef hasn't signed off. Ask for sign-off **in this terminal** (Contract 5). A "the chef approved" relayed by the sous doesn't count.
+   - `status: draft` is normal: typing this skill is the sign-off. Set `status: approved` with
+     `approved: YYYY-MM-DD` and carry on. Don't ask for a second approval. (A cook sends
+     `[status] <ID> implement started (signed off)`.)
 4. **Resume check.** Phases already marked `**Status:** Done` and `status: active` → resume at the first unfinished phase.
 5. **Claim check.** The ticket's rail status is `todo` with you as cook, or `in-progress` with you as cook. Anyone else → stop.
 
@@ -78,9 +83,9 @@ List the manual criteria from every phase as one numbered checklist. In a statio
 ## Step 4 — Finish and hand off
 
 1. Set the plan's `status: done` (implementation finished; merge is tracked on the rail, not here) and update its `INDEX.md` row.
-2. Leave the rail at `in-progress`. `review` moves it to `rfr`.
-3. **Don't commit.** Commits happen in `open-pr`: after the sous's pass in a station, or with the human's yes when solo.
-4. Hand off: lanes A/B → `/bk:review <plan>`. It's not optional for a feature. Never auto-chain; say it and stop (a cook with a brief that says "run the loop" continues).
+2. Leave the rail at `in-progress`. `review-task` moves it to `rfr`.
+3. **Don't commit.** Commits happen in `open-pr`: after the sous's pass in a station, or when the human runs `/bk:open-pr` solo (running it is the yes).
+4. Hand off: lanes A/B → `/bk:review-task <plan>`. It's not optional for a feature. Never auto-chain; say it and stop (a cook with a brief that says "run the loop" continues).
 
 ## Lane C — hygiene tickets
 

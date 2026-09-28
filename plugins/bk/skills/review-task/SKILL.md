@@ -1,17 +1,22 @@
 ---
-name: review
-description: Close a ticket's inner loop before anything is committed. Runs the inspector on the branch diff, derives the acceptance checklist from intent (ticket + plan) plus the diff, proves each criterion at the cheapest honest layer ([x] passing test or file:line read, [?] runtime proof still owed, [!] fails or missing), writes docs/checklists/<id>-<slug>.md with its INDEX row, and moves the ticket to rfr. In a line-cook session it ends with a [handoff] to the sous chef and waits for [go]. Use when the user says "review this", "is this done", "acceptance checklist", "verify the ticket", "check what we built", "/bk:review".
+name: review-task
+description: Close a ticket's inner loop before anything is committed. Runs the inspector on the branch diff, derives the acceptance checklist from intent (ticket + plan) plus the diff, proves each criterion at the cheapest honest layer ([x] passing test or file:line read, [?] runtime proof still owed, [!] fails or missing), writes docs/checklists/<id>-<slug>.md with its INDEX row, and moves the ticket to rfr. In a line-cook session it ends with a [handoff] to the sous chef and waits for [go]. Use when the user says "review this", "is this done", "acceptance checklist", "verify the ticket", "check what we built", "/bk:review-task".
 argument-hint: "[<ticket id> | <plan path> | free-text intent] [--no-inspector]"
 allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, SendMessage, ListAgents, ToolSearch
 ---
 
-# /bk:review — the checklist, then the pass
+# /bk:review-task — the checklist, then the pass
 
 Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md` (in an installed plugin that's `…/plugins/cache/claude-code-brigade/bk/<version>/skills/README.md`, never a file in this repo). Read `.claude/brigade.md` first.
 
 Position: `… → implement → **review** → open-pr`. Lane C skips this skill (Contract 9); its proof is the counter moving.
 
 The checklist's real job is an **omission check**: after the work exists, say what must now be true, and find what is missing. Reading code proves absence well ("no guard exists on this route" is a fact). It proves presence badly: an `[x]` that cites a line is the author's hypothesis. So a passing test outranks a static read.
+
+**Invoking this skill is the go** (Contract 5). Derive, verify and write the checklist in
+one pass; don't ask whether to write it, or which criteria to include. Stop only when a
+criterion can't be verified from here and genuinely needs a human's eyes, and then say
+exactly what to look at.
 
 ## Contents
 

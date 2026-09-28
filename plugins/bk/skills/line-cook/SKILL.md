@@ -25,12 +25,19 @@ plan in *this* terminal, and merges.
 ## Check in
 
 1. Load `ListAgents` and `SendMessage` with `ToolSearch` if they're deferred. Find the sous:
-   the session named in the invocation, or the one running in the main checkout (this
-   station's `../..`).
+   the session named in the invocation, or the one running in the main checkout (the
+   repo that owns this station).
 2. Look at your station: `pwd`, `git branch --show-current`, `git status --short`.
-3. Send `[check-in]` with: your station name, your model, branch, clean or dirty (and what's
-   dirty), and any ticket you're already on.
+3. **Sous found:** send `[check-in]` with your station name, your model, branch, clean or
+   dirty (and what's dirty), and any ticket you're already on.
+   **No sous yet:** that's fine; the order sessions start in doesn't matter. Say in one
+   line *"No sous chef running yet. I'll check in when it says hello."* and stop. When a
+   `[hello]` arrives, send the `[check-in]` then.
 4. Wait for a `[brief]`. Don't pick work yourself.
+
+A `[brief]` or `[hello]` can reach a session that was opened bare, without this skill. The
+brief says it's a line-cook lane: treat that as having run `/bk:line-cook`, and follow this
+skill from step 2.
 
 If you're dirty from a previous cook, say so in the check-in and do what the brief says:
 finish it or park it (`git stash push -m "<station>: <what>"`). Never silently discard it.
@@ -46,7 +53,7 @@ apply your own entry: find it with `git stash list | grep '<station>:'`, then
 | Question | Goes to |
 |---|---|
 | Design fork that needs the head chef, a contradiction between ticket and code, anything needing `/bk:grill-me`, or something the sous said it can't answer | **head chef**, via `AskUserQuestion`, here |
-| Plan sign-off | **head chef**, here |
+| Plan sign-off | **head chef**, by typing `/bk:implement` here. You never start it yourself; you can't |
 | Every other confirmation a skill asks for ("confirm scope?", "continue?", "which helper?") | **sous**, as `[gate]` with your recommendation, then wait |
 | Changing a ticket's status or content | **sous**, as `[rail]` |
 | A destructive command on a `walk_in:` resource | **sous**, as `[walk-in]`, then wait |
@@ -60,12 +67,13 @@ routine `AskUserQuestion` would just stall your station.
 1. **Branch**: `git fetch origin && git switch -c <lowercase id>-<slug> origin/<trunk>`.
 2. **`/bk:pick-ticket <path or id>`**: context and staleness. Claiming means sending
    `[rail] claim <ID> todo`.
-3. **`/bk:create-plan`**: write the plan. Forks go where the table says. The head chef signs
-   off here. That sign-off authorises every commit you'll make under this plan.
-4. **`/bk:implement`**: straight through, `check` after every phase. Send
-   `[rail] <ID> → in-progress` when you start.
+3. **`/bk:create-plan`**: write the plan and present it. Forks go where the table says. Then
+   **stop** and send `[status] <ID> plan ready: <path>`. Don't ask "does this look right?".
+4. **The head chef types `/bk:implement`** here. That is the sign-off, and it authorises every
+   commit you'll make under this plan. It runs straight through, `check` after every phase,
+   with no "go on to phase 2?". Send `[rail] <ID> → in-progress` when it starts.
 5. **`/bk:clean check`**: fix what the inspector finds, re-run until clean.
-6. **`/bk:review`**: the checklist, and `[rail] <ID> → rfr`.
+6. **`/bk:review-task`**: the checklist, and `[rail] <ID> → rfr`.
 7. **`[handoff]`** to the sous: branch, files changed, `check` result, inspector result,
    checklist path. **Don't commit.** Wait.
 8. On `[findings]`: fix each numbered item, re-run `check`, hand off again.

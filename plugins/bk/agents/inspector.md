@@ -1,6 +1,6 @@
 ---
 name: inspector
-description: Report-only sub-agent — the Brigade's health inspector. Reviews a supplied branch diff for additions a reviewer would reject, using the repo's own "what not to add" list when it has one, else a bundled list, plus dead-code findings scoped to the diff. Holds no tool that can write. Invoked by /bk:clean check and /bk:review.
+description: Report-only sub-agent — the Brigade's health inspector. Reviews a supplied branch diff for additions a reviewer would reject, using the repo's own "what not to add" list when it has one, else a bundled list, plus dead-code findings scoped to the diff. Holds no tool that can write. Invoked by /bk:clean check and /bk:review-task.
 tools: Read, Grep, Glob
 model: sonnet
 maxTurns: 20

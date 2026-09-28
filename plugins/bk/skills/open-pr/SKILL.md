@@ -9,11 +9,15 @@ allowed-tools: Read, Grep, Glob, Bash, SendMessage, ListAgents, ToolSearch
 
 Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md` (in an installed plugin that's `…/plugins/cache/claude-code-brigade/bk/<version>/skills/README.md`, never a file in this repo). Read `.claude/brigade.md` first.
 
-Position: `… → review → **open-pr**`. For lane C it follows `implement` directly.
+Position: `… → review-task → **open-pr**`. For lane C it follows `implement` directly.
 
 **Typing this skill is the go-ahead** to commit, push and open the PR. Don't ask again. Present the plan so the human can correct it as it scrolls past, and stop only on a real fork (listed below).
 
-**Line cook:** run this only after the sous has sent `[go]` for this ticket. No `[go]` in this session → stop and send `[handoff]` via `/bk:review` instead.
+**Line cook:** run this only after the sous has sent `[go]` for this ticket. No `[go]` in this session → stop and send `[handoff]` via `/bk:review-task` instead.
+
+**Invoking this skill is the go** (Contract 5): commit, bring trunk in, re-check, push and
+open the PR without asking again. It stops only for what's listed under "Stop and ask only
+for". For a cook, the prerequisite is the sous's `[go]`; that's the pass, not a question.
 
 ## Contents
 
@@ -67,7 +71,7 @@ git merge origin/<trunk>
 
 - A merge conflict in an `INDEX.md` table → keep **both** rows. `--ours`/`--theirs` deletes another station's entry.
 - Any other conflict → stop and ask (cook: `[gate]` to the sous).
-- A red check → stop. Fix it, re-run `/bk:review` for anything it touched, and don't push red.
+- A red check → stop. Fix it, re-run `/bk:review-task` for anything it touched, and don't push red.
 
 ## 5 — Title and body
 
@@ -134,5 +138,5 @@ The PR URL, title, base, created or updated, every Deploy prerequisite repeated 
 - `git push --force` in any form, a push to trunk, `reset --hard`, a stash without `-u`.
 - A second PR for a branch that already has one open.
 - An approval-sounding line ("LGTM", "ready to merge"). That's the reviewer's call.
-- A board or rail change from here. `review` owns `rfr`; the merge owns `done`.
+- A board or rail change from here. `review-task` owns `rfr`; the merge owns `done`.
 - Merging. Only the head chef merges.

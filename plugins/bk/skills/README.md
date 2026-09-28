@@ -199,11 +199,23 @@ Research that's worth keeping goes to `docs/research/YYYY-MM-DD-<slug>.md`.
 
 ## Contract 5 — Gates: who answers each stop
 
-Every lifecycle skill pauses at decisions. **Who** answers depends on where it runs.
+**Invoking a skill is the approval for that skill's whole job.** `/bk:create-plan` doesn't
+ask "does this look right?" before or after writing: being asked to plan was the go. It
+presents the plan and stops. `/bk:implement` doesn't ask "phase 1 done, go on?": it runs
+every phase. `/bk:review-task` and `/bk:open-pr` do their whole job. A skill stops only
+for a **decision** it can't settle from the ticket, the plan or the code (a design fork, a
+contradiction, a failure it can't fix), never for ceremony.
+
+**The chef's sign-off is typing `/bk:implement`.** `implement` is the one skill with
+`disable-model-invocation: true`, so only a human can start it; a cook can't chain into it
+by itself. Typing it, in the cook's own terminal, approves the plan and authorises every
+commit made under it (after the sous's pass). No separate "approve?" question exists.
+
+**Who** answers a decision depends on where the skill runs.
 
 | Gate | Solo session | Line cook |
 |---|---|---|
-| Plan approval (the **chef's sign-off**) | human | **human, in the cook's own terminal**. This approval authorises every commit made under that plan |
+| Plan approval (the **chef's sign-off**) | human types `/bk:implement` | **human types `/bk:implement` in the cook's own terminal**. That authorises every commit made under the plan |
 | Design fork, contradiction between ticket and code, anything that needs grilling | human | human (the cook asks with `AskUserQuestion`) |
 | Every other confirmation ("confirm scope?", "continue to phase 2?", "which of these two helpers?") | human | **sous chef, by `SendMessage`**, never a dialog nobody is watching |
 | Pre-commit review (**the pass**) | human | sous chef reads the diff and re-runs `check` itself, then says go |
@@ -212,9 +224,9 @@ Every lifecycle skill pauses at decisions. **Who** answers depends on where it r
 A cook that receives "the chef said go" from the sous for a merge or a deploy **refuses**.
 That is correct. Those approvals are given in person.
 
-**Cooks stop for decisions, not ceremony.** Once the plan is signed off, `implement` runs
-straight through its phases. It only stops for a criterion that genuinely needs eyes, and
-that question goes to the sous.
+**Cooks stop for decisions, not ceremony.** Once `/bk:implement` is typed, it runs straight
+through its phases. It only stops for a criterion that genuinely needs eyes, and that
+question goes to the sous.
 
 ## Contract 6 — Messages between sessions
 
@@ -226,12 +238,13 @@ Keep messages short and typed. The first line is the kind, in brackets:
 
 | Kind | From → to | Carries |
 |---|---|---|
+| `[hello]` | sous → cook | "I'm the sous, check in": sent at start-up to cooks that were already waiting |
 | `[brief]` | sous → cook | the ticket's absolute path, why it matters, constraints from other stations, the loop |
 | `[check-in]` | cook → sous | station, model, branch, dirty or clean, ticket |
 | `[gate]` | cook → sous | the question, the options, the cook's recommendation |
 | `[rail]` | cook → sous | a rail change request: `claim BKLG-004 todo`, `BKLG-004 → rfr` |
 | `[walk-in]` | cook → sous | "about to run `<command>` on `<resource>`, OK?" |
-| `[status]` | cook → sous | a state change that needs no answer: "in a design conversation with the head chef", "plan approved: `<path>`", a lane-C counter before/after |
+| `[status]` | cook → sous | a state change that needs no answer: "in a design conversation with the head chef", "plan ready: `<path>`", "implement started (signed off)", a lane-C counter before/after |
 | `[handoff]` | cook → sous | "ready for the pass": branch, files, check result, inspector result, absolute checklist path |
 | `[findings]` | sous → cook | numbered items, each with file and why |
 | `[go]` | sous → cook | commit approval after the pass |
@@ -317,11 +330,11 @@ A lane is defined by **where its tickets come from**.
 
 | Lane | Name | Source | Path through the skills |
 |---|---|---|---|
-| **A** | Specials | a spec, sliced into tickets | brainstorm → grill-me → spec → file-tickets → create-plan → implement → review → open-pr |
-| **B** | À la carte | standalone tickets already on the rail | pick-ticket → (grill-me) → create-plan → implement → review → open-pr |
+| **A** | Specials | a spec, sliced into tickets | brainstorm → grill-me → spec → file-tickets → create-plan → implement → review-task → open-pr |
+| **B** | À la carte | standalone tickets already on the rail | pick-ticket → (grill-me) → create-plan → implement → review-task → open-pr |
 | **C** | Clean as you go | the kitchen generates them: `/bk:clean scan` | clean scan → pick-ticket → implement → open-pr |
 
-**Lane C skips the plan, the checklist and `review`.** Its claim goes straight from
+**Lane C skips the plan, the checklist and `review-task`.** Its claim goes straight from
 `backlog` to `in-progress`, because nothing sits between picking and cooking. The
 inspector pass still runs, as `/bk:clean check`. A plan for "remove 26 unused exports" restates
 the ticket, and a checklist saying "the counter is zero" restates the check. Every `HYG-` ticket
@@ -360,6 +373,6 @@ Every chat reply is read by one busy human.
 | `/bk:pick-ticket` | B, C | pick a ticket up cold: context, staleness, claim |
 | `/bk:create-plan` | A, B | write the plan for one ticket |
 | `/bk:implement` | A, B, C | carry out the plan, phase by phase, check after each |
-| `/bk:review` | A, B | acceptance checklist from intent plus diff, with evidence |
+| `/bk:review-task` | A, B | acceptance checklist from intent plus diff, with evidence |
 | `/bk:open-pr` | A, B, C | commit, pull trunk, re-check, push, open the PR |
 | `/bk:clean` | C | count the mess, file `HYG` tickets, and the pre-review hygiene check |

@@ -9,7 +9,7 @@
 #            ../<repo>-stations/station-N. Shares one object store, so it suits
 #            big repos and repos that live inside a workspace repo.
 # One Claude Code line cook works in each. Assignment happens through the sous chef over SendMessage, never
-# through this script: sessions open BARE and wait for a brief.
+# through this script: each session starts as a line cook and waits for a brief.
 #
 # Run from anywhere inside the main checkout. Settings come from the flat keys
 # in .claude/brigade.md (trunk, install, copy_into_stations, kitchen_mode,
@@ -18,8 +18,9 @@
 # Usage:
 #   kitchen.sh setup  [-n N]              create N stations (clone, gitignore,
 #                                         copy files, seed permissions, install)
-#   kitchen.sh open   [-n N] [-m "O S"] [--terminal warp|tmux|print]
-#                                         open one bare claude session per station
+#   kitchen.sh open   [-n N] [-m "O S"] [--terminal warp|tmux|print] [--bare]
+#                                         open one claude session per station, already
+#                                         running /bk:line-cook (--bare: a plain session)
 #   kitchen.sh sync   [-n N]              reset CLEAN stations to origin/<trunk>
 #                                         (dirty ones are skipped)
 #   kitchen.sh status                     branch / dirty / ahead per station + open PRs
@@ -99,6 +100,7 @@ MIGRATIONS="$(cfg migrations)"; [[ "$MIGRATIONS" == "none" ]] && MIGRATIONS=""
 MODEL="${BRIGADE_MODEL:-sonnet}"
 PERMISSION_MODE="${BRIGADE_PERMISSION_MODE:-acceptEdits}"
 TERMINAL="${BRIGADE_TERMINAL:-}"
+BARE=false
 MODELS=()
 
 usage() { awk 'NR>2 { if (/^# =+$/) exit; sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"; exit 1; }
@@ -108,6 +110,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -n) N="$2"; shift 2 ;;
     --terminal) TERMINAL="$2"; shift 2 ;;
+    --bare) BARE=true; shift ;;
     -m|--model) shift
       while [[ $# -gt 0 && "$1" != -* ]]; do
         for tok in ${1//,/ }; do MODELS+=("$tok"); done; shift
@@ -148,6 +151,8 @@ claude_cmd() {  # claude_cmd <model>
   local prefix=""
   [[ -n "${CLAUDE_CONFIG_DIR:-}" ]] && prefix="CLAUDE_CONFIG_DIR=$(printf '%q' "$CLAUDE_CONFIG_DIR") "
   printf '%sclaude --model %s --permission-mode %s' "$prefix" "$1" "$PERMISSION_MODE"
+  # Start as a line cook: it checks in with the sous, or waits for the sous's [hello].
+  $BARE || printf ' "/bk:line-cook"'
 }
 
 ensure_ignored() {  # ensure_ignored <file> <line>
@@ -373,7 +378,11 @@ cmd_open() {
       echo "  $(basename "${list[$i]}"):  cd $(printf '%q' "${list[$i]}") && $(claude_cmd "$(model_for "$i")")"
     done
   fi
-  echo "Sessions open BARE. In each one run /bk:line-cook; brief them from the sous chef."
+  if $BARE; then
+    echo "Sessions open bare. In each one run /bk:line-cook, or let the sous brief them."
+  else
+    echo "Each session starts as a line cook and checks in with the sous (or waits for it)."
+  fi
 }
 
 # ---------------------------------------------------------------------------

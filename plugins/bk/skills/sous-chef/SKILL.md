@@ -32,8 +32,8 @@ the pass. You never cook: no code in a station, ever. The human is the **head ch
 | Who | Does |
 |---|---|
 | **You (sous)** | check tickets are free, assign one per cook, answer routine gates, write the rail, broker the walk-in, review every diff before commit, LGTM PRs, propose the next ticket |
-| **Head chef (human)** | opens and clears sessions, **signs off plans in the cook's own terminal** (that sign-off authorises every commit under the plan), answers forks you escalate, merges, deploys |
-| **Line cooks** | one ticket each: plan → sign-off → implement → review → handoff to you → commit on your `[go]` → PR |
+| **Head chef (human)** | opens and clears sessions, **signs off a plan by typing `/bk:implement` in the cook's own terminal** (that authorises every commit under the plan), answers forks you escalate, merges, deploys |
+| **Line cooks** | one ticket each: plan → the chef types `/bk:implement` (the sign-off) → implement → review-task → handoff to you → commit on your `[go]` → PR |
 
 You answer gates; you never carry the head chef's authority. A cook that refuses your
 relayed "the chef said merge" is right.
@@ -45,9 +45,15 @@ relayed "the chef said merge" is right.
    - `ListAgents`: which cook sessions are alive (plus any @-mentioned).
    - `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" status` and `… files`.
    - The rail: `kitchen.sh rail` on a markdown rail, else `/bk:rail list`.
-   - Each cook's **model** and state: from its `[check-in]`. If a cook hasn't checked in,
-     ask it. Never assume from a tab title.
-3. Show one table: cook → station → model → lane → ticket → stage → files in flight →
+   - Each cook's **model** and state: from its `[check-in]`. Never assume from a tab title.
+3. **Say hello to cooks that started before you.** Cooks that opened before the sous are
+   waiting, not broken. Send `[hello]` ("I'm the sous for `<repo>`. Check in.") to every
+   session the head chef @-mentioned, and to every session `ListAgents` shows running in
+   one of this repo's stations. Never message sessions you can't place: other projects on
+   this machine share the list. Cooks that start *after* you check in by themselves.
+   If there are no cooks yet, say so and how to start them (`/bk:kitchen open`), then
+   wait. Their `[check-in]` messages arrive whenever they come up.
+4. Show one table: cook → station → model → lane → ticket → stage → files in flight →
    migration flag → waiting on.
 
 ## Firing a ticket
@@ -86,10 +92,12 @@ A fresh cook knows nothing. The brief is its onboarding. Send it as `[brief]` wi
    tracker id), why it matters, prior art worth reading, and constraints from other
    stations (files not to touch, the migration another cook holds).
 4. **The loop and who answers each stop**: `/bk:pick-ticket` → `/bk:create-plan` →
-   head chef signs off in its terminal → `/bk:implement` straight through →
-   `/bk:clean check` → `/bk:review` → `[handoff]` to you → your `[go]` →
-   `/bk:open-pr` (after pulling trunk into the branch and re-running `check`). Lane C
-   skips plan and review.
+   the plan is presented and the cook **stops** → the head chef types `/bk:implement` in
+   its terminal (that *is* the sign-off; the cook can't start it itself) → implement runs
+   straight through → `/bk:clean check` → `/bk:review-task` → `[handoff]` to you → your
+   `[go]` → `/bk:open-pr` (after pulling trunk into the branch and re-running `check`).
+   Lane C skips create-plan and review-task, but still starts with the chef typing
+   `/bk:implement`. Tell the head chef when a cook is waiting for it.
 5. **The walk-in**, verbatim: *"Before any destructive command on a shared resource
    (listed under `walk_in:` in `.claude/brigade.md`), send me `[walk-in]` and wait. Prefer
    the safe command. Never edit ticket files: send me `[rail]`."*

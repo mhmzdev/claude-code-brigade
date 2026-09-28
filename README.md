@@ -53,8 +53,8 @@ The full table, plus an Urdu alternate (Qafila), is in [`docs/the-names.md`](doc
 
 | Lane | Source | Path |
 |---|---|---|
-| **A — Specials** | a spec, sliced into tickets | brainstorm → grill-me → spec → file-tickets → create-plan → implement → review → open-pr |
-| **B — À la carte** | tickets already on the rail | pick-ticket → (grill-me) → create-plan → implement → review → open-pr |
+| **A — Specials** | a spec, sliced into tickets | brainstorm → grill-me → spec → file-tickets → create-plan → implement → review-task → open-pr |
+| **B — À la carte** | tickets already on the rail | pick-ticket → (grill-me) → create-plan → implement → review-task → open-pr |
 | **C — Clean as you go** | the kitchen finds its own mess: `/bk:clean scan` | pick-ticket → implement → open-pr |
 
 ## The rules
@@ -150,10 +150,20 @@ Two worktree habits: stashes are shared between stations (stash with
 
 ## Run a service
 
-1. `/bk:kitchen open` opens one bare Claude session per station.
-2. In the main checkout: `/bk:sous-chef`.
-3. In each station: `/bk:line-cook`.
-4. Tell the sous which ticket to fire, or ask it to propose one per lane.
+1. In the main checkout: `/bk:sous-chef`. With no cooks yet, it tells you so and waits.
+2. From the sous (or any terminal): `/bk:kitchen open`. Each station opens **already running
+   `/bk:line-cook`**, finds the sous and checks in. There's nothing to type in the stations.
+3. Tell the sous which ticket to fire, or ask it to propose one per lane.
+
+**The start order doesn't matter.** A cook that comes up before the sous says it's waiting;
+when the sous starts it sends `[hello]` to cooks in its stations, and they check in. Prefer
+plain sessions? `kitchen open --bare`, then name them to the sous (`/bk:sous-chef @one @two`);
+its brief tells each one it's a line cook.
+
+**What you type during a service.** Invoking a skill *is* the approval for its whole job, so
+no skill asks "does this look right?" or "go on to phase 2?". Per ticket you type two
+things: `/bk:implement` in the cook's terminal once its plan is ready (the sign-off: only a
+human can start `implement`), and the merge. Real design forks reach you too.
 
 ## What a service looks like
 
@@ -163,7 +173,8 @@ Sessions talk in short typed messages, so you can follow a ticket by reading the
 cook  → sous   [check-in]  station-1 · Opus · main · clean · no ticket
 sous  → cook   [brief]     BKLG-001: /abs/path/to/ticket.md, constraints, the loop
 cook  → sous   [rail]      claim BKLG-001 todo
-                           … the cook writes the plan; YOU sign it off in the cook's terminal …
+                           … the cook writes the plan, presents it, stops …
+you   (cook's terminal)    /bk:implement        ← the sign-off
 cook  → sous   [rail]      BKLG-001 → in-progress
 cook  → sous   [gate]      "two ways to do X, I recommend A" → sous answers
 cook  → sous   [handoff]   ready for the pass: branch, files, check green, inspector clean
@@ -172,7 +183,7 @@ cook  → sous   [served]    PR #12
                            … YOU merge; the sous closes BKLG-001 on the rail …
 ```
 
-Only two moments need you: the plan sign-off and the merge. Real design forks reach you
+Only two moments need you: typing `/bk:implement` (the sign-off) and the merge. Real design forks reach you
 too; everything routine stays between the sous and the cooks.
 
 ## What's in the box
@@ -184,7 +195,7 @@ too; everything routine stays between the sous and the cooks.
 | `sous-chef` / `line-cook` | take the lead or worker role |
 | `rail` | list, read, claim, fire, link, close: markdown, GitHub or Jira |
 | `brainstorm` · `grill-me` · `spec` · `file-tickets` | lane A, from idea to tickets |
-| `pick-ticket` · `create-plan` · `implement` · `review` · `open-pr` | from ticket to PR |
+| `pick-ticket` · `create-plan` · `implement` · `review-task` · `open-pr` | from ticket to PR. `implement` is typed by you: it's the sign-off |
 | `clean` | lane C: count the mess, file hygiene tickets, pre-review inspection |
 
 Every skill works **solo** too: without a sous, you are both chef and sous.
@@ -208,6 +219,9 @@ The shared rules every skill follows are in [`plugins/bk/skills/README.md`](plug
   exclude `stations/` from tools that don't read `.gitignore` (setup helps with this).
 
 ## Status
+
+**v0.5.** Skills no longer ask for approval they already have; `review` is now
+`review-task`; cooks start themselves and check in in either order.
 
 **v0.3.** Tried on a real repo (a Flutter package): setup, stations, `kitchen open`, and
 the sous ↔ cook check-in all work. v0.3 adds worktree stations, tested in a nested

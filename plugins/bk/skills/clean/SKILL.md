@@ -69,7 +69,7 @@ Show the drafts. **Fire them only on the human's say-so.** Filing goes through `
 
 ## Working a HYG ticket
 
-Lane C skips `create-plan` and `review` (Contract 9): the ticket body is already the plan, and "the counter moved" is the proof.
+Lane C skips `create-plan` and `review-task` (Contract 9): the ticket body is already the plan, and "the counter moved" is the proof.
 
 `pick-ticket` → `implement` straight off the ticket body → `clean check` → hand off to the sous → `open-pr`. The PR's Test plan names the counter before and after. Remove only what the finding names. A "cleanup" that changes behaviour is a lane B ticket, not this one.
 

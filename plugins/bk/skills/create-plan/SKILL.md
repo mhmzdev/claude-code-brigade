@@ -11,7 +11,7 @@ Honour the plugin contract: the `README.md` in this skill's parent folder, `${CL
 
 You write the plan for **one ticket**. The plan is the closest thing to the diff short of the diff: real paths, the actual code, `file:line` anchors for edits, and success criteria a command can settle. Someone picking it up cold should be able to build it without re-researching.
 
-**Where it sits:** `pick-ticket` or `file-tickets` → **`plan`** → `implement` → `review` → `open-pr`. Lane C tickets never come here.
+**Where it sits:** `pick-ticket` or `file-tickets` → **`create-plan`** → `implement` → `review-task` → `open-pr`. Lane C tickets never come here.
 
 ## Contents
 
@@ -64,9 +64,11 @@ Present what you found in a few lines (current state with refs, design options w
 - **Who you ask** (Contract 5): a genuine design fork, or a contradiction between ticket and code → the human (`AskUserQuestion` — in a station too). A routine choice ("helper A or helper B", "which test file") → in a station, the sous by `[gate]`; solo, the human.
 - A user correction isn't accepted on faith. Verify it against the code.
 
-## Step 4 — Agree the phases
+## Step 4 — Shape the phases
 
-Propose the outline before the full plan:
+Sketch the outline for yourself before the full plan. **Don't stop to ask for approval of
+it**: the human asked for a plan, so write one. The only questions in this skill are the
+forks in Step 3.
 
 ```
 Overview — 1–2 sentences
@@ -130,8 +132,14 @@ Body, every section filled with specifics:
 1. Add a row to `<docs.plans>/INDEX.md` (`| [<file>](<file>) | <one line> | <ticket> |`); create the index if missing.
 2. Rail stays `todo` (set in Step 0).
 3. **Run the self-check** below.
-4. **Ask for the chef's sign-off** — the human, always, and in a station **in this terminal**, never relayed through the sous. Say plainly what approval means: *"Approving this plan authorises every commit made under it, after the sous's pass."* Offer: approve · change something · grill it first (`/bk:grill-me <plan>`) · leave it at draft.
-5. On approval, set `status: approved` and tell the sous (cook: `[status] <ID> plan approved: <path>`). Then offer `/bk:implement <plan>`. Never auto-chain.
+4. **Present it and stop. Don't ask "does this look right?"** Show the path, the phases in
+   one line each, the files, and anything notable (a migration, a risky phase). End with
+   exactly what the sign-off is: *"Your sign-off is typing `/bk:implement <ID>` here. That
+   authorises every commit under this plan, after the sous's pass. To change something,
+   just say what; to stress-test it first, `/bk:grill-me <plan>`."*
+5. Leave `status: draft`: `/bk:implement` flips it when the human types it. A cook tells
+   the sous `[status] <ID> plan ready: <path>`. Never start `implement` yourself; you can't,
+   and shouldn't try to route around it.
 
 ## The no-open-questions rule
 
