@@ -1,6 +1,6 @@
 # The Brigade
 
-<!-- Hero image goes here once generated: ![The Brigade](docs/assets/hero.png) -->
+![The Brigade: a sous chef bot at the pass, line-cook bots at five stations, and the human head chef overseeing](assets/hero.jpeg)
 
 Run a kitchen of Claude Code sessions. One **sous chef** leads, a few **line cooks** work
 one ticket each at their own **station**, and you are the **head chef**: you approve
