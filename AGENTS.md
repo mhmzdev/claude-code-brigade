@@ -28,9 +28,11 @@ plugins/bk/                         the plugin (skills are invoked /bk:<skill>)
 ├── skills/<name>/SKILL.md          one skill each: setup, kitchen, sous-chef, line-cook, rail,
 │                                   brainstorm, grill-me, spec, file-tickets, pick-ticket,
 │                                   create-plan, implement, review-task, open-pr, clean, handoff
-├── skills/kitchen/kitchen.sh       the only script: stations, boards, role, questions, lessons
+├── skills/kitchen/kitchen.sh       the only runtime script: stations, boards, role, questions, lessons
 ├── agents/                         inspector (report-only), taster (the pass), runner (noisy commands)
 └── templates/                      spec, ticket, plan, checklist, journal
+scripts/check.sh                    THE gate: manifests, shellcheck, frontmatter, tests
+tests/kitchen.test.sh               behaviour tests for kitchen.sh, both kitchen modes
 docs/the-names.md                   the Brigade names, plus Qafila as an alternate
 assets/hero.jpeg                    README banner
 ```
@@ -69,33 +71,41 @@ things, and it only shows up mid-service.
 
 ## Checking a change
 
-There's no test suite yet; run these by hand before committing.
+**One command is the gate:**
 
-1. **Manifests:**
-   ```bash
-   claude plugin validate .
-   claude plugin validate plugins/bk
-   ```
-2. **The script:**
-   ```bash
-   bash -n plugins/bk/skills/kitchen/kitchen.sh
-   shellcheck -S warning plugins/bk/skills/kitchen/kitchen.sh
-   ```
-3. **`kitchen.sh` behaviour:** exercise it in a throwaway repo under a scratch directory (a
-   bare `origin`, a clone with `.claude/brigade.md`), in **both** `kitchen_mode: clone` and
-   `worktree`: `setup` refusing an unpushed config, `setup`, `role` from a station,
-   `open --terminal print`, `files`, `rail`, `questions`, `lessons`, `sync` skipping a dirty
-   station, `remove`. Run git with `GIT_CONFIG_GLOBAL=/dev/null` so your own git config can't
-   hide a bug. **Never** run `open` with a real terminal while testing: use
-   `--terminal print` or `--terminal warp --no-launch`, or you'll open windows on the
-   human's screen.
-4. **Prose changes across several skills:** do a consistency read against the contract (a
-   fresh read-only sub-agent is good at this), listing every file that now disagrees.
+```bash
+scripts/check.sh
+```
+
+It runs, in order:
+
+1. `claude plugin validate` on the marketplace and the plugin (skipped, with a warning, if the
+   `claude` CLI isn't installed);
+2. `bash -n` and `shellcheck` on `kitchen.sh` and the test scripts (`shellcheck` is required);
+3. a frontmatter check on every skill: `name` matches its folder, a real `description`, and
+   `disable-model-invocation: true` only on `implement` and `setup`; every agent is listed in
+   `plugin.json`;
+4. `tests/kitchen.test.sh`: about 60 behaviour tests of `kitchen.sh` in throwaway repos, in
+   both `clone` and `worktree` mode, including a workspace repo that holds the app repo.
+
+The tests are sealed off from the machine: git runs with `GIT_CONFIG_GLOBAL=/dev/null`, `HOME`
+points into the temp dir, and `open` only runs with `--terminal print` or `--no-launch`, so
+nothing opens on your screen or writes to your real config. `KEEP=1 tests/kitchen.test.sh`
+keeps the temp dir for poking at.
+
+**When you add behaviour to `kitchen.sh`, add a test for it, and make sure it can fail:**
+break the code on purpose and watch the test go red before you trust it green. Every test in
+the suite was checked that way when it was written.
+
+**Prose changes across several skills** have no automated check. Do a consistency read
+against the contract (a fresh read-only sub-agent is good at this), listing every file that
+now disagrees.
 
 ## Releasing
 
 - **`main` is the release.** The marketplace installs from `main`, so every push reaches
-  anyone who runs `/plugin marketplace update`. Don't push half-finished skill changes.
+  anyone who runs `/plugin marketplace update`. Run `scripts/check.sh` before every push, and
+  don't push half-finished skill changes.
 - **Bump `version` in `plugins/bk/.claude-plugin/plugin.json`** for every release, and add a
   line to the Status section of `README.md`.
 - **A renamed skill or plugin is breaking.** Say so in the commit and README: installs are
