@@ -94,8 +94,8 @@ points into the temp dir, and `open` only runs with `--terminal print` or `--no-
 nothing opens on your screen or writes to your real config. `KEEP=1 tests/kitchen.test.sh`
 keeps the temp dir for poking at.
 
-**CI runs the same gate** (`.github/workflows/check.yml`) on every push to `main` and every
-pull request, on Linux (bash 5) and macOS (pinned to the system bash 3.2 that most users
+**CI runs the same gate** (`.github/workflows/check.yml`) on every pull request and on
+`main` after each merge, on Linux (bash 5) and macOS (pinned to the system bash 3.2 that most users
 have). The `claude` CLI isn't installed there, so step 1 is skipped in CI: run the gate locally
 too. A red check means don't merge.
 
@@ -109,9 +109,12 @@ now disagrees.
 
 ## Releasing
 
-- **`main` is the release.** The marketplace installs from `main`, so every push reaches
-  anyone who runs `/plugin marketplace update`. Run `scripts/check.sh` before every push, and
-  don't push half-finished skill changes.
+- **`main` is the release, and it's protected.** The marketplace installs from `main`, so
+  whatever lands there reaches anyone who runs `/plugin marketplace update`. Nobody pushes to
+  `main` directly, admins included: work on a branch, open a PR, and merge once **both** CI
+  jobs are green and the branch is up to date with `main`. No approving review is required
+  (a solo maintainer can't approve their own PR), so reading the diff before merging is on you.
+  Run `scripts/check.sh` locally before opening the PR; CI skips manifest validation.
 - **Bump `version` in `plugins/bk/.claude-plugin/plugin.json`** for every release, and add a
   line to the Status section of `README.md`.
 - **A renamed skill or plugin is breaking.** Say so in the commit and README: installs are
