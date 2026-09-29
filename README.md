@@ -270,6 +270,13 @@ The shared rules every skill follows are in [`plugins/bk/skills/README.md`](plug
 
 ## Status
 
+**v0.7.** `kitchen open` without Warp now opens the machine's own terminal (Terminal.app,
+Windows Terminal or mintty, or the Linux desktop's) instead of tmux, and prints the commands
+only when there is none. Warp is also found in `~/Applications` and on Linux. tmux is still
+there with `--terminal tmux`. To grow a kitchen, run `kitchen setup -n 4`: existing stations
+stay put, and `open` now opens every station, not just the configured count, skipping any
+station where a cook is already running.
+
 **v0.6.** Long services: ticket journals, `/bk:handoff` for cooks and the sous, lessons
 promoted by count, the `taster` and `runner` sub-agents, and cleaning in three scopes. A
 session inside a station is a cook even after `/clear`. `clean` is no longer human-only, so

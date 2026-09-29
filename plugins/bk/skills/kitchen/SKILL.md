@@ -1,7 +1,7 @@
 ---
 name: kitchen
-description: Manage the Brigade's stations — the clones (stations/) or worktrees (../<repo>-stations/) where line cooks work. Create them, open one Claude session per station already running /bk:line-cook (Warp, tmux, or printed commands), sync clean ones to trunk, and print the status, files-in-flight and rail boards the sous chef reads. Use when the user says "set up stations", "open the kitchen", "open the line cooks", "station status", "what's in flight", "show the rail", "/bk:kitchen".
-argument-hint: "setup [-n N] | open [-n N] [-m \"O S\"] [--terminal warp|tmux|print] [--bare] [--no-launch] | sync | status | files | rail | questions | lessons | role | remove"
+description: Manage the Brigade's stations — the clones (stations/) or worktrees (../<repo>-stations/) where line cooks work. Create them, open one Claude session per station already running /bk:line-cook (Warp, else the OS's own terminal, else printed commands), sync clean ones to trunk, and print the status, files-in-flight and rail boards the sous chef reads. Use when the user says "set up stations", "open the kitchen", "open the line cooks", "station status", "what's in flight", "show the rail", "/bk:kitchen".
+argument-hint: "setup [-n N] | open [-n N] [-m \"O S\"] [--terminal warp|native|tmux|print] [--bare] [--no-launch] | sync | status | files | rail | questions | lessons | role | remove"
 allowed-tools: Bash, Read
 ---
 
@@ -22,8 +22,8 @@ from the main checkout; it reads the flat keys in `.claude/brigade.md`.
 
 | Command | Does |
 |---|---|
-| `setup [-n N]` | create N stations (clones in `stations/`, or worktrees in `../<repo>-stations/` when `kitchen_mode: worktree`), add the ignore line to whichever repo contains them (and `.dockerignore` if present), copy `copy_into_stations`, seed a small `settings.local.json`, run `install`. Existing stations are left alone |
-| `open [-n N] [-m "O S"] [--terminal …] [--bare]` | open one `claude` session per station, **already running `/bk:line-cook`** (`--bare` for a plain session). `-m` takes one model per station in order (O/S/H/F or full names; one value covers all). Terminal defaults to Warp if installed, else tmux, else printed commands |
+| `setup [-n N]` | create N stations (clones in `stations/`, or worktrees in `../<repo>-stations/` when `kitchen_mode: worktree`), add the ignore line to whichever repo contains them (and `.dockerignore` if present), copy `copy_into_stations`, seed a small `settings.local.json`, run `install`. Existing stations are left alone, so `setup -n 4` on a 2-station kitchen adds station-3 and station-4 |
+| `open [-n N] [-m "O S"] [--terminal …] [--bare]` | open one `claude` session per station (every station, or the first N with `-n`), **already running `/bk:line-cook`**. A station where a `claude` session is already working is left alone, so after `setup -n 4` a plain `open` starts only the new cooks (`--bare` for a plain session). `-m` takes one model per station in order (O/S/H/F or full names; one value covers all). Terminal defaults to Warp if installed, else the OS's own terminal (Terminal.app on macOS; Windows Terminal, or mintty in Git Bash, on Windows and WSL; the desktop's terminal on Linux), else printed commands. tmux only when asked: `--terminal tmux`. `--no-launch` writes the Warp config or shows the native launch without opening anything |
 | `sync` | reset **clean** stations to `origin/<trunk>` (worktrees: detached there). Dirty ones are skipped: a cook may be mid-ticket |
 | `status` | branch, dirty/clean, commits ahead per station, plus open PRs against trunk |
 | `files` | files in flight per station vs `origin/<trunk>` (committed and uncommitted), plans, and **unmerged migrations** flagged |

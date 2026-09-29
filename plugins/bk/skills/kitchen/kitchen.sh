@@ -16,12 +16,19 @@
 # kitchen, stations, migrations); env vars override them.
 #
 # Usage:
-#   kitchen.sh setup  [-n N]              create N stations (clone, gitignore,
+#   kitchen.sh setup  [-n N]              create stations 1..N, keeping existing ones, so
+#                                         it also grows a kitchen (clone, gitignore,
 #                                         copy files, seed permissions, install)
-#   kitchen.sh open   [-n N] [-m "O S"] [--terminal warp|tmux|print] [--bare]
-#                                         open one claude session per station, already
+#   kitchen.sh open   [-n N] [-m "O S"] [--terminal warp|native|tmux|print] [--bare]
+#                                         open one claude session per station (every one,
+#                                         or the first N with -n) that has no cook
+#                                         running yet, already
 #                                         running /bk:line-cook (--bare: a plain session;
-#                                         --no-launch: write the Warp config, open nothing)
+#                                         --no-launch: write the Warp config or show the
+#                                         native launch, open nothing). Default terminal:
+#                                         Warp if installed, else the OS's own terminal
+#                                         (Terminal.app, Windows Terminal/mintty, or the
+#                                         Linux desktop's), else printed commands
 #   kitchen.sh sync   [-n N]              reset CLEAN stations to origin/<trunk>
 #                                         (dirty ones are skipped)
 #   kitchen.sh status                     branch / dirty / ahead per station + open PRs
@@ -43,6 +50,7 @@
 #   stops on every permission would stall them), BRIGADE_TERMINAL
 #
 # Requires: git, claude. Optional: gh (status), Warp or tmux (open).
+# BRIGADE_OS (mac|linux|wsl|windows) overrides OS detection; the tests use it.
 # =============================================================================
 
 set -uo pipefail
@@ -103,6 +111,7 @@ if [[ -d "$(dirname "$KITCHEN")" ]]; then
 fi
 ROOT_REAL="$(cd "$ROOT" && pwd -P)"
 N="${BRIGADE_STATIONS:-$(cfg stations)}"; N="${N:-2}"
+N_GIVEN=false   # -n on the command line; without it, open takes every station there is
 INSTALL="$(cfg install)"
 COPY_FILES="$(cfg copy_into_stations)"
 MIGRATIONS="$(cfg migrations)"; [[ "$MIGRATIONS" == "none" ]] && MIGRATIONS=""
@@ -112,13 +121,14 @@ TERMINAL="${BRIGADE_TERMINAL:-}"
 BARE=false
 NO_LAUNCH=false
 MODELS=()
+ARGV=()   # set by native_argv
 
 usage() { awk 'NR>2 { if (/^# =+$/) exit; sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"; exit 1; }
 
 CMD="${1:-}"; shift || true
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -n) N="$2"; shift 2 ;;
+    -n) N="$2"; N_GIVEN=true; shift 2 ;;
     --terminal) TERMINAL="$2"; shift 2 ;;
     --bare) BARE=true; shift ;;
     --no-launch) NO_LAUNCH=true; shift ;;
@@ -175,6 +185,96 @@ claude_cmd() {  # claude_cmd <model> <station dir>
     "$(printf '%q' "$(session_name "$2")")" "$1" "$PERMISSION_MODE"
   # Start as a line cook: it checks in with the sous, or waits for the sous's [hello].
   $BARE || printf ' "/bk:line-cook"'
+}
+
+# os_kind → mac | linux | wsl | windows (Git Bash, MSYS, Cygwin) | other.
+# BRIGADE_OS overrides it, so the tests can drive every branch from one machine.
+os_kind() {
+  if [[ -n "${BRIGADE_OS:-}" ]]; then printf '%s' "$BRIGADE_OS"; return 0; fi
+  case "$(uname -s)" in
+    Darwin) printf mac ;;
+    Linux)
+      if [[ -n "${WSL_DISTRO_NAME:-}" ]] || grep -qi microsoft /proc/version 2>/dev/null; then printf wsl
+      else printf linux; fi ;;
+    MINGW*|MSYS*|CYGWIN*) printf windows ;;
+    *) printf other ;;
+  esac
+}
+
+warp_installed() {
+  case "$(os_kind)" in
+    mac) [[ -d /Applications/Warp.app || -d "$HOME/Applications/Warp.app" ]] ;;
+    linux) command -v warp-terminal >/dev/null ;;
+    *) return 1 ;;
+  esac
+}
+
+# native_terminal → the launcher for this machine's own terminal, or fail when
+# there is none we can drive (e.g. a Linux box with no desktop).
+native_terminal() {
+  local os t; os=$(os_kind)
+  if [[ "$os" == mac ]]; then
+    command -v osascript >/dev/null && { printf osascript; return 0; }
+    return 1
+  fi
+  if [[ "$os" == wsl || "$os" == windows ]] && command -v wt.exe >/dev/null; then printf wt.exe; return 0; fi
+  if [[ "$os" == windows ]] && command -v mintty >/dev/null; then printf mintty; return 0; fi
+  if [[ "$os" == linux || "$os" == wsl ]] && [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+    for t in x-terminal-emulator gnome-terminal konsole xfce4-terminal xterm; do
+      command -v "$t" >/dev/null && { printf '%s' "$t"; return 0; }
+    done
+  fi
+  return 1
+}
+
+# native_argv <launcher> <station dir> <command> <title> → sets ARGV to the
+# command that opens one window (or tab) running <command> in <station dir>.
+# The shell stays open after claude exits, as it does in Warp.
+native_argv() {
+  local term="$1" dir="$2" cmd="$3" title="$4" qdir sh
+  qdir=$(printf '%q' "$dir")
+  case "$term" in
+    osascript)  # Terminal.app runs the script in the user's own shell, which stays open.
+      ARGV=(osascript -e 'on run argv' -e 'tell application "Terminal"'
+        -e 'set t to do script (item 1 of argv)' -e 'set custom title of t to (item 2 of argv)'
+        -e 'activate' -e 'end tell' -e 'end run' "cd $qdir && $cmd" "$title") ;;
+    wt.exe)  # wt splits its arguments on ';' unless escaped as '\;'.
+      if [[ "$(os_kind)" == wsl ]]; then
+        ARGV=(wt.exe -w 0 new-tab --title "$title" wsl.exe)
+        [[ -n "${WSL_DISTRO_NAME:-}" ]] && ARGV+=(-d "$WSL_DISTRO_NAME")
+        ARGV+=(--cd "$dir" -- bash -lc "$cmd\\; exec bash -l")
+      else
+        sh=$(command -v bash)
+        if command -v cygpath >/dev/null; then dir=$(cygpath -w "$dir"); sh=$(cygpath -w "$sh"); fi
+        ARGV=(wt.exe -w 0 new-tab --title "$title" -d "$dir" "$sh" -lc "$cmd\\; exec bash -l")
+      fi ;;
+    mintty)          ARGV=(mintty --dir "$dir" -t "$title" -e bash -lc "$cmd; exec bash -l") ;;
+    gnome-terminal)  ARGV=(gnome-terminal --working-directory="$dir" -- bash -lc "$cmd; exec bash -l") ;;
+    konsole)         ARGV=(konsole --workdir "$dir" -e bash -lc "$cmd; exec bash -l") ;;
+    xfce4-terminal)  ARGV=(xfce4-terminal --working-directory="$dir" -x bash -lc "$cmd; exec bash -l") ;;
+    *)               ARGV=("$term" -e bash -lc "cd $qdir && $cmd; exec bash -l") ;;
+  esac
+}
+
+# claude_cwds → the working directory of every running claude process, one per
+# line. A process counts when its program, or the script its interpreter runs
+# (node /…/claude), is named claude. cwd comes from /proc on Linux, lsof elsewhere.
+claude_cwds() {
+  local pid a1 a2 _
+  ps -Ao pid=,args= 2>/dev/null | while read -r pid a1 a2 _; do
+    [[ "${a1##*/}" == claude || "${a2##*/}" == claude ]] || continue
+    if [[ -e "/proc/$pid/cwd" ]]; then readlink "/proc/$pid/cwd" 2>/dev/null
+    else lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p'; fi
+  done
+}
+
+# busy <station dir> <cwds> → true when a claude session is working in it.
+busy() {
+  local st cwd; st="$(cd "$1" && pwd -P)"
+  while IFS= read -r cwd; do
+    [[ -n "$cwd" ]] && [[ "$cwd" == "$st" || "$cwd" == "$st"/* ]] && return 0
+  done <<< "$2"
+  return 1
 }
 
 ensure_ignored() {  # ensure_ignored <file> <line>
@@ -349,37 +449,73 @@ cmd_open() {
     echo "(setup needs the Brigade setup committed and pushed to origin/$TRUNK — stations clone from there)"
     exit 1
   fi
-  (( ${#list[@]} > N )) && list=("${list[@]:0:$N}")
+  # Stations added later with `setup -n` open too; `stations:` only sizes a fresh setup.
+  $N_GIVEN && (( ${#list[@]} > N )) && list=("${list[@]:0:$N}")
 
   for i in "${!MODELS[@]}"; do
     if norm=$(normalize_model "${MODELS[$i]}"); then MODELS[$i]="$norm"; else bad+=("${MODELS[$i]}"); fi
   done
   (( ${#bad[@]} > 0 )) && { echo "Unknown model(s): ${bad[*]} (use O/S/H/F, full names, or claude-*)"; exit 1; }
 
+  # Skip stations where a cook is already running: open fills the empty ones.
+  local cwds keep=() models=() skipped=()
+  cwds="$(claude_cwds)"
+  for i in "${!list[@]}"; do
+    if busy "${list[$i]}" "$cwds"; then skipped+=("$(basename "${list[$i]}")")
+    else keep+=("${list[$i]}"); models+=("$(model_for "$i")"); fi
+  done
+  (( ${#skipped[@]} > 0 )) && echo "Already running a cook, left alone: ${skipped[*]}"
+  (( ${#keep[@]} == 0 )) && { echo "Every station has a cook; nothing to open."; return 0; }
+  list=("${keep[@]}")
+
   if [[ -z "$TERMINAL" ]]; then
-    if [[ -d "/Applications/Warp.app" ]]; then TERMINAL=warp
-    elif command -v tmux >/dev/null; then TERMINAL=tmux
+    if warp_installed; then TERMINAL=warp
+    elif native_terminal >/dev/null; then TERMINAL=native
     else TERMINAL=print; fi
   fi
 
   case "$TERMINAL" in
     warp)
-      local dir="$HOME/.warp/launch_configurations" file
+      local dir file opener=open
+      if [[ "$(os_kind)" == mac ]]; then dir="$HOME/.warp/launch_configurations"
+      else dir="${XDG_DATA_HOME:-$HOME/.local/share}/warp-terminal/launch_configurations"; opener=xdg-open; fi
       file="$dir/${REPO_NAME}-brigade.yaml"; mkdir -p "$dir"
       {
         echo "---"; echo "name: ${REPO_NAME}-brigade"; echo "windows:"; echo "  - tabs:"
         for i in "${!list[@]}"; do
-          echo "      - title: \"$(session_name "${list[$i]}") · $(model_for "$i")\""
+          echo "      - title: \"$(session_name "${list[$i]}") · ${models[$i]}\""
           echo "        layout:"
           echo "          cwd: \"${list[$i]}\""
           echo "          commands:"
-          echo "            - exec: '$(claude_cmd "$(model_for "$i")" "${list[$i]}")'"
+          echo "            - exec: '$(claude_cmd "${models[$i]}" "${list[$i]}")'"
         done
       } > "$file"
       if $NO_LAUNCH; then echo "Warp config written, not launched: $file"; return 0; fi
-      open "warp://launch/$(basename "$file")" 2>/dev/null \
+      "$opener" "warp://launch/$(basename "$file")" >/dev/null 2>&1 \
         && echo "Warp window opened with ${#list[@]} $($BARE && echo bare || echo line-cook) session(s)." \
         || { echo "Warp launch failed; commands:"; TERMINAL=print; }
+      ;;
+    native)
+      local term
+      if ! term=$(native_terminal); then
+        echo "No terminal found to open ($(os_kind)); commands:"; TERMINAL=print
+      else
+        for i in "${!list[@]}"; do
+          native_argv "$term" "${list[$i]}" "$(claude_cmd "${models[$i]}" "${list[$i]}")" \
+            "$(session_name "${list[$i]}") · ${models[$i]}"
+          if $NO_LAUNCH; then
+            printf 'would run:'; printf ' %q' "${ARGV[@]}"; echo
+          elif [[ "$term" == osascript || "$term" == wt.exe ]]; then
+            # These hand the window to the OS and return, so a failure is a real one.
+            "${ARGV[@]}" >/dev/null 2>&1 || { echo "$term launch failed; commands:"; TERMINAL=print; break; }
+          else
+            # Linux terminals stay in the foreground until closed: detach them.
+            nohup "${ARGV[@]}" >/dev/null 2>&1 &
+          fi
+        done
+        $NO_LAUNCH && return 0
+        [[ "$TERMINAL" == native ]] && echo "$term opened ${#list[@]} $($BARE && echo bare || echo line-cook) session(s)."
+      fi
       ;;
     tmux)
       local sess="${REPO_NAME}-brigade"
@@ -390,15 +526,17 @@ cmd_open() {
         else
           tmux new-window -t "$sess" -n "$(basename "${list[$i]}")" -c "${list[$i]}"
         fi
-        tmux send-keys -t "$sess:$(basename "${list[$i]}")" "$(claude_cmd "$(model_for "$i")" "${list[$i]}")" Enter
+        tmux send-keys -t "$sess:$(basename "${list[$i]}")" "$(claude_cmd "${models[$i]}" "${list[$i]}")" Enter
       done
       echo "tmux session '$sess' started: tmux attach -t $sess"
       ;;
+    print) ;;
+    *) echo "Unknown terminal '$TERMINAL' (use warp, native, tmux or print); commands:"; TERMINAL=print ;;
   esac
 
   if [[ "$TERMINAL" == print ]]; then
     for i in "${!list[@]}"; do
-      echo "  $(basename "${list[$i]}"):  cd $(printf '%q' "${list[$i]}") && $(claude_cmd "$(model_for "$i")" "${list[$i]}")"
+      echo "  $(basename "${list[$i]}"):  cd $(printf '%q' "${list[$i]}") && $(claude_cmd "${models[$i]}" "${list[$i]}")"
     done
   fi
   if $BARE; then
