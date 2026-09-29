@@ -1,9 +1,12 @@
 ---
 ticket: <ID>
 title: <one line>
-status: draft          # draft | approved | done | superseded
-approved_by: null      # the head chef, once signed off — this authorises the commits under it
+lane: B                # A | B (lane C tickets have no plan)
+status: draft          # draft | approved | active | done — /bk:implement sets approved when the chef types it
+approved: null         # YYYY-MM-DD, set by /bk:implement: typing it is the chef's sign-off
 open_questions: none   # must be "none" before implement will start
+migration: false       # true if any phase adds one
+files: []              # every path the plan touches
 created: YYYY-MM-DD
 ---
 

@@ -30,6 +30,12 @@
 #   kitchen.sh rail                       the board, computed from ticket frontmatter
 #                                         (markdown rail only)
 #   kitchen.sh remove                     delete every station (asks first)
+#   kitchen.sh role                       "cook <station> <main checkout>" when run inside
+#                                         a station, else "main <main checkout>"
+#   kitchen.sh lessons                    count lesson(...) lines across ticket journals
+#                                         and say which are due for promotion
+#   kitchen.sh questions                  every unanswered question (Qn with no An) in
+#                                         the stations' ticket journals
 #
 # Env overrides:
 #   BRIGADE_TRUNK, BRIGADE_KITCHEN_MODE, BRIGADE_KITCHEN, BRIGADE_STATIONS, BRIGADE_MODEL (default sonnet),
@@ -42,6 +48,7 @@
 set -uo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "Not inside a git repo." >&2; exit 1; }
+HERE="$ROOT"   # the checkout this was run from, before ROOT climbs to the main one
 # Run from inside a station? Find the main checkout that owns it.
 # A worktree station knows its owner: its common git dir is the main repo's .git.
 COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
@@ -327,7 +334,7 @@ EOF
   fi
   cat <<EOF
 
-  Next: kitchen.sh open   (then /bk:sous-chef here, /bk:line-cook in each station)
+  Next: kitchen.sh open   (then /bk:sous-chef here; cooks start already running /bk:line-cook)
 EOF
 }
 
@@ -371,7 +378,7 @@ cmd_open() {
       } > "$file"
       if $NO_LAUNCH; then echo "Warp config written, not launched: $file"; return 0; fi
       open "warp://launch/$(basename "$file")" 2>/dev/null \
-        && echo "Warp window opened with ${#list[@]} bare line-cook session(s)." \
+        && echo "Warp window opened with ${#list[@]} $($BARE && echo bare || echo line-cook) session(s)." \
         || { echo "Warp launch failed; commands:"; TERMINAL=print; }
       ;;
     tmux)
@@ -491,6 +498,70 @@ cmd_rail() {
 }
 
 # ---------------------------------------------------------------------------
+# role — am I a cook? Skills call this first: a session inside a station is a
+# line cook whether or not /bk:line-cook was typed (e.g. after /clear).
+# ---------------------------------------------------------------------------
+cmd_role() {
+  local here_real; here_real="$(cd "$HERE" && pwd -P)"
+  if [[ "$here_real" != "$ROOT_REAL" ]]; then
+    echo "cook $(basename "$here_real") $ROOT_REAL"
+  else
+    echo "main $ROOT_REAL"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# lessons — the mechanical half of lesson promotion. A lesson is one line in a
+# ticket journal:  - lesson(repo|plugin): <key> | <text> | <TICKET-ID>
+# Due: a repo lesson seen in >= 2 different tickets, a plugin lesson seen once,
+# and the key not yet listed in docs/lessons.md.
+# ---------------------------------------------------------------------------
+cmd_lessons() {
+  local journal lessons_file files=()
+  journal="$(cfg_docs journal)"; lessons_file="$ROOT/docs/lessons.md"
+  while IFS= read -r f; do files+=("$f"); done < <(
+    { ls "$ROOT/$journal"/*.md 2>/dev/null; ls "$KITCHEN"/station-*/"$journal"/*.md 2>/dev/null; } | grep -v '/INDEX\.md$')
+  (( ${#files[@]} == 0 )) && { echo "No ticket journals yet."; return 0; }
+  printf '%-7s %-28s %-8s %-9s %s\n' SCOPE KEY TICKETS STATUS "FIRST SEEN AS"
+  grep -h -E '^- lesson\((repo|plugin)\): ' "${files[@]}" 2>/dev/null | awk -F' \\| ' -v lf="$lessons_file" '
+    BEGIN { while ((getline line < lf) > 0) promoted[line]=1 }
+    {
+      head=$1; sub(/^- lesson\(/, "", head); scope=head; sub(/\).*/, "", scope)
+      key=head; sub(/^[a-z]+\): /, "", key); gsub(/ +$/, "", key)
+      id=$NF; gsub(/^ +| +$/, "", id)
+      k=scope SUBSEP key
+      if (!(k in text)) { text[k]=$2; order[++n]=k }
+      if (!((k, id) in seen)) { seen[k, id]=1; count[k]++ }
+    }
+    END {
+      for (i=1; i<=n; i++) {
+        k=order[i]; split(k, parts, SUBSEP); scope=parts[1]; key=parts[2]
+        done=0; for (l in promoted) if (index(l, "`" key "`")) done=1
+        need=(scope=="plugin") ? 1 : 2
+        st = done ? "promoted" : (count[k] >= need ? "DUE" : "watch")
+        printf "%-7s %-28s %-8s %-9s %s\n", scope, key, count[k], st, text[k]
+      }
+    }'
+}
+
+# ---------------------------------------------------------------------------
+# questions — what cooks are waiting on, read from their journals. A question is
+# a journal line "- <when> · <session> · Qn: …"; it's answered once an "An" line
+# follows in the same journal.
+# ---------------------------------------------------------------------------
+cmd_questions() {
+  local journal f any=false
+  journal="$(cfg_docs journal)"
+  for f in "$KITCHEN"/station-*/"$journal"/*.md; do
+    [[ -f "$f" && "$(basename "$f")" != INDEX.md ]] || continue
+    awk -v st="$(basename "$(dirname "$(dirname "$(dirname "$f")")")")" -v fn="$(basename "$f")" '
+      /^- .* · Q[0-9]+:/ { match($0, /Q[0-9]+:/); q=substr($0, RSTART+1, RLENGTH-2); ask[q]=$0; order[++n]=q }
+      /^- .* · A[0-9]+/  { match($0, /A[0-9]+/);  a=substr($0, RSTART+1, RLENGTH-1); answered[a]=1 }
+      END { for (i=1; i<=n; i++) if (!(order[i] in answered)) { line=ask[order[i]]; sub(/^- /, "", line); printf "%-11s %-28s %s\n", st, fn, line } }' "$f"
+  done | { if read -r first; then any=true; printf '%-11s %-28s %s\n' STATION JOURNAL QUESTION; echo "$first"; cat; fi; $any || echo "No open questions."; }
+}
+
+# ---------------------------------------------------------------------------
 # remove
 # ---------------------------------------------------------------------------
 cmd_remove() {
@@ -522,5 +593,6 @@ cmd_remove() {
 
 case "$CMD" in
   setup) cmd_setup ;; open) cmd_open ;; sync) cmd_sync ;; status) cmd_status ;;
-  files) cmd_files ;; rail) cmd_rail ;; remove) cmd_remove ;; *) usage ;;
+  files) cmd_files ;; rail) cmd_rail ;; remove) cmd_remove ;;
+  role) cmd_role ;; lessons) cmd_lessons ;; questions) cmd_questions ;; *) usage ;;
 esac

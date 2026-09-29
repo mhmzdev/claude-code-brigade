@@ -24,7 +24,9 @@ the pass. You never cook: no code in a station, ever. The human is the **head ch
 - [Writing the rail](#writing-the-rail)
 - [The walk-in](#the-walk-in)
 - [The pass](#the-pass)
+- [Cleaning](#cleaning)
 - [End of shift](#end-of-shift)
+- [Your own handoff](#your-own-handoff)
 - [Standing rules](#standing-rules)
 
 ## Division of labour
@@ -41,20 +43,26 @@ relayed "the chef said merge" is right.
 ## Step 0 — Walk the kitchen
 
 1. `git pull` trunk in this checkout. You review against current trunk.
-2. Build the board:
+2. **Read your handoff**, if `.claude/sous-handoff.md` exists: the head chef's standing
+   instructions, what the last sous meant to fire next, walk-in holds, who was which cook.
+   Treat it as history to check, not as truth: **reality wins over the note**.
+3. **Find open questions**: `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" questions` lists every
+   `Qn` in the stations' journals with no `An` yet. Those cooks are waiting on you.
+4. Build the board:
    - `ListAgents`: which cook sessions are alive (plus any @-mentioned).
    - `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" status` and `… files`.
    - The rail: `kitchen.sh rail` on a markdown rail, else `/bk:rail list`.
    - Each cook's **model** and state: from its `[check-in]`. Never assume from a tab title.
-3. **Say hello to cooks that started before you.** Cooks that opened before the sous are
-   waiting, not broken. Send `[hello]` ("I'm the sous for `<repo>`. Check in.") to every
+5. **Say hello to cooks that started before you.** Cooks that opened before the sous are
+   waiting, not broken. Send `[hello]` ("I'm the sous for `<repo>`. Check in, and re-send
+   anything you're waiting on.") to every
    session the head chef @-mentioned, and to every session named `<repo>-cook-N`
    (the name `kitchen open` gives the cook in station-N, e.g. `my_app-cook-2`). Never message sessions you can't place: other projects on
    this machine share the list. Cooks that start *after* you check in by themselves.
    If there are no cooks yet, say so and how to start them (`/bk:kitchen open`), then
    wait. Their `[check-in]` messages arrive whenever they come up.
-4. Show one table: cook → station → model → lane → ticket → stage → files in flight →
-   migration flag → waiting on.
+6. Show one table: cook → station → model → lane → ticket → stage → files in flight →
+   migration flag → waiting on. Answer the open questions from step 3 first.
 
 ## Firing a ticket
 
@@ -95,7 +103,9 @@ A fresh cook knows nothing. The brief is its onboarding. Send it as `[brief]` wi
    the plan is presented and the cook **stops** → the head chef types `/bk:implement` in
    its terminal (that *is* the sign-off; the cook can't start it itself) → implement runs
    straight through → `/bk:clean check` → `/bk:review-task` → `[handoff]` to you → your
-   `[go]` → `/bk:open-pr` (after pulling trunk into the branch and re-running `check`).
+   `[go]` → `/bk:clean around` → `/bk:handoff` → `/bk:open-pr` (after pulling trunk into
+   the branch and re-running `check`) → `[served]`. Everything worth keeping goes in the
+   ticket's journal (`<docs.journal>/<ID>-<slug>.md`); messages point at it.
    Lane C skips create-plan and review-task, but still starts with the chef typing
    `/bk:implement`. Tell the head chef when a cook is waiting for it.
 5. **The walk-in**, verbatim: *"Before any destructive command on a shared resource
@@ -104,6 +114,10 @@ A fresh cook knows nothing. The brief is its onboarding. Send it as `[brief]` wi
 6. **Check-in**: ask it to reply `[check-in]` with model, station, branch and state.
 
 ## Answering gates
+
+A `[gate]` usually points at a numbered question in the cook's journal (`Q3, see journal`):
+read it there, answer by message (`[heard] Q3: <answer>, because <reason>`), and the cook copies
+it into the journal as `A3`. You never write journals.
 
 A `[gate]` from a cook is yours when it's routine: scope confirmations, "continue?", which
 of two local approaches, a naming choice. Answer in one message with a one-line reason.
@@ -134,19 +148,44 @@ it reports done. Name any breach plainly, once, and restate the rule.
 
 Two checks, and you verify. Never just trust the report.
 
-**Before commit** (the main one), on `[handoff]`:
-- Read the diff from the station: `git -C <station> diff` plus untracked files by path.
-- Walk the ticket's "Done when" boxes and the plan's success criteria.
-- Re-run the config's `check` **in the station** yourself.
-- Require a clean `/bk:clean check` report. Re-run the inspector yourself if none is attached.
-- Look for migration collisions with other stations, and docs left out of sync.
-- Findings go back as `[findings]`: numbered, each with file and why. When clean, send
-  `[go]`. That is the commit approval.
+**Before commit** (the main one), on `[handoff]`. Reading whole diffs and check output is
+what fills a sous's context fastest, so **the taster does the reading**:
+
+1. Spawn the taster by its namespaced name:
+   ```
+   Agent(subagent_type: "bk:taster", description: "taste <ID> in <station>",
+         prompt: "Station: <abs path>. Trunk: origin/<trunk>. Ticket: <path>.
+                  Plan: <station>/<docs.plans>/<ID>-*.md (or none for HYG).
+                  Check: <check>. Journal: <station>/<docs.journal>/<ID>-*.md.
+                  Rules: <what-not-to-add file, or none>.")
+   ```
+2. Read its verdict. **You still own the call**: open the files behind any ❌ or finding, and
+   spot-check at least one ✅ that matters most to the ticket. A verdict you haven't
+   questioned is a report you trusted.
+3. Require the cook's clean `/bk:clean check` report too; if none is attached, send it back.
+4. Look across stations yourself for what the taster can't see: migration collisions
+   (`kitchen.sh files`) and another cook's overlapping work.
+5. Findings go back as `[findings]`: numbered, each with file and why. When clean, send
+   `[go]`. That is the commit approval.
 
 **After the PR opens** (the cook's `[served]` message): the branch includes current trunk (`git -C <station> log --oneline
 origin/<trunk> ^HEAD` is empty), and the file list matches what you passed. Then post the
 LGTM as a PR comment: verdict, "Done when" walk, what you verified yourself, deploy
-prerequisites. Merge is the head chef's.
+prerequisites. Merge is the head chef's. The journal is the one file allowed to differ
+from what you passed: the cook adds its closing handoff after `[go]`.
+
+After the head chef merges, close the ticket on a markdown rail (`status: done`).
+
+## Cleaning
+
+Cooks do all the cleaning; you only fire the tickets (Contract 9). Scan output is exactly the
+noise that would fill your context.
+
+- **`check`** and **`around`** run in every cook's loop without you asking.
+- **`scan`** (the whole kitchen) you assign: when lane C has no queued tickets and a cook has
+  just served, ask that cook to run `/bk:clean scan` before it's cleared. One scan at a time.
+- On a `[rail] fire HYG ×N, see journal`: read the drafts in that cook's journal, drop any that
+  duplicate an open `HYG` ticket, number and fire the rest through `/bk:rail`.
 
 ## End of shift
 
@@ -159,11 +198,21 @@ One cook, one ticket, one shift. When a cook's PR is open and LGTM'd:
 Don't trust labels. A "cleared" session may be mid-ticket. When a cook says your premise
 doesn't match its station, believe the cook and re-check.
 
+## Your own handoff
+
+Your context fills with every message, verdict and board. Hand off at a quiet point (no pass
+in progress), when the head chef asks, or when about three passes have gone by since your last
+handoff. Suggest it; clearing is the head chef's call.
+
+Run `/bk:handoff`. It counts lessons and promotes the due ones, writes
+`.claude/sous-handoff.md`, and tells the cooks you're restarting. After `/clear`, a fresh
+`/bk:sous-chef` picks up from Step 0.
+
 ## Standing rules
 
 - Never write in a station: no edits, resets or branch switches. Running `check` or the
   inspector there is fine.
-- Never merge, close or deploy. Recommend; the head chef decides.
+- Never merge or deploy. Recommend; the head chef decides. Close a markdown-rail ticket only after the head chef has merged its PR.
 - Verify before you relay: a ticket's premise, a station's state, a claimed green check.
 - Keep credentials out of committed files. They live in `.claude/brigade.local.md`.
 - Never overwrite a claim (`todo`, `in-progress`, `rfr`) that isn't being moved by its own cook.

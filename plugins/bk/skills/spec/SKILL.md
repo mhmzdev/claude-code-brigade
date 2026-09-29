@@ -9,6 +9,8 @@ allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, AskUserQuestion, Send
 
 Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md` (in an installed plugin that's `…/plugins/cache/claude-code-brigade/bk/<version>/skills/README.md`, never a file in this repo). Read `.claude/brigade.md` before anything repo-specific.
 
+**Station check first** (Contract 1): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`. If it prints `cook …`, you are a line cook even if nobody typed `/bk:line-cook` (e.g. after a `/clear`): read and follow `${CLAUDE_SKILL_DIR}/../line-cook/SKILL.md` for where questions go, the journal, and what a cook never does.
+
 Write down a discussion that already happened as a durable **spec**: the WHAT/WHY contract every ticket under it inherits. The HOW comes later, in `/bk:create-plan`.
 
 ```
@@ -31,7 +33,7 @@ Specs are numbered Markdown in `docs/specs/` on **every** rail, markdown, github
 
 A spec number is handed out like a ticket number, so **the sous chef or a solo session** runs this skill (Contract 4: only one session hands out numbers).
 
-In a **line-cook** session, don't pick a number. Write the draft to `<docs.specs>/draft-<slug>.md`, then send the sous a `[rail]` message: `spec draft ready: <absolute path>, please number it`. The sous renames it to the next `NNN-` and registers it.
+In a **line-cook** session, don't pick a number. Write the draft to `<docs.specs>/draft-<slug>.md`, then send the sous a `[rail]` message: `spec draft ready: <absolute path>, please number it`. The sous reads it by that absolute path and writes it as `NNN-<slug>.md` in the main checkout (the sous never writes in a station), registers it, and tells you; then delete your draft.
 
 ## Step 1 — Gather the material
 

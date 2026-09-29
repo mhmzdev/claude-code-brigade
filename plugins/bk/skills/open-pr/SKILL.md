@@ -9,11 +9,11 @@ allowed-tools: Read, Grep, Glob, Bash, SendMessage, ListAgents, ToolSearch
 
 Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md` (in an installed plugin that's `…/plugins/cache/claude-code-brigade/bk/<version>/skills/README.md`, never a file in this repo). Read `.claude/brigade.md` first.
 
-Position: `… → review-task → **open-pr**`. For lane C it follows `implement` directly.
+**Station check first** (Contract 1): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`. If it prints `cook …`, you are a line cook even if nobody typed `/bk:line-cook` (e.g. after a `/clear`): read and follow `${CLAUDE_SKILL_DIR}/../line-cook/SKILL.md` for where questions go, the journal, and what a cook never does.
 
-**Typing this skill is the go-ahead** to commit, push and open the PR. Don't ask again. Present the plan so the human can correct it as it scrolls past, and stop only on a real fork (listed below).
+Position: `… → review-task → **open-pr**`. For lane C it follows the pass (cook) or `implement` (solo).
 
-**Line cook:** run this only after the sous has sent `[go]` for this ticket. No `[go]` in this session → stop and send `[handoff]` via `/bk:review-task` instead.
+**Line cook:** run this only after the sous has sent `[go]` for this ticket, and after `/bk:clean around` and `/bk:handoff`. No `[go]` recorded in the ticket's journal → stop and send `[handoff]` via `/bk:review-task` instead.
 
 **Invoking this skill is the go** (Contract 5): commit, bring trunk in, re-check, push and
 open the PR without asking again. It stops only for what's listed under "Stop and ask only
@@ -55,7 +55,7 @@ The branch is `<lowercase id>-<slug>`, e.g. `bklg-004-fix-login`, reusing the pl
 
 ## 3 — Commit
 
-Stage only the ticket's files: the ones in the diff that the plan, the ticket's `files:` and the checklist account for. A file you had to guess about is a fork: ask. Never `git add -A` unasked.
+Stage only the ticket's files: the ones in the diff that the plan, the ticket's `files:` and the checklist account for, plus the ticket's plan, checklist and **journal** (`<docs.journal>/<ID>-<slug>.md`) and their INDEX rows. The journal is the one file allowed to have changed since the sous's `[go]`: it carries the closing handoff. A file you had to guess about is a fork: ask. Never `git add -A` unasked.
 
 Commit message: `[<ID>] <imperative summary>`, then a short body of why. Keep the repo's attribution trailer if its history uses one.
 
@@ -71,7 +71,7 @@ git merge origin/<trunk>
 
 - A merge conflict in an `INDEX.md` table → keep **both** rows. `--ours`/`--theirs` deletes another station's entry.
 - Any other conflict → stop and ask (cook: `[gate]` to the sous).
-- A red check → stop. Fix it, re-run `/bk:review-task` for anything it touched, and don't push red.
+- A red check → stop, and don't push red. Solo: fix it and re-run `/bk:review-task` for anything it touched. Cook: fixing it changes code after `[go]`, so fix it, then send `[handoff]` again for a new pass before pushing.
 
 ## 5 — Title and body
 

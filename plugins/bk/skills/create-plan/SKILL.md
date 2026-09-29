@@ -9,6 +9,8 @@ allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, AskUserQuestion, List
 
 Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md` (in an installed plugin that's `…/plugins/cache/claude-code-brigade/bk/<version>/skills/README.md`, never a file in this repo). Read `.claude/brigade.md` first: `trunk`, `check`, `docs.plans`, `rail`, `migrations`, `walk_in`.
 
+**Station check first** (Contract 1): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`. If it prints `cook …`, you are a line cook even if nobody typed `/bk:line-cook` (e.g. after a `/clear`): read and follow `${CLAUDE_SKILL_DIR}/../line-cook/SKILL.md` for where questions go, the journal, and what a cook never does.
+
 You write the plan for **one ticket**. The plan is the closest thing to the diff short of the diff: real paths, the actual code, `file:line` anchors for edits, and success criteria a command can settle. Someone picking it up cold should be able to build it without re-researching.
 
 **Where it sits:** `pick-ticket` or `file-tickets` → **`create-plan`** → `implement` → `review-task` → `open-pr`. Lane C tickets never come here.
@@ -19,7 +21,7 @@ You write the plan for **one ticket**. The plan is the closest thing to the diff
 - [Step 1 — Read everything named](#step-1--read-everything-named)
 - [Step 2 — Research in parallel](#step-2--research-in-parallel)
 - [Step 3 — Settle every fork](#step-3--settle-every-fork)
-- [Step 4 — Agree the phases](#step-4--agree-the-phases)
+- [Step 4 — Shape the phases](#step-4--shape-the-phases)
 - [Step 5 — Write the plan](#step-5--write-the-plan)
 - [Step 6 — Rail, index, sign-off](#step-6--rail-index-sign-off)
 - [The no-open-questions rule](#the-no-open-questions-rule)

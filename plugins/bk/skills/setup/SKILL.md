@@ -122,7 +122,9 @@ Write `.claude/brigade.md` with the shape in Contract 2, filled from steps 2–3
 flat keys on one line each: `kitchen.sh` reads them. Put repo-specific notes in the body
 as plain sentences.
 
-Create `.claude/brigade.local.md` (one placeholder line) and add it to `.gitignore`.
+Create `.claude/brigade.local.md` (one placeholder line) and add it to `.gitignore`, together
+with `.claude/sous-handoff.md` (the sous's handoff note is machine-local, Contract 11).
+`docs/lessons.md` is created later, by the first lesson promotion.
 
 Add to `.gitattributes` (create it if needed, merge if not):
 
@@ -154,7 +156,7 @@ it into the existing top-level block; never insert it in the middle of another k
 Create each folder that doesn't exist yet, with an `INDEX.md` (one-line purpose, then a
 table with one row per file):
 
-- always: `docs/specs/`, `docs/plans/`, `docs/checklists/`, `docs/research/`, `docs/brainstorm/`
+- always: `docs/specs/`, `docs/plans/`, `docs/checklists/`, `docs/journal/`, `docs/research/`, `docs/brainstorm/`
 - markdown or mixed-with-markdown-tickets rail: `docs/backlog/`
 
 Names and ids are Contract 4, exactly. Don't create sample tickets here; step 9 offers one.
@@ -206,7 +208,7 @@ files, and a cook must not inherit it. Otherwise run `kitchen.sh open`. Then tel
 human how to start:
 
 1. The kitchen is open (or open one terminal per station by hand).
-2. Here: `/bk:sous-chef`. In each station: `/bk:line-cook`.
+2. Here: `/bk:sous-chef`. In the stations there's nothing to type: `kitchen open` started each one as a line cook (unless `--bare`).
 3. Tell the sous which ticket to fire, or ask it to propose one per lane.
 
 And the one-line reminder: the sous never merges or deploys.

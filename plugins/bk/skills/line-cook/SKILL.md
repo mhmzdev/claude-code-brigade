@@ -1,6 +1,6 @@
 ---
 name: line-cook
-description: Take the line-cook role for the rest of the session — a Brigade worker in one station (a gitignored clone under stations/). Checks in with the sous chef, takes one ticket per session, routes routine gates to the sous over SendMessage, asks before touching shared resources, never edits the rail, and hands off for the pass before anything is committed. Use when the user says "line cook", "you're a worker", "you're station 2", or "/bk:line-cook @sous".
+description: Take the line-cook role for the rest of the session — a Brigade worker in one station (a gitignored clone under stations/, or a worktree in ../<repo>-stations/). Any session inside a station is a cook, so this also runs automatically. Checks in with the sous chef, takes one ticket per session, routes routine gates to the sous over SendMessage, asks before touching shared resources, never edits the rail, and hands off for the pass before anything is committed. Use when the user says "line cook", "you're a worker", "you're station 2", or "/bk:line-cook @sous".
 argument-hint: "(none, or the sous chef session: @name)"
 allowed-tools: Read, Grep, Glob, Bash, Write, Edit, AskUserQuestion, SendMessage, ListAgents, ToolSearch, Skill, Agent
 ---
@@ -18,6 +18,7 @@ plan in *this* terminal, and merges.
 
 - [Check in](#check-in)
 - [Where each question goes](#where-each-question-goes)
+- [The journal](#the-journal)
 - [The loop](#the-loop)
 - [Things you never do](#things-you-never-do)
 - [When the sous is wrong](#when-the-sous-is-wrong)
@@ -29,12 +30,19 @@ plan in *this* terminal, and merges.
    in the invocation, else the one running in the main checkout (the repo that owns this
    station). Not sure which one it is? Don't guess: wait for its `[hello]`.
 2. Look at your station: `pwd`, `git branch --show-current`, `git status --short`.
-3. **Sous found:** send `[check-in]` with your station name, your model, branch, clean or
-   dirty (and what's dirty), and any ticket you're already on.
+3. **Already on a ticket?** (the branch name carries an id, e.g. after a `/clear`) Read that
+   ticket's journal (`<docs.journal>/<ID>-*.md`) and take its **last** `## Handoff` section
+   as your starting point; check it against `git status` and the plan, and the station wins
+   where they disagree. You're resuming, not starting over.
+4. **Sous found:** send `[check-in]` with your station name, your model, branch, clean or
+   dirty (and what's dirty), the ticket you're on, and **what you're waiting on**: an
+   unanswered question (`Q3`), the pass, a walk-in clearance, the chef's `/bk:implement`, or
+   nothing. That line is how a restarted sous recovers what was in flight.
    **No sous yet:** that's fine; the order sessions start in doesn't matter. Say in one
    line *"No sous chef running yet. I'll check in when it says hello."* and stop. When a
-   `[hello]` arrives, send the `[check-in]` then.
-4. Wait for a `[brief]`. Don't pick work yourself.
+   `[hello]` arrives, send the `[check-in]` then. A `[hello]` from a sous that has just
+   restarted also means: **re-send anything you were waiting on** (the question, the handoff).
+5. Wait for a `[brief]`. Don't pick work yourself.
 
 A `[brief]` or `[hello]` can reach a session that was opened bare, without this skill. The
 brief says it's a line-cook lane: treat that as having run `/bk:line-cook`, and follow this
@@ -63,6 +71,20 @@ apply your own entry: find it with `git stash list | grep '<station>:'`, then
 Nobody watches a dialog in a cook's terminal except for those head-chef questions. So a
 routine `AskUserQuestion` would just stall your station.
 
+## The journal
+
+Your ticket's journal, `<docs.journal>/<ID>-<slug>.md`, is yours alone (Contract 11). Create
+it from `${CLAUDE_SKILL_DIR}/../../templates/journal.md` when you start the ticket, and append
+a line for everything that would be lost if this session were cleared:
+
+- **every question** you send, numbered (`Q1`, `Q2`), with its options and your
+  recommendation, and **every answer** as `An`, copied from the sous's message;
+- decisions (also copied into the plan), walk-in clearances, review findings and their fixes,
+  and the sous's `[go]`.
+
+The message is the doorbell; the journal is the letter: `[gate] <ID> Q2, see journal`. Keep
+lines short; the journal is read by people later, not just by the next session.
+
 ## The loop
 
 1. **Branch**: `git fetch origin && git switch -c <lowercase id>-<slug> origin/<trunk>`.
@@ -78,10 +100,22 @@ routine `AskUserQuestion` would just stall your station.
 7. **`[handoff]`** to the sous: branch, files changed, `check` result, inspector result,
    checklist path. **Don't commit.** Wait.
 8. On `[findings]`: fix each numbered item, re-run `check`, hand off again.
-9. On `[go]`: **`/bk:open-pr`**. It pulls trunk into your branch and re-runs `check`
-   first. Send the sous the PR URL.
+9. On `[go]`, end of shift, in this order:
+   1. **`/bk:clean around`**: old mess in the files you touched, drafted as `HYG` tickets for
+      the sous (not fixed; your PR stays focused).
+   2. **`/bk:handoff`**: the closing section of your journal, including lessons.
+   3. **`/bk:open-pr`**. It pulls trunk into your branch and re-runs `check` first. Send
+      `[served] <ID> <PR url>`.
 10. Done. Tell the sous your shift is over. The head chef clears this session; don't take a
     second ticket on this context.
+
+**Being cleared mid-ticket** (e.g. between the plan and `/bk:implement`) is normal. When the
+head chef says so, run `/bk:handoff` first. The next session in this station reads the
+journal and carries on from its last handoff.
+
+**Run noisy commands through the `runner` sub-agent** (`subagent_type: "bk:runner"`) when their
+output is long: the check, a full test run, a counter. You get pass/fail and the failing lines;
+the rest stays out of your context.
 
 **Lane C (a `HYG-` ticket)** skips steps 3 and 6: implement from the ticket body, and the
 proof is `check` green plus the counter going down.

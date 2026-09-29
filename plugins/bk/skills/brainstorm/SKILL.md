@@ -9,6 +9,8 @@ allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, Skill, AskUserQuestio
 
 Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md` (in an installed plugin that's `…/plugins/cache/claude-code-brigade/bk/<version>/skills/README.md`, never a file in this repo). Read `.claude/brigade.md` before anything repo-specific. Sub-agents can't see either file, so restate the rules they need in their prompts.
 
+**Station check first** (Contract 1): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`. If it prints `cook …`, you are a line cook even if nobody typed `/bk:line-cook` (e.g. after a `/clear`): read and follow `${CLAUDE_SKILL_DIR}/../line-cook/SKILL.md` for where questions go, the journal, and what a cook never does.
+
 Pin down **WHAT** to build and **WHY**. Never HOW: no file lists, no phases, no code. Those belong to `/bk:create-plan`. This is the first stop of lane A:
 
 ```

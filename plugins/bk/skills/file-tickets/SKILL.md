@@ -9,6 +9,8 @@ allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, Skill, AskUserQuestio
 
 Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md` (in an installed plugin that's `…/plugins/cache/claude-code-brigade/bk/<version>/skills/README.md`, never a file in this repo). Read `.claude/brigade.md` before anything repo-specific. Every rail action goes through the six operations of Contract 3, performed by `/bk:rail` for whichever adapter the config names.
 
+**Station check first** (Contract 1): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`. If it prints `cook …`, you are a line cook even if nobody typed `/bk:line-cook` (e.g. after a `/clear`): read and follow `${CLAUDE_SKILL_DIR}/../line-cook/SKILL.md` for where questions go, the journal, and what a cook never does.
+
 ## Contents
 
 - [Who writes the rail](#who-writes-the-rail)
@@ -22,7 +24,7 @@ Honour the plugin contract: the `README.md` in this skill's parent folder, `${CL
 Firing a ticket is a rail write, and **only the sous chef writes the rail** (Contract 3).
 
 - **Sous or solo session**: draft, get approval, then **fire** and **link** through `/bk:rail`. On a markdown rail, commit per `rail.commit`: `direct` → one commit on trunk (`rail: fire S003-01..04`); `daily-pr` → onto the day's `rail/YYYY-MM-DD` branch.
-- **Line-cook session**: never write. Draft the ticket(s) in full, then send the sous one `[rail]` message: `fire <n> ticket(s)` plus the drafts (or the absolute path of a scratch file holding them). The sous numbers and fires them, and replies with the ids.
+- **Line-cook session**: never write. Draft the ticket(s) in full, write the drafts into your ticket's journal, then send the sous one `[rail] fire <n> ticket(s), see journal`. The sous numbers and fires them, and replies with the ids.
 
 ## Pick the mode
 
@@ -50,7 +52,7 @@ Any yes → say so in one sentence and recommend `/bk:brainstorm` or `/bk:spec` 
    - Prefactors first.
    - **Schema changes many readers depend on**: add first, move the readers while the check stays green, drop the old in a later ticket. One ticket per stage. Only one of them may carry a migration at a time (Contract 7), so chain them with `blocked_by`.
    - A dependency on **another spec's** ticket goes under `## Notes` in the body, not in `blocked_by`.
-4. **Approval gate.** Present a numbered list: title, blocked by, what it delivers and who sees it, likely files. Ask: is the size right? Are the edges real? Merge or split anything? **Fire nothing until the human approves.** A cook sends this list to the sous as a `[gate]`; the sous takes it to the human if the slicing is a real product question.
+4. **Approval gate.** Present a numbered list: title, blocked by, what it delivers and who sees it, likely files. Ask: is the size right? Are the edges real? Merge or split anything? **Fire nothing until the human approves.** A cook logs this list in its journal as a numbered `Qn` and sends `[gate] <ID> Qn, see journal`; the sous takes it to the human if the slicing is a real product question.
 5. **Fire.** Tickets go in `<docs.specs>/NNN-<slug>/NN-<slug>.md`, numbered `01`, `02`, … in dependency order. Their ids are `SNNN-01`, `SNNN-02`, …. Each starts from `${CLAUDE_SKILL_DIR}/../../templates/ticket.md` with `lane: A`, `spec: SNNN`, `status: backlog` (or `blocked` if a `blocked_by` entry is still open), `blocked_by`, and `files`. The body:
 
    ```markdown

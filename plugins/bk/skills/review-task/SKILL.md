@@ -9,7 +9,9 @@ allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, SendMessage, ListAgen
 
 Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md` (in an installed plugin that's `…/plugins/cache/claude-code-brigade/bk/<version>/skills/README.md`, never a file in this repo). Read `.claude/brigade.md` first.
 
-Position: `… → implement → **review** → open-pr`. Lane C skips this skill (Contract 9); its proof is the counter moving.
+**Station check first** (Contract 1): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`. If it prints `cook …`, you are a line cook even if nobody typed `/bk:line-cook` (e.g. after a `/clear`): read and follow `${CLAUDE_SKILL_DIR}/../line-cook/SKILL.md` for where questions go, the journal, and what a cook never does.
+
+Position: `… → implement → clean check → **review-task** → the pass → open-pr`. Lane C skips this skill (Contract 9); its proof is the counter moving.
 
 The checklist's real job is an **omission check**: after the work exists, say what must now be true, and find what is missing. Reading code proves absence well ("no guard exists on this route" is a fact). It proves presence badly: an `[x]` that cites a line is the author's hypothesis. So a passing test outranks a static read.
 
@@ -76,18 +78,16 @@ Start from `${CLAUDE_SKILL_DIR}/../../templates/checklist.md`. Write outcomes, n
 **All green** (no `[!]`, and every `[?]` either run or accepted by the human as a post-merge check):
 
 - **Solo or sous session** → move the ticket to `rfr` yourself through `/bk:rail` (on a markdown rail that's an edit to `status:` plus a `rail:` commit per `rail.commit`).
-- **Line cook** → you never write the rail. Send the sous one message, then wait:
+- **Line cook** → you never write the rail. Append a `handoff for the pass` entry to the
+  ticket's journal (station, branch, files changed, check result, inspector result, checklist
+  path and its `[x]/[?]/[!]` counts), then send the sous two short messages and wait:
 
   ```
-  [handoff] <ID> ready for the pass
-  station: <station>   branch: <branch>
-  files: <N changed>   check: <green | red>
-  inspector: <no findings | N findings, fixed | N open — why>
-  checklist: <absolute path>   [x] a · [?] b · [!] 0
+  [handoff] <ID> ready for the pass, see journal
   [rail] <ID> → rfr
   ```
 
-  **Do not commit anything before the sous replies `[go]`.** A `[findings]` reply means fix, re-run this skill, and hand off again. The sous reads your diff and re-runs the check itself. That's the pass, and it's the sous's job, not a sign of distrust.
+  **Do not commit anything before the sous replies `[go]`.** A `[findings]` reply means fix, re-run this skill, and hand off again. The sous tastes it through the `taster` sub-agent, which re-reads your diff and re-runs the check. That's the pass, and it's the sous's job, not a sign of distrust.
 
 ## Hard rules
 

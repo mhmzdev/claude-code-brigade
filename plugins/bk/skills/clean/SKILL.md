@@ -1,22 +1,26 @@
 ---
 name: clean
-description: Lane C, "clean as you go". `scan` runs the repo's hygiene counters from .claude/brigade.md (unused code, TODOs, whatever the repo declares), posts a snapshot, and drafts PR-sized HYG tickets from the findings; `check` runs the report-only inspector sub-agent on the current branch's diff before review. Use when the user says "clean", "hygiene", "run the hygiene scan", "what's the slop count", "clean check", "/bk:clean".
-argument-hint: "scan [--post] | check"
+description: Lane C, "clean as you go", in three scopes. `check` runs the report-only inspector on your own branch's diff before every handoff (findings fixed in the same PR); `around` finds old mess in the files your branch touched, at the end of a cook's shift; `scan` counts the whole kitchen's mess with the repo's counters. `around` and `scan` draft PR-sized HYG tickets and hand them to the sous, who numbers and fires them. Run by cooks as part of their loop, or by anyone. Use when the user says "clean", "hygiene", "run the hygiene scan", "what's the slop count", "clean check", "clean around", "/bk:clean".
+argument-hint: "check | around | scan [--post]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, SendMessage, ListAgents, ToolSearch
-disable-model-invocation: true
 ---
 
 # /bk:clean — clean as you go
 
 Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md` (in an installed plugin that's `…/plugins/cache/claude-code-brigade/bk/<version>/skills/README.md`, never a file in this repo). Read `.claude/brigade.md` first.
 
+**Station check first** (Contract 1): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`. If it prints `cook …`, you are a line cook even if nobody typed `/bk:line-cook` (e.g. after a `/clear`): read and follow `${CLAUDE_SKILL_DIR}/../line-cook/SKILL.md` for where questions go, the journal, and what a cook never does.
+
 In a real kitchen you don't wait for closing to clean, or service grinds to a halt. Lane C is that rule: the kitchen measures its own mess **mechanically** and files it as ordinary tickets, worked alongside the other two lanes.
 
-> **User-invoked only.** `scan` fires tickets onto the rail, so Claude never runs it on its own.
+Cooks run this skill themselves as part of their loop (Contract 9), so it is **not**
+human-only. It never writes the rail: `around` and `scan` only **draft** tickets, and the sous
+(or a solo session) fires them.
 
 ## Contents
 
 - [Modes](#modes)
+- [around](#around)
 - [scan](#scan)
 - [Working a HYG ticket](#working-a-hyg-ticket)
 - [The plateau rule](#the-plateau-rule)
@@ -24,11 +28,38 @@ In a real kitchen you don't wait for closing to clean, or service grinds to a ha
 
 ## Modes
 
-| Mode | Who runs it | Writes |
-|---|---|---|
-| `scan` | the sous chef, or a solo session | a snapshot (and HYG tickets once the human agrees) |
-| `scan --post` | same | also posts the snapshot to `clean.umbrella` |
-| `check` | anyone, including a line cook in its station | nothing: a report |
+| Mode | Scope | Who runs it, when | Outcome |
+|---|---|---|---|
+| `check` | your own new code (the branch's diff) | a cook before every handoff; anyone | a report; findings **fixed** in the same PR |
+| `around` | old mess in the files your branch touched | a cook at the end of its shift, on `[go]`, before `open-pr` | `HYG` drafts → the sous |
+| `scan` | the whole kitchen | a cook when the sous asks (lane C empty); a solo session | a snapshot + `HYG` drafts → the sous |
+| `scan --post` | same | same | also posts the snapshot to `clean.umbrella` |
+
+**Where drafts go.** A cook sends all its drafts in **one** `[rail] fire` message to the sous,
+with the draft bodies written into its journal (the message is the doorbell). The sous drops
+any draft that duplicates an open `HYG` ticket, numbers the rest and fires them. In a solo
+session, running the mode is the go: fire the drafts through `/bk:rail`. **One `scan` at a
+time** across the kitchen; the sous schedules it.
+
+**The one rule that keeps scopes honest:** a finding in a line **your branch added** is
+fixed now, never filed. Only pre-existing mess becomes a ticket.
+
+## around
+
+End of shift, after the sous's `[go]` and before `open-pr`. Your station is where you
+cooked; this reports the mess you worked next to, without widening your PR.
+
+1. The files your branch touched: `git diff --name-only origin/<trunk>` plus untracked files.
+2. Run each `clean.counters` command and keep only findings in those files.
+3. Drop findings in lines your branch added (`git diff -U0 origin/<trunk> -- <file>` gives
+   the added ranges). Those should already be fixed by `check`; if one isn't, fix it now and
+   tell the sous, since it changes what the pass approved.
+4. What's left is pre-existing. Cluster it into PR-sized drafts exactly as in `scan` step 3,
+   write them into your journal under `## Clean around`, and send the sous one
+   `[rail] fire HYG ×N, see journal`. Nothing found → one line in the journal, no message.
+
+Run it through the `runner` sub-agent when the counters are noisy, so the raw output stays out
+of your context.
 
 ## scan
 
@@ -65,13 +96,16 @@ Cluster the findings into **PR-sized** tickets: one directory, one module, or on
 - `## Done when`: the **exact findings list** (file:line per finding), plus "`<counter>` drops by N" and "`<check>` passes"
 - `files:` filled from the findings
 
-Show the drafts. **Fire them only on the human's say-so.** Filing goes through `/bk:rail`, which respects the writer rule: the sous or a solo session fires; a line cook never does. Skip any finding already covered by an open HYG ticket.
+Skip any finding already covered by an open HYG ticket. Then hand them over as in [Modes](#modes): a cook writes the drafts into its journal and sends the sous one `[rail] fire` batch; a solo session fires them through `/bk:rail` (running `scan` was the go). A cook never fires them itself.
+
+A cook running `scan` does it on a clean, detached copy of trunk, not its ticket branch, so
+the counts describe trunk: `git stash push -m "<station>: before scan"` if needed, `git switch --detach origin/<trunk>`, scan, then switch back.
 
 ## Working a HYG ticket
 
 Lane C skips `create-plan` and `review-task` (Contract 9): the ticket body is already the plan, and "the counter moved" is the proof.
 
-`pick-ticket` → `implement` straight off the ticket body → `clean check` → hand off to the sous → `open-pr`. The PR's Test plan names the counter before and after. Remove only what the finding names. A "cleanup" that changes behaviour is a lane B ticket, not this one.
+`pick-ticket` → `implement` straight off the ticket body → `clean check` → hand off to the sous → on `[go]`: `clean around` → `handoff` → `open-pr`. The PR's Test plan names the counter before and after. Remove only what the finding names. A "cleanup" that changes behaviour is a lane B ticket, not this one.
 
 ## The plateau rule
 

@@ -9,6 +9,8 @@ allowed-tools: Read, Edit, Write, Grep, Glob, Bash, Agent, AskUserQuestion, Send
 
 Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md` (in an installed plugin that's `…/plugins/cache/claude-code-brigade/bk/<version>/skills/README.md`, never a file in this repo). Read `.claude/brigade.md` before anything repo-specific.
 
+**Station check first** (Contract 1): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`. If it prints `cook …`, you are a line cook even if nobody typed `/bk:line-cook` (e.g. after a `/clear`): read and follow `${CLAUDE_SKILL_DIR}/../line-cook/SKILL.md` for where questions go, the journal, and what a cook never does.
+
 Interview the human until you share one understanding. This skill writes no code; it sharpens what comes before code. It fits in three places:
 
 - **Lane A**: `brainstorm → grill-me → spec`, to harden the leaning approach before it becomes a contract.

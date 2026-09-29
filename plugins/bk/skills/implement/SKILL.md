@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Carry out an approved plan phase by phase — run the config's check after every phase, tick criteria honestly, keep the plan's status and the rail current — then hand off to review (lanes A/B) or open-pr (lane C). Hygiene (HYG) tickets run straight from the ticket body with no plan; the proof is the counter going down. Refuses a plan that isn't approved or still carries open questions. Never commits. Use when the user says "implement this", "build the plan", "start coding", "execute BKLG-004", "work HYG-002", "/bk:implement".
+description: Carry out an approved plan phase by phase — run the config's check after every phase, tick criteria honestly, keep the plan's status and the rail current — then hand off to clean check and review-task (lanes A/B), or to clean check and the pass (lane C). Hygiene (HYG) tickets run straight from the ticket body with no plan; the proof is the counter going down. Refuses a plan that isn't approved or still carries open questions. Never commits. Use when the user says "implement this", "build the plan", "start coding", "execute BKLG-004", "work HYG-002", "/bk:implement".
 argument-hint: "[plan path | ticket id] (usually nothing: it finds this station's plan)"
 allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, AskUserQuestion, ListAgents, SendMessage, ToolSearch
 disable-model-invocation: true
@@ -10,11 +10,13 @@ disable-model-invocation: true
 
 Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md` (in an installed plugin that's `…/plugins/cache/claude-code-brigade/bk/<version>/skills/README.md`, never a file in this repo). Read `.claude/brigade.md` first: `trunk`, `check`, `docs.plans`, `rail`, `walk_in`, `migrations`, `clean.counters`.
 
+**Station check first** (Contract 1): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`. If it prints `cook …`, you are a line cook even if nobody typed `/bk:line-cook` (e.g. after a `/clear`): read and follow `${CLAUDE_SKILL_DIR}/../line-cook/SKILL.md` for where questions go, the journal, and what a cook never does.
+
 You're executing a plan, and **being started is the sign-off.** This skill has
 `disable-model-invocation: true`: only a human can type it, so the human typing it has
 approved the plan and every commit under it. **Follow the plan, don't redesign it.** Every line you write matches the repo's live conventions.
 
-**Where it sits:** `create-plan` → **`implement`** → `review-task` → `open-pr`. Lane C: `pick-ticket` → **`implement`** → `open-pr`.
+**Where it sits:** `create-plan` → **`implement`** → `clean check` → `review-task` → the pass → `open-pr`. Lane C: `pick-ticket` → **`implement`** → `clean check` → the pass → `open-pr`.
 
 ## Contents
 
@@ -68,7 +70,7 @@ One plan phase per pass:
 
 1. **Build it** in the plan's order. Honour the repo's `CLAUDE.md` and rules; read them, don't assume.
 2. **The walk-in.** About to run a destructive command on a `walk_in:` resource (reset, reseed, tear down)? Cook → `[walk-in] about to run <command> on <resource>, OK?` and wait. Prefer the resource's `safe:` command when one exists.
-3. **Check.** Run the config's `check` plus anything the phase names. Capture the real exit code (`out=$(<cmd> 2>&1); rc=$?`), not a pipe's.
+3. **Check.** Run the config's `check` plus anything the phase names. Capture the real exit code (`out=$(<cmd> 2>&1); rc=$?`), not a pipe's. When the output is long, run it through the `runner` sub-agent (`subagent_type: "bk:runner"`) so only pass/fail and the failing lines reach your context: across several phases that's the difference between finishing in the smart part of the window and not.
 4. **Record** in the plan file (it survives a context clear): the phase's `**Status:** Done`, ticked automated criteria, a one-line summary of files changed.
 5. **Carry manual criteria forward — don't pause for them.** Leave them unticked; you'll list them all once in Step 3.
 6. **Next phase straight away.** A phase finishing is not a question.
@@ -95,7 +97,7 @@ List the manual criteria from every phase as one numbered checklist. In a statio
 1. Set the plan's `status: done` (implementation finished; merge is tracked on the rail, not here) and update its `INDEX.md` row.
 2. Leave the rail at `in-progress`. `review-task` moves it to `rfr`.
 3. **Don't commit.** Commits happen in `open-pr`: after the sous's pass in a station, or when the human runs `/bk:open-pr` solo (running it is the yes).
-4. Hand off: lanes A/B → `/bk:review-task <plan>`. It's not optional for a feature. Never auto-chain; say it and stop (a cook with a brief that says "run the loop" continues).
+4. Hand off: lanes A/B → `/bk:review-task <plan>`. It's not optional for a feature. Never auto-chain; say it and stop (a cook continues by itself: `/bk:clean check`, then `/bk:review-task`).
 
 ## Lane C — hygiene tickets
 
@@ -106,7 +108,7 @@ Hygiene tickets skip the plan and the checklist (Contract 9). The ticket body **
 3. Run the counter's `command` once and record the **before** count. It should match the ticket; if it's wildly different, trunk moved — say so to the sous before cutting.
 4. Work the findings in the body — only those. Run `check` after each logical batch.
 5. Run the counter again: the **after** count. The ticket is done when the named findings are gone and `check` is green.
-6. Hand off to `/bk:open-pr <ID>` with the before → after numbers; they go in the PR body. No review, no checklist.
+6. Record the before → after numbers in the journal (they go in the PR body). No review-task, no checklist. Cook: `/bk:clean check` → `[handoff]` to the sous → on `[go]`: `clean around` → `handoff` → `open-pr`. Solo: `/bk:open-pr <ID>`.
 
 ## What not to do
 

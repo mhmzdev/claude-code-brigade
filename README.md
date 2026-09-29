@@ -23,6 +23,7 @@ daemon, no queue, and no database.
 - [Stations: clones or worktrees](#stations-clones-or-worktrees)
 - [Run a service](#run-a-service)
 - [What a service looks like](#what-a-service-looks-like)
+- [Long services: clearing sessions](#long-services-clearing-sessions)
 - [What's in the box](#whats-in-the-box)
 - [Troubleshooting](#troubleshooting)
 - [Honest limits](#honest-limits)
@@ -45,7 +46,9 @@ into a ticket, and puts one gate between the kitchen and the customer: **the pas
 | **Station** | a gitignored clone at `stations/station-N` |
 | **The Walk-in** | shared local resources (a database, a docker stack) that one cook could break for everyone |
 | **The Rail** | where tickets live: markdown in `docs/` (default), GitHub Projects, or Jira |
-| **Health Inspector** | a report-only sub-agent that reviews diffs |
+| **Health Inspector** | `inspector`, a report-only sub-agent: flags what a reviewer would reject in a diff |
+| **Taster** | `taster`, a sub-agent the sous sends to the pass: reads the diff, re-runs the check, walks "Done when", returns a verdict |
+| **Runner** | `runner`, a sub-agent anyone uses to run a noisy command and get back only pass/fail plus the failing lines |
 
 The full table, plus an Urdu alternate (Qafila), is in [`docs/the-names.md`](docs/the-names.md).
 
@@ -187,15 +190,47 @@ cook  → sous   [rail]      claim BKLG-001 todo
                            … the cook writes the plan, presents it, stops …
 you   (cook's terminal)    /bk:implement        ← the sign-off
 cook  → sous   [rail]      BKLG-001 → in-progress
-cook  → sous   [gate]      "two ways to do X, I recommend A" → sous answers
+cook  → sous   [gate]      BKLG-001 Q1, see journal → sous answers; cook copies it in as A1
 cook  → sous   [handoff]   ready for the pass: branch, files, check green, inspector clean
+                           … the sous sends the taster; reads its verdict …
 sous  → cook   [findings]  1. file:line — why   (or)   [go]
+                           … on [go]: clean around, handoff into the journal, then open-pr …
 cook  → sous   [served]    PR #12
+sous  → PR                 LGTM comment
                            … YOU merge; the sous closes BKLG-001 on the rail …
 ```
 
 Only two moments need you: typing `/bk:implement` (the sign-off) and the merge. Real design forks reach you
 too; everything routine stays between the sous and the cooks.
+
+## Long services: clearing sessions
+
+A model works best early in its context window; well before it's full, the noise starts to
+cost. The Brigade treats a context window as a **cache, not the record**. Everything a fresh
+session needs is on disk, so any session can be cleared at a quiet point and a new one carries
+on. No `/compact` needed.
+
+| What | Where | Written by |
+|---|---|---|
+| tickets and their status | the rail (`docs/specs/`, `docs/backlog/`) | the sous |
+| a ticket's plan and checklist | `docs/plans/`, `docs/checklists/` | its cook |
+| **a ticket's journal**: questions and answers, findings, decisions, handoffs, lessons | `docs/journal/<ID>-<slug>.md`, lands with the PR | its cook, only |
+| the sous's own notes: your standing instructions, what's next | `.claude/sous-handoff.md`, gitignored | the sous |
+
+- **Cooks:** `/clear` after every PR, as always. Clearing mid-ticket is fine too: run
+  `/bk:handoff`, `/clear`, then type the next skill (e.g. `/bk:implement`). A session inside
+  a station knows it's a cook, and it resumes from the journal's last handoff.
+- **The sous:** when its context grows (you'll see it in the status line), run `/bk:handoff`,
+  `/clear`, `/bk:sous-chef`. The new sous reads its note, lists open questions
+  (`kitchen.sh questions`), and says hello; cooks re-send whatever they were waiting on.
+- **Less to clear in the first place:** the sous reviews through the `taster`, and anyone can
+  push noisy commands through the `runner`, so diffs and logs stay out of the main context.
+
+**Lessons are promoted by rule, not by mood.** Cooks write one-line `lesson(repo)` or
+`lesson(plugin)` entries in their journal handoffs. At each sous handoff, `kitchen.sh lessons`
+counts them by ticket: a repo lesson seen in two tickets becomes a ticket to promote it into
+`CLAUDE.md` (reviewed and merged like any change); a lesson about the Brigade itself becomes a
+drafted issue on this repo, filed only on your OK.
 
 ## What's in the box
 
@@ -207,7 +242,9 @@ too; everything routine stays between the sous and the cooks.
 | `rail` | list, read, claim, fire, link, close: markdown, GitHub or Jira |
 | `brainstorm` · `grill-me` · `spec` · `file-tickets` | lane A, from idea to tickets |
 | `pick-ticket` · `create-plan` · `implement` · `review-task` · `open-pr` | from ticket to PR. `implement` is typed by you: it's the sign-off |
-| `clean` | lane C: count the mess, file hygiene tickets, pre-review inspection |
+| `clean` | `check` your own diff (every ticket), `around` your station at end of shift, `scan` the kitchen; hygiene drafts go to the sous |
+| `handoff` | write this session's handoff (cook: journal section; sous: local note) so it can be cleared |
+| agents: `taster` · `runner` · `inspector` | review at the pass · run noisy commands · report what a reviewer would reject |
 
 Every skill works **solo** too: without a sous, you are both chef and sous.
 The shared rules every skill follows are in [`plugins/bk/skills/README.md`](plugins/bk/skills/README.md).
@@ -230,6 +267,11 @@ The shared rules every skill follows are in [`plugins/bk/skills/README.md`](plug
   exclude `stations/` from tools that don't read `.gitignore` (setup helps with this).
 
 ## Status
+
+**v0.6.** Long services: ticket journals, `/bk:handoff` for cooks and the sous, lessons
+promoted by count, the `taster` and `runner` sub-agents, and cleaning in three scopes. A
+session inside a station is a cook even after `/clear`. `clean` is no longer human-only, so
+cooks run it in their loop.
 
 **v0.5.** Skills no longer ask for approval they already have; `review` is now
 `review-task`; cooks start themselves and check in in either order.

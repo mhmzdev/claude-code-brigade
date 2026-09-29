@@ -7,8 +7,9 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 
 # /bk:rail
 
-Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md` (in an installed plugin that's `…/plugins/cache/claude-code-brigade/bk/<version>/skills/README.md`, never a file in this repo): Contract 3 (the rail) and
-Contract 4 (names and ids).
+Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md` (in an installed plugin that's `…/plugins/cache/claude-code-brigade/bk/<version>/skills/README.md`, never a file in this repo): Contract 3 (the rail) and Contract 4 (names and ids).
+
+**Station check first** (Contract 1): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`. If it prints `cook …`, you are a line cook even if nobody typed `/bk:line-cook` (e.g. after a `/clear`): read and follow `${CLAUDE_SKILL_DIR}/../line-cook/SKILL.md` for where questions go, the journal, and what a cook never does.
 
 The rail is wherever tickets live. This skill is the only place that knows *how* each
 backend does each operation. Everything else asks for the operation.
@@ -31,7 +32,7 @@ backend does each operation. Everything else asks for the operation.
 
 Before any `claim`, check the current status. `backlog` and `blocked` are free. `todo`,
 `in-progress` and `rfr` belong to the ticket's `cook`, and only a request from that cook
-may move them. Refuse anything else and say whose claim it is.
+may move them, or the sous closing an `rfr` ticket to `done` after the head chef merges. Refuse anything else and say whose claim it is.
 
 ## The operations
 

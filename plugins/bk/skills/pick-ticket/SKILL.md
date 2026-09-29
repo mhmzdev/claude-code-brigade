@@ -2,12 +2,14 @@
 name: pick-ticket
 description: Pick up a ticket cold. Rebuilds the context behind it (why it exists, what it links to, what happened since), checks the code at origin/<trunk>, returns one of six staleness verdicts with evidence, checks nobody else owns it, then recommends the next skill and — only on a yes — claims it on the rail. Works on any rail (markdown, GitHub, Jira). Read-only until told otherwise. Use when the user says "pick a ticket", "pick up BKLG-004", "catch me up on S001-02", "is this ticket still valid", "what's the story on HYG-003".
 argument-hint: "<ticket id, path, or URL>"
-allowed-tools: Bash, Read, ListAgents, SendMessage, AskUserQuestion, ToolSearch
+allowed-tools: Bash, Read, Skill, ListAgents, SendMessage, AskUserQuestion, ToolSearch
 ---
 
 # /bk:pick-ticket
 
 Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md` (in an installed plugin that's `…/plugins/cache/claude-code-brigade/bk/<version>/skills/README.md`, never a file in this repo). Read `.claude/brigade.md` first; every trunk, path and rail detail comes from there.
+
+**Station check first** (Contract 1): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`. If it prints `cook …`, you are a line cook even if nobody typed `/bk:line-cook` (e.g. after a `/clear`): read and follow `${CLAUDE_SKILL_DIR}/../line-cook/SKILL.md` for where questions go, the journal, and what a cook never does.
 
 Someone is picking up a ticket cold. Give the context back, say whether the ticket is still true, check that it's free, then help claim it — in that order.
 
@@ -25,9 +27,9 @@ Someone is picking up a ticket cold. Give the context back, say whether the tick
 
 ## The one rule
 
-**Read freely. Anything that changes something outside this conversation waits for a yes in this run.** That covers claiming, editing a ticket, closing it, commenting, and messaging another session. Propose it, show exactly what you'd write, wait.
+**Read freely. Anything that changes something outside this conversation waits for a yes in this run**, except in a line-cook session, where **the sous's brief is the yes**: nobody watches a cook's terminal for a dialog, so claim with `[rail] claim` without asking. That covers claiming, editing a ticket, closing it, commenting, and messaging another session. Propose it, show exactly what you'd write, wait.
 
-This skill never writes a file in the repo.
+This skill writes no file itself: a claim goes through `/bk:rail` (sous or solo) or a `[rail]` message (cook).
 
 ## Step 0 — Resolve the ticket
 
@@ -130,10 +132,10 @@ Code read at `origin/<trunk>` <sha>
 - The WHAT is crisp, lane A or B → `/bk:create-plan <ID>`.
 - **Lane C (`HYG-*`)** → `/bk:implement <ID>`. Hygiene tickets have no plan and no checklist (Contract 9); the ticket body is the spec and the counter is the proof.
 
-**(b) Claim it — only on a yes.** The claim for lane A/B is `todo` (it's set again by `create-plan`, harmlessly); for lane C it's `in-progress`, because nothing comes between picking and implementing.
+**(b) Claim it — on a yes (solo), on the head chef's "fire it" (sous), or straight away on a brief (cook).** The claim for lane A/B is `todo` (it's set again by `create-plan`, harmlessly); for lane C it's `in-progress`, because nothing comes between picking and implementing.
 
 - **In a line-cook session:** you don't write the rail. Send the sous `[rail] claim <ID> <status> cook=<station>` and wait for `[heard]`. The sous may refuse because another station owns it — believe it and stop.
-- **In a sous or solo session:** do the rail's **claim** operation yourself (markdown: set `status:` and `cook:` in the ticket's frontmatter, commit per `rail.commit`; github/jira: status field + assignee).
+- **In a sous or solo session:** run `/bk:rail claim <ID> <status> <cook>`, which does the edit and the commit per `rail.commit`.
 
 Then restate the ids for downstream: ticket `<ID>`, branch `<lowercase id>-<slug>`.
 
@@ -141,7 +143,7 @@ Close, body rewrite and comment offers follow the same rule: show the text, wait
 
 ## What not to do
 
-- Don't act without a yes in this run.
+- Don't act without a yes in this run (a cook's brief counts as one).
 - Don't judge against the working tree or an open PR. Don't run `git grep` without a ref.
 - Don't claim a ticket in `todo`, `in-progress` or `rfr` that isn't yours.
 - Don't write the rail from a cook session. Ask the sous.
