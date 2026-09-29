@@ -1,5 +1,7 @@
 # The Brigade
 
+[![check](https://github.com/mhmzdev/claude-code-brigade/actions/workflows/check.yml/badge.svg)](https://github.com/mhmzdev/claude-code-brigade/actions/workflows/check.yml)
+
 ![The Brigade: a sous chef bot at the pass, line-cook bots at five stations, and the human head chef overseeing](assets/hero.jpeg)
 
 Run a kitchen of Claude Code sessions. One **sous chef** leads, a few **line cooks** work

@@ -1,0 +1,51 @@
+# Runs scripts/check.sh — the same gate as locally — on every push and pull request.
+# main is the release (the marketplace installs from it), so a red check here means
+# don't merge. Two runners on purpose: macOS ships bash 3.2 and BSD awk/sed (what most
+# Brigade users run), Linux ships bash 5 and a different awk, and kitchen.sh must work
+# on both. The claude CLI isn't installed here, so manifest validation is skipped with
+# a warning; run scripts/check.sh locally to cover it.
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      # macOS runners put a Homebrew bash 5 first on PATH; users run the system
+      # bash 3.2 (kitchen.sh's `#!/usr/bin/env bash` resolves through PATH), so pin it.
+      - name: Use the system bash 3.2 (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p "$RUNNER_TEMP/sysbash"
+          ln -sf /bin/bash "$RUNNER_TEMP/sysbash/bash"
+          echo "$RUNNER_TEMP/sysbash" >> "$GITHUB_PATH"
+
+      - name: Install shellcheck (if missing)
+        run: |
+          if ! command -v shellcheck >/dev/null; then
+            if [ "$RUNNER_OS" = "macOS" ]; then brew install shellcheck; else sudo apt-get update && sudo apt-get install -y shellcheck; fi
+          fi
+          shellcheck --version | head -2
+          bash --version | head -1
+
+      - name: scripts/check.sh
+        run: bash scripts/check.sh

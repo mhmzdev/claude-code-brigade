@@ -32,6 +32,7 @@ plugins/bk/                         the plugin (skills are invoked /bk:<skill>)
 ├── agents/                         inspector (report-only), taster (the pass), runner (noisy commands)
 └── templates/                      spec, ticket, plan, checklist, journal
 scripts/check.sh                    THE gate: manifests, shellcheck, frontmatter, tests
+.github/workflows/check.yml         runs the gate in CI on Linux and macOS
 tests/kitchen.test.sh               behaviour tests for kitchen.sh, both kitchen modes
 docs/the-names.md                   the Brigade names, plus Qafila as an alternate
 assets/hero.jpeg                    README banner
@@ -92,6 +93,11 @@ The tests are sealed off from the machine: git runs with `GIT_CONFIG_GLOBAL=/dev
 points into the temp dir, and `open` only runs with `--terminal print` or `--no-launch`, so
 nothing opens on your screen or writes to your real config. `KEEP=1 tests/kitchen.test.sh`
 keeps the temp dir for poking at.
+
+**CI runs the same gate** (`.github/workflows/check.yml`) on every push to `main` and every
+pull request, on Linux (bash 5) and macOS (pinned to the system bash 3.2 that most users
+have). The `claude` CLI isn't installed there, so step 1 is skipped in CI: run the gate locally
+too. A red check means don't merge.
 
 **When you add behaviour to `kitchen.sh`, add a test for it, and make sure it can fail:**
 break the code on purpose and watch the test go red before you trust it green. Every test in
