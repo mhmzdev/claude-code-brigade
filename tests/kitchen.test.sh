@@ -7,7 +7,8 @@
 # modes. Nothing touches the real machine:
 #   - git runs with GIT_CONFIG_GLOBAL=/dev/null, so your own config can't hide a bug;
 #   - HOME points into the temp dir, so Warp configs land there;
-#   - `open` only ever runs with --terminal print or --terminal warp --no-launch.
+#   - `open` only ever runs with --terminal print or --no-launch, and the native
+#     launchers it looks for are stubs on a fake PATH, so no window ever opens.
 #
 # Usage:   tests/kitchen.test.sh            (exit 0 = all passed)
 #          KEEP=1 tests/kitchen.test.sh     (keep the temp dir for poking at)
@@ -24,7 +25,7 @@ export HOME="$TMP/home" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
   GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com \
   GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
 unset CLAUDE_CONFIG_DIR BRIGADE_TRUNK BRIGADE_KITCHEN BRIGADE_KITCHEN_MODE BRIGADE_STATIONS \
-  BRIGADE_MODEL BRIGADE_PERMISSION_MODE BRIGADE_TERMINAL
+  BRIGADE_MODEL BRIGADE_PERMISSION_MODE BRIGADE_TERMINAL BRIGADE_OS
 mkdir -p "$HOME"
 
 cleanup() { [[ -n "${KEEP:-}" ]] && echo "kept: $TMP" || rm -rf "$TMP"; }
@@ -82,6 +83,28 @@ ok "setup prints the git clean -fdx warning" has "$out" "git clean -fdx"
 ok "setup says cooks start already running /bk:line-cook" has "$out" "cooks start already running"
 out=$("$K" setup 2>&1)
 ok "setup is idempotent (existing stations left alone)" has "$out" "station-1: exists"
+out=$("$K" setup -n 3 2>&1)
+ok "setup -n grows the kitchen, keeping existing stations" has "$out" "station-2: exists"
+ok "…and adding the new one" test -d "$C/stations/station-3/.git"
+out=$("$K" open --terminal print)
+ok "open without -n takes every station, not just the configured count" has "$out" "--name app-cook-3"
+out=$("$K" open --terminal print -n 2)
+ok "open -n N takes only the first N" bash -c "! printf '%s' \"\$1\" | grep -q app-cook-3" _ "$out"
+rm -rf "$C/stations/station-3"
+
+# A cook already at work: a stub claude sleeping in station-1 (killed right after).
+CB="$TMP/cookbin"; mkdir -p "$CB"; printf '#!/bin/sh\nsleep 30\n' > "$CB/claude"; chmod +x "$CB/claude"
+(cd "$C/stations/station-1" && exec "$CB/claude") & COOK=$!
+sleep 1
+out=$("$K" open --terminal print -m "o s")
+ok "open leaves a station with a running cook alone" has "$out" "left alone: station-1"
+ok "…opening only the free ones" bash -c "! printf '%s' \"\$1\" | grep -q 'name app-cook-1'" _ "$out"
+ok "…and each keeps its own model" has "$out" "app-cook-2 --model sonnet"
+(cd "$C/stations/station-2" && exec "$CB/claude") & COOK2=$!
+sleep 1
+out=$("$K" open --terminal print)
+ok "open with every station busy opens nothing" has "$out" "Every station has a cook"
+pkill -P "$COOK" 2>/dev/null; pkill -P "$COOK2" 2>/dev/null; kill "$COOK" "$COOK2" 2>/dev/null; wait "$COOK" "$COOK2" 2>/dev/null
 
 ok "role is main in the main checkout" test "$("$K" role | cut -d' ' -f1)" = main
 mkdir -p "$C/stations/station-2/lib/deep"
@@ -102,9 +125,36 @@ out=$(CLAUDE_CONFIG_DIR=/x/profile "$K" open --terminal print)
 ok "open passes CLAUDE_CONFIG_DIR through when set" has "$out" "CLAUDE_CONFIG_DIR=/x/profile claude"
 out=$("$K" open --terminal print --bare)
 ok "open --bare starts plain sessions" bash -c "! printf '%s' \"\$1\" | grep -q 'bk:line-cook\"'" _ "$out"
-out=$("$K" open --terminal warp --no-launch)
+out=$(BRIGADE_OS=mac "$K" open --terminal warp --no-launch)
 ok "open --no-launch writes the Warp config and launches nothing" has "$out" "not launched"
 ok "…into HOME's launch_configurations, titled by cook" grep -q 'title: "app-cook-1' "$HOME/.warp/launch_configurations/app-brigade.yaml"
+BRIGADE_OS=linux "$K" open --terminal warp --no-launch >/dev/null
+ok "on Linux the Warp config goes to warp-terminal's data dir" test -f "$HOME/.local/share/warp-terminal/launch_configurations/app-brigade.yaml"
+
+# Terminal choice: stub launchers on a fake PATH; --no-launch shows what would run.
+FAKE="$TMP/fakebin"; mkdir -p "$FAKE"
+stub() { printf '#!/bin/sh\nexit 0\n' > "$FAKE/$1"; chmod +x "$FAKE/$1"; }
+stub gnome-terminal; stub osascript; stub wt.exe
+out=$(BRIGADE_OS=linux DISPLAY=:0 PATH="$FAKE:$PATH" "$K" open --no-launch)
+ok "no Warp: open falls back to the Linux desktop's terminal" has "$out" "would run: gnome-terminal --working-directory=.*station-1"
+ok "…running the cook's claude command" has "$out" "app-cook-1"
+stub warp-terminal
+out=$(BRIGADE_OS=linux DISPLAY=:0 PATH="$FAKE:$PATH" "$K" open --no-launch)
+ok "Warp installed: open prefers it over the native terminal" has "$out" "Warp config written"
+rm "$FAKE/warp-terminal"
+out=$(env -u DISPLAY -u WAYLAND_DISPLAY BRIGADE_OS=linux PATH="$FAKE:$PATH" "$K" open --no-launch)
+ok "no Warp and no desktop: open prints the commands" has "$out" "cd .*station-1.* && claude"
+out=$(BRIGADE_OS=mac PATH="$FAKE:$PATH" "$K" open --terminal native --no-launch)
+ok "macOS native terminal is Terminal.app" has "$out" 'would run: osascript .*Terminal'
+out=$(BRIGADE_OS=wsl PATH="$FAKE:$PATH" "$K" open --terminal native --no-launch)
+ok "WSL native terminal is Windows Terminal running wsl.exe" has "$out" "would run: wt.exe .*wsl.exe"
+out=$(BRIGADE_OS=windows PATH="$FAKE:$PATH" "$K" open --terminal native --no-launch)
+ok "Git Bash native terminal is Windows Terminal" has "$out" "would run: wt.exe -w 0 new-tab"
+out=$(env -u DISPLAY -u WAYLAND_DISPLAY BRIGADE_OS=linux "$K" open --terminal native --no-launch)
+ok "--terminal native with no terminal found prints the commands" has "$out" "No terminal found"
+out=$("$K" open --terminal bogus)
+ok "an unknown --terminal is named" has "$out" "Unknown terminal 'bogus'"
+ok "…and the commands are printed" has "$out" "claude --name app-cook-1"
 out=$("$K" open --terminal print -m zz 2>&1); rc=$?
 ok "open rejects an unknown model" test "$rc" -ne 0
 out=$(BRIGADE_KITCHEN_MODE=bogus "$K" status 2>&1); rc=$?
