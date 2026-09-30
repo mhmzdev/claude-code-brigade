@@ -21,6 +21,7 @@ daemon, no queue, and no database.
 - [The three lanes](#the-three-lanes)
 - [The rules](#the-rules)
 - [Install](#install)
+  - [Update](#update)
 - [Set up a repo](#set-up-a-repo)
 - [Stations: clones or worktrees](#stations-clones-or-worktrees)
 - [Run a service](#run-a-service)
@@ -100,6 +101,22 @@ Or commit it for your whole team in `.claude/settings.json`:
 You need a Claude Code version where sessions on one machine can see each other
 (`ListAgents`) and message each other (`SendMessage`). All sessions must run under the
 same `CLAUDE_CONFIG_DIR`.
+
+### Update
+
+New versions land on `main`. Fetch the latest marketplace, then update the plugin:
+
+```
+/plugin marketplace update claude-code-brigade
+```
+
+```bash
+claude plugin update bk@claude-code-brigade
+```
+
+Or do both from the `/plugin` menu. Then **restart every session**, the sous and each cook:
+a running session keeps the version it started with. The [Status](#status) section says
+what changed in each version.
 
 ## Set up a repo
 
