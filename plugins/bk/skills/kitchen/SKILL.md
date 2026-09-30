@@ -1,7 +1,7 @@
 ---
 name: kitchen
 description: Manage the Brigade's stations — the clones (stations/) or worktrees (../<repo>-stations/) where line cooks work. Create them, open one Claude session per station already running /bk:line-cook (Warp, else the OS's own terminal, else printed commands), sync clean ones to trunk, and print the status, files-in-flight and rail boards the sous chef reads. Use when the user says "set up stations", "open the kitchen", "open the line cooks", "station status", "what's in flight", "show the rail", "/bk:kitchen".
-argument-hint: "setup [-n N] | open [-n N] [-m \"O S\"] [--terminal warp|native|tmux|print] [--bare] [--no-launch] | sync | status | files | rail | questions | lessons | role | remove"
+argument-hint: "setup [-n N] | open [-n N] [-m \"O S\"] [--terminal warp|native|tmux|print] [--bare] [--no-launch] | sync | status | files | rail | questions | lessons | sessions [--dir D] | role | remove"
 allowed-tools: Bash, Read
 ---
 
@@ -31,6 +31,7 @@ from the main checkout; it reads the flat keys in `.claude/brigade.md`.
 | `role` | `cook <station> <main checkout>` inside a station, else `main <main checkout>`. Every lifecycle skill runs this first |
 | `questions` | every unanswered question (`Qn` with no `An`) in the stations' journals: what the cooks are waiting on |
 | `lessons` | lesson lines counted by distinct tickets across all journals, each marked `watch` / `DUE` / `promoted` (the sous runs it at handoff) |
+| `sessions [--dir D]` | the Claude Code session transcripts saved for this checkout (or `D`, e.g. a station), newest first, from `$CLAUDE_CONFIG_DIR` (else `~/.claude`). `/bk:feedback` uses it |
 | `remove` | delete every station, after showing status and asking for `delete`. Worktree mode uses `git worktree remove`, which refuses a dirty station and keeps every branch |
 
 ## How to run it

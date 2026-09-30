@@ -242,6 +242,7 @@ commit made under it (after the sous's pass). No separate "approve?" question ex
 | Every other confirmation ("confirm scope?", "continue to phase 2?", "which of these two helpers?") | human | **sous chef, by `SendMessage`**, never a dialog nobody is watching |
 | Pre-commit review (**the pass**) | human | sous spawns the `taster`, questions its verdict, checks across stations, then says `[go]` |
 | Merge, deploy, anything touching production | human | human only, never relayed |
+| Filing a public issue on the plugin repo (`/bk:feedback`) | human, after reading the whole draft | human only, in the cook's own terminal, never relayed |
 
 A cook that receives "the chef said go" from the sous for a merge or a deploy **refuses**.
 That is correct. Those approvals are given in person.
@@ -448,9 +449,10 @@ journal, written at handoff:
   CLAUDE.md / the config notes". It goes through a cook, the pass, and the head chef's
   merge. Add the key to `docs/lessons.md` (`` | `<key>` | repo | <ticket> | ``) so it's
   never promoted twice.
-- **Action for `plugin`:** draft an issue for https://github.com/mhmzdev/claude-code-brigade
-  with repo-specific detail removed, and **ask the head chef before filing**: it's public.
-  Record the key in `docs/lessons.md` once filed (or declined).
+- **Action for `plugin`:** run `/bk:feedback` with the lesson lines as the note. It drafts an
+  issue for https://github.com/mhmzdev/claude-code-brigade with repo-specific detail removed,
+  and **files it only on the head chef's yes**: it's public. Record the key in
+  `docs/lessons.md` once filed (or declined).
 
 ## The skills
 
@@ -472,3 +474,4 @@ journal, written at handoff:
 | `/bk:open-pr` | A, B, C | commit, pull trunk, re-check, push, open the PR |
 | `/bk:clean` | C (+ every ticket) | `check` your own diff, `around` your station, `scan` the kitchen; drafts go to the sous |
 | `/bk:handoff` | — | write the handoff for this session's role (cook: journal section; sous: local note) |
+| `/bk:feedback` | — | draft a scrubbed issue for the Brigade's own repo, with session context only if the human agrees; file it on their yes |

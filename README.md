@@ -29,6 +29,7 @@ daemon, no queue, and no database.
 - [Long services: clearing sessions](#long-services-clearing-sessions)
 - [What's in the box](#whats-in-the-box)
 - [Troubleshooting](#troubleshooting)
+- [Feedback](#feedback)
 - [Honest limits](#honest-limits)
 - [Status](#status)
 
@@ -249,7 +250,7 @@ on. No `/compact` needed.
 `lesson(plugin)` entries in their journal handoffs. At each sous handoff, `kitchen.sh lessons`
 counts them by ticket: a repo lesson seen in two tickets becomes a ticket to promote it into
 `CLAUDE.md` (reviewed and merged like any change); a lesson about the Brigade itself becomes a
-drafted issue on this repo, filed only on your OK.
+drafted issue on this repo (through `/bk:feedback`), filed only on your OK.
 
 ## What's in the box
 
@@ -263,6 +264,7 @@ drafted issue on this repo, filed only on your OK.
 | `pick-ticket` · `create-plan` · `implement` · `review-task` · `open-pr` | from ticket to PR. `implement` is typed by you: it's the sign-off |
 | `clean` | `check` your own diff (every ticket), `around` your station at end of shift, `scan` the kitchen; hygiene drafts go to the sous |
 | `handoff` | write this session's handoff (cook: journal section; sous: local note) so it can be cleared |
+| `feedback` | send feedback about the Brigade to its maintainers as a GitHub issue; you see every word first |
 | agents: `taster` · `runner` · `inspector` | review at the pass · run noisy commands · report what a reviewer would reject |
 
 Every skill works **solo** too: without a sous, you are both chef and sous.
@@ -277,6 +279,23 @@ The shared rules every skill follows are in [`plugins/bk/skills/README.md`](plug
 | the sous can't find a cook (or the reverse) | sessions only see each other under the same Claude Code profile | start every session with the same `CLAUDE_CONFIG_DIR` (`kitchen open` passes yours through) |
 | "1 plugin failed to update" after upgrading from 0.1 | 0.2 renamed the plugin `brigade` → `bk` | `/plugin uninstall brigade@claude-code-brigade`, `/plugin install bk@claude-code-brigade`, and drop any `brigade@…` line from `.claude/settings*.json` |
 
+## Feedback
+
+Something broke, or you'd like the Brigade to do something? Run:
+
+```
+/bk:feedback the sous asked me a routine question instead of answering it
+```
+
+It drafts a GitHub issue for this repo with the plugin version and your setup. It asks
+whether to include the session: nothing (the default), a short summary, or a short excerpt.
+It finds saved sessions under `$CLAUDE_CONFIG_DIR` (or `~/.claude` when that's unset). Your
+repo's names, paths, code, ticket ids and secrets are removed, the raw transcript is never
+uploaded, and nothing is filed until you've read the whole issue and said yes. Issues here
+are public. Without `gh`, it gives you the text and a link to paste it into.
+
+You can also [open an issue](https://github.com/mhmzdev/claude-code-brigade/issues/new?template=feedback.yml) by hand.
+
 ## Honest limits
 
 - One machine. Two to five cooks, not a fleet.
@@ -286,6 +305,11 @@ The shared rules every skill follows are in [`plugins/bk/skills/README.md`](plug
   exclude `stations/` from tools that don't read `.gitignore` (setup helps with this).
 
 ## Status
+
+**v0.8.** `/bk:feedback` sends feedback to the maintainers as a GitHub issue: scrubbed of
+anything from your repo, session context only if you agree, filed only on your yes. The sous's
+handoff files due plugin lessons through it. `kitchen.sh sessions` lists the saved session
+transcripts for a checkout or a station, from `$CLAUDE_CONFIG_DIR`.
 
 **v0.7.** `kitchen open` without Warp now opens the machine's own terminal (Terminal.app,
 Windows Terminal or mintty, or the Linux desktop's) instead of tmux, and prints the commands

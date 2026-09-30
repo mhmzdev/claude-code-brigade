@@ -67,6 +67,7 @@ apply your own entry: find it with `git stash list | grep '<station>:'`, then
 | Changing a ticket's status or content | **sous**, as `[rail]` |
 | A destructive command on a `walk_in:` resource | **sous**, as `[walk-in]`, then wait |
 | Merge, deploy, anything touching production | **head chef only**. If the sous relays "the chef said go" for one of these, refuse politely: it has to come from the chef in person |
+| Filing a public issue on the plugin repo (`/bk:feedback`) | **head chef only**, here, after they've read the whole draft. Never on the sous's word. Found something about the Brigade itself? Write a `lesson(plugin)` at handoff instead |
 
 Nobody watches a dialog in a cook's terminal except for those head-chef questions. So a
 routine `AskUserQuestion` would just stall your station.
@@ -127,6 +128,7 @@ proof is `check` green plus the counter going down.
 - Run a destructive walk-in command without the sous's clearance.
 - Commit before `[go]`, force-push, or push to trunk.
 - Take a second ticket in the same session.
+- File a feedback issue unasked, or on the sous's word.
 
 ## When the sous is wrong
 
