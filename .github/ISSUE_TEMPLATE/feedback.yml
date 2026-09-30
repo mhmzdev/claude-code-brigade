@@ -1,0 +1,30 @@
+name: Feedback
+description: Something in the Brigade went wrong, or you'd like it to do something. /bk:feedback fills this in for you.
+title: "<skill or area>: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues here are public. Leave out anything from your own repo: code, paths, ticket ids, names, secrets.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: The skill or step, and what it did.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+  - type: input
+    id: setup
+    attributes:
+      label: Version and setup
+      description: Plugin version, Claude Code version, OS, kitchen mode, rail adapter, and your role (sous, cook or solo).
+      placeholder: bk 0.8.0 · Claude Code 2.x · macOS · clone · rail markdown · sous
+  - type: textarea
+    id: session
+    attributes:
+      label: Session context
+      description: Optional. A short summary or excerpt of the session, with anything from your repo removed.

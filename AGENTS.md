@@ -27,8 +27,10 @@ plugins/bk/                         the plugin (skills are invoked /bk:<skill>)
 ├── skills/README.md                THE CONTRACT: rules every skill follows (Contracts 1–11)
 ├── skills/<name>/SKILL.md          one skill each: setup, kitchen, sous-chef, line-cook, rail,
 │                                   brainstorm, grill-me, spec, file-tickets, pick-ticket,
-│                                   create-plan, implement, review-task, open-pr, clean, handoff
-├── skills/kitchen/kitchen.sh       the only runtime script: stations, boards, role, questions, lessons
+│                                   create-plan, implement, review-task, open-pr, clean, handoff,
+│                                   feedback
+├── skills/kitchen/kitchen.sh       the only runtime script: stations, boards, role, questions, lessons,
+│                                   sessions
 ├── agents/                         inspector (report-only), taster (the pass), runner (noisy commands)
 └── templates/                      spec, ticket, plan, checklist, journal
 scripts/check.sh                    THE gate: manifests, shellcheck, frontmatter, tests
@@ -36,6 +38,7 @@ scripts/check.sh                    THE gate: manifests, shellcheck, frontmatter
 tests/kitchen.test.sh               behaviour tests for kitchen.sh, both kitchen modes
 docs/the-names.md                   the Brigade names, plus Qafila as an alternate
 assets/hero.jpeg                    README banner
+.github/ISSUE_TEMPLATE/feedback.yml the issue form /bk:feedback mirrors
 ```
 
 ## The contract is the source of truth

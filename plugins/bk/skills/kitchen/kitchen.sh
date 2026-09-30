@@ -43,6 +43,9 @@
 #                                         and say which are due for promotion
 #   kitchen.sh questions                  every unanswered question (Qn with no An) in
 #                                         the stations' ticket journals
+#   kitchen.sh sessions [--dir D]         the Claude Code session transcripts saved for
+#                                         this checkout (or D, e.g. a station), newest
+#                                         first, from $CLAUDE_CONFIG_DIR (else ~/.claude)
 #
 # Env overrides:
 #   BRIGADE_TRUNK, BRIGADE_KITCHEN_MODE, BRIGADE_KITCHEN, BRIGADE_STATIONS, BRIGADE_MODEL (default sonnet),
@@ -120,6 +123,7 @@ PERMISSION_MODE="${BRIGADE_PERMISSION_MODE:-$(cfg permission_mode)}"; PERMISSION
 TERMINAL="${BRIGADE_TERMINAL:-}"
 BARE=false
 NO_LAUNCH=false
+SESSIONS_DIR=""   # --dir, for sessions
 MODELS=()
 ARGV=()   # set by native_argv
 
@@ -132,6 +136,7 @@ while [[ $# -gt 0 ]]; do
     --terminal) TERMINAL="$2"; shift 2 ;;
     --bare) BARE=true; shift ;;
     --no-launch) NO_LAUNCH=true; shift ;;
+    --dir) SESSIONS_DIR="$2"; shift 2 ;;
     -m|--model) shift
       while [[ $# -gt 0 && "$1" != -* ]]; do
         for tok in ${1//,/ }; do MODELS+=("$tok"); done; shift
@@ -700,8 +705,31 @@ cmd_questions() {
 }
 
 # ---------------------------------------------------------------------------
+# sessions — where Claude Code saved this checkout's session transcripts, for
+# /bk:feedback. Claude Code keeps them in <config dir>/projects/<slug>/<id>.jsonl,
+# where the slug is the session's working directory with every character that
+# isn't a letter or digit turned into "-". CLAUDE_CONFIG_DIR wins over ~/.claude.
+# ---------------------------------------------------------------------------
+cmd_sessions() {
+  local base dir d slug seen=" " found=false
+  base="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
+  dir="${SESSIONS_DIR:-$HERE}"
+  [[ -d "$dir" ]] || { echo "No such directory: $dir" >&2; return 1; }
+  # A session may have recorded the path as typed or with symlinks resolved.
+  for d in "$(cd "$dir" && pwd -L)" "$(cd "$dir" && pwd -P)"; do
+    slug="$(printf '%s' "$d" | sed 's/[^A-Za-z0-9]/-/g')"
+    [[ "$seen" == *" $slug "* ]] && continue; seen="$seen$slug "
+    [[ -d "$base/$slug" ]] || continue
+    # shellcheck disable=SC2012  # names are <uuid>.jsonl; ls -t is the portable mtime sort
+    ls -1t "$base/$slug"/*.jsonl 2>/dev/null && found=true
+  done
+  $found || echo "No saved sessions for $dir under $base."
+}
+
+# ---------------------------------------------------------------------------
 # remove
 # ---------------------------------------------------------------------------
+
 cmd_remove() {
   [[ -d "$KITCHEN" ]] || { echo "No $KITCHEN_REL/ to remove."; exit 0; }
   cmd_status || true
@@ -732,5 +760,6 @@ cmd_remove() {
 case "$CMD" in
   setup) cmd_setup ;; open) cmd_open ;; sync) cmd_sync ;; status) cmd_status ;;
   files) cmd_files ;; rail) cmd_rail ;; remove) cmd_remove ;;
-  role) cmd_role ;; lessons) cmd_lessons ;; questions) cmd_questions ;; *) usage ;;
+  role) cmd_role ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
+  sessions) cmd_sessions ;; *) usage ;;
 esac

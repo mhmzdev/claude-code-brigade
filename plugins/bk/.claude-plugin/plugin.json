@@ -1,7 +1,7 @@
 {
   "name": "bk",
   "displayName": "The Brigade",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Run several Claude Code sessions like a professional kitchen. Invoked /bk:<skill>. Repo specifics are read from the consuming repo's .claude/brigade.md, never baked in.",
   "author": {
     "name": "Muhammad Hamza",

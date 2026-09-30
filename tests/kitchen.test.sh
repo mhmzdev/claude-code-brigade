@@ -198,6 +198,22 @@ ok "a plugin lesson is DUE at 1 ticket" has "$out" "plugin +wrong-gate +1 +DUE"
 printf '| `slow-install` | repo | BKLG-020 |\n' > "$C/docs/lessons.md"
 ok "a key listed in docs/lessons.md is promoted" has "$("$K" lessons)" "slow-install +2 +promoted"
 
+section "sessions"
+slug() { (cd "$1" && pwd -P) | sed 's/[^A-Za-z0-9]/-/g'; }
+CFG="$TMP/claude-config"
+mkdir -p "$CFG/projects/$(slug "$C")" "$CFG/projects/$(slug "$S1")" "$HOME/.claude/projects/$(slug "$C")"
+touch "$CFG/projects/$(slug "$C")/old-session.jsonl"
+touch "$HOME/.claude/projects/$(slug "$C")/home-session.jsonl"
+touch "$CFG/projects/$(slug "$S1")/cook-session.jsonl"
+sleep 1; touch "$CFG/projects/$(slug "$C")/new-session.jsonl"
+out=$(CLAUDE_CONFIG_DIR="$CFG" "$K" sessions)
+ok "sessions reads CLAUDE_CONFIG_DIR, newest first" test "$(printf '%s\n' "$out" | xargs -n1 basename | tr '\n' ' ')" = "new-session.jsonl old-session.jsonl "
+ok "…and ignores ~/.claude when CLAUDE_CONFIG_DIR is set" bash -c "! printf '%s' \"\$1\" | grep -q home-session" _ "$out"
+ok "sessions falls back to ~/.claude without CLAUDE_CONFIG_DIR" has "$("$K" sessions)" "home-session\.jsonl"
+ok "sessions --dir lists a station's sessions" has "$(CLAUDE_CONFIG_DIR="$CFG" "$K" sessions --dir "$S1")" "cook-session\.jsonl"
+ok "sessions from inside a station lists that station's" has "$(cd "$S1" && CLAUDE_CONFIG_DIR="$CFG" "$K" sessions)" "cook-session\.jsonl"
+ok "sessions says when there are none" has "$(CLAUDE_CONFIG_DIR="$TMP/empty" "$K" sessions)" "No saved sessions"
+
 section "remove (clone)"
 out=$(echo nope | "$K" remove 2>&1)
 ok "remove aborts without 'delete'" test -d "$C/stations/station-1"

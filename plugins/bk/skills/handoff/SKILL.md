@@ -63,11 +63,10 @@ Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`.
    For each `DUE` row: a `repo` lesson → fire a `BKLG` ticket "promote lesson `<key>` into
    CLAUDE.md (or the config notes)" with the lesson lines as evidence, and add
    `` | `<key>` | repo | <ticket> | `` to `docs/lessons.md` (create it with a header row if
-   missing; commit per `rail.commit`). A `plugin` lesson → draft an issue for
-   `mhmzdev/claude-code-brigade` with every repo-specific name, path and snippet removed,
-   show it to the head chef, and **file it only on their yes** (`gh issue create --repo
-   mhmzdev/claude-code-brigade`); then add the key to `docs/lessons.md` either way
-   (`filed #n` or `declined`).
+   missing; commit per `rail.commit`). A `plugin` lesson → run `/bk:feedback` with the
+   lesson lines as the note: it removes every repo-specific name, path and snippet, shows the
+   head chef the draft, and **files it only on their yes**. Then add the key to
+   `docs/lessons.md` either way (`filed #n` or `declined`).
 2. **Overwrite** `.claude/sous-handoff.md` (make sure `.gitignore` lists it) with only what
    lives nowhere else:
    ```markdown
