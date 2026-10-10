@@ -121,7 +121,7 @@ gh pr create --base <trunk> --head <branch> --title "<title>" --body-file "$body
 
 The PR URL, title, base, created or updated, every Deploy prerequisite repeated in full, and the unchecked Test plan items.
 
-- **Line cook** → send the sous: `[served] <ID> <url> · deploy prereqs: <none | list>`. Then tell the human this session's ticket is done and it should be cleared before the next one.
+- **Line cook** → send the sous: `[served] <ID> <url> · deploy prereqs: <none | list>`. Then tell the sous your shift is over; it tells the head chef the session should be cleared before the next ticket.
 - **Solo or sous** → leave the ticket at `rfr`. The merge is what makes it `done` (a tracker's own close-on-merge, or the sous closing it through `/bk:rail` after the human merges).
 
 ## Stop and ask only for

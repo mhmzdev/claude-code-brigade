@@ -2,8 +2,8 @@
 ticket: <ID>
 title: <one line>
 lane: B                # A | B (lane C tickets have no plan)
-status: draft          # draft | approved | active | done — /bk:implement sets approved when the chef types it
-approved: null         # YYYY-MM-DD, set by /bk:implement: typing it is the chef's sign-off
+status: draft          # draft | approved | active | done — /bk:implement sets approved on the chef's sign-off
+approved: null         # YYYY-MM-DD, set by /bk:implement once the chef's sign-off is there
 open_questions: none   # must be "none" before implement will start
 migration: false       # true if any phase adds one
 files: []              # every path the plan touches

@@ -5,7 +5,7 @@
 # 1. manifests   claude plugin validate (skipped with a warning if no claude CLI)
 # 2. script      bash -n + shellcheck on kitchen.sh (shellcheck required)
 # 3. skills      frontmatter sanity: name matches folder, description present,
-#                disable-model-invocation only on implement and setup
+#                disable-model-invocation only on setup
 # 4. behaviour   tests/kitchen.test.sh
 #
 # Exit 0 = safe to push to main (which is the release).
@@ -45,8 +45,8 @@ for f in plugins/bk/skills/*/SKILL.md; do
   name=$(awk '/^---$/{n++; next} n==1 && /^name:/{print $2; exit}' "$f")
   [[ "$name" == "$dir" ]] || fail "$f: name '$name' doesn't match folder '$dir'"
   grep -q '^description: .\{40,\}' "$f" || fail "$f: missing or too-short description"
-  if grep -q '^disable-model-invocation: true' "$f" && [[ "$dir" != implement && "$dir" != setup ]]; then
-    fail "$f: disable-model-invocation is only allowed on implement and setup (cooks would stall)"
+  if grep -q '^disable-model-invocation: true' "$f" && [[ "$dir" != setup ]]; then
+    fail "$f: disable-model-invocation is only allowed on setup (cooks would stall)"
   fi
 done
 for f in plugins/bk/agents/*.md; do

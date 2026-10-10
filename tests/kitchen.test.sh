@@ -186,6 +186,21 @@ ok "an answered question isn't listed" bash -c "! printf '%s' \"\$1\" | grep -q 
 ok "an unanswered question is listed" has "$out" "Q2: new column"
 ok "Q12 isn't mistaken for answered Q1" has "$out" "Q12: rename"
 
+section "board"
+before=$(git -C "$C" status --porcelain)
+out=$("$K" board)
+ok "board shows stations, files, the rail and open questions" bash -c 'has() { printf "%s" "$1" | grep -qE -- "$2"; }; has "$1" "station-1 +bklg-001-open" && has "$1" "UNMERGED MIGRATION" && has "$1" "BKLG-001 +B +backlog" && has "$1" "Q2: new column"' _ "$out"
+ok "board writes the same snapshot to .claude/board.md" test "$out" = "$(cat "$C/.claude/board.md")"
+ok "board.md stays out of git without touching a tracked file" test "$before" = "$(git -C "$C" status --porcelain)"
+"$K" board >/dev/null
+ok "a second board doesn't add a second exclude line" test "$(grep -c 'board.md' "$C/.git/info/exclude")" = 1
+printf 'keep-me' > "$C/.git/info/exclude"; rm "$C/.claude/board.md"; "$K" board >/dev/null
+ok "an exclude file with no final newline keeps its last line intact" bash -c 'grep -qx keep-me "$1" && grep -qx .claude/board.md "$1"' _ "$C/.git/info/exclude"
+rm "$C/.claude/board.md"
+out=$(cd "$S1" && "$K" board)
+ok "board from a station prints the same board" has "$out" "Q2: new column"
+ok "…but writes nothing into the main checkout or the station" bash -c '! test -e "$1/.claude/board.md" && ! test -e "$2/.claude/board.md"' _ "$C" "$S1"
+
 section "lessons"
 mkdir -p "$C/docs/journal"
 printf -- '- lesson(repo): flaky-test | re-run once | BKLG-010\n- lesson(repo): flaky-test | re-run once | BKLG-010\n- lesson(plugin): wrong-gate | asked the human a routine question | BKLG-010\n' > "$C/docs/journal/BKLG-010-a.md"
@@ -247,6 +262,11 @@ ok "fresh worktree stations are clean" test -z "$(git -C "$W/app-stations/statio
 WS1="$W/app-stations/station-1"
 ok "role is cook inside a worktree station" test "$(cd "$WS1" && "$K" role | cut -d' ' -f1-2)" = "cook station-1"
 ok "status labels a detached station" has "$("$K" status)" "station-2 +detached @"
+before=$(git -C "$A" status --porcelain)
+out=$("$K" board)
+ok "board in worktree mode writes .claude/board.md and leaves the tree as it was" bash -c 'test "$1" = "$(cat "$2/.claude/board.md")" && test "$3" = "$(git -C "$2" status --porcelain)"' _ "$out" "$A" "$before"
+rm "$A/.claude/board.md"; (cd "$WS1" && "$K" board >/dev/null)
+ok "board from a worktree station writes nothing" bash -c '! test -e "$1/.claude/board.md" && ! test -e "$2/.claude/board.md"' _ "$A" "$WS1"
 git -C "$WS1" switch -q -c bklg-001-open origin/main; echo x > "$WS1/wip.txt"
 ok "status run from inside a station still sees every station" has "$(cd "$WS1" && "$K" status)" "station-2"
 out=$("$K" sync)

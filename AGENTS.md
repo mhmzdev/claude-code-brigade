@@ -62,9 +62,12 @@ things, and it only shows up mid-service.
   `docs/the-names.md`, so a rename stays small.
 - **Invoking a skill is its approval** (Contract 5). No "does this look right?", no "continue
   to phase 2?". A skill stops only for a real decision.
-- **`disable-model-invocation: true` only on `implement` and `setup`.** `implement` is the one
-  gate a human must type (typing it is the plan sign-off); `setup` changes a repo's layout.
+- **`disable-model-invocation: true` only on `setup`**, which changes a repo's layout.
   Every other skill must stay model-invocable, or cooks stall waiting for a human to type it.
+  That includes `implement`: a cook starts it on the sous's `[approved]` (the head chef's
+  plan sign-off, relayed), and the skill itself checks the sign-off is there.
+- **The head chef talks to the sous only** (Contract 5). No skill may tell a cook to ask
+  the human or open an `AskUserQuestion` dialog; a cook's question is a `[gate]` to the sous.
 - **Every lifecycle skill starts with the station check** (`kitchen.sh role`): a session inside
   a station is a line cook, even after `/clear`.
 - **Message kinds** used in any skill must exist in Contract 6's table.
@@ -87,7 +90,7 @@ It runs, in order:
    `claude` CLI isn't installed);
 2. `bash -n` and `shellcheck` on `kitchen.sh` and the test scripts (`shellcheck` is required);
 3. a frontmatter check on every skill: `name` matches its folder, a real `description`, and
-   `disable-model-invocation: true` only on `implement` and `setup`; every agent is listed in
+   `disable-model-invocation: true` only on `setup`; every agent is listed in
    `plugin.json`;
 4. `tests/kitchen.test.sh`: about 60 behaviour tests of `kitchen.sh` in throwaway repos, in
    both `clone` and `worktree` mode, including a workspace repo that holds the app repo.

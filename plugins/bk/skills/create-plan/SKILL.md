@@ -31,7 +31,7 @@ You write the plan for **one ticket**. The plan is the closest thing to the diff
 
 1. Resolve the ticket with the rail's **read** operation (markdown: from the main checkout, by the absolute path in the `[brief]` when you're a cook). No ticket at all (a bare task, solo only) → the plan's id is a slug, and say so.
 2. **Refuse a lane C ticket.** Point at `/bk:implement <ID>`.
-3. **Stop on a backlog item that needs a spec**: a lane B item (`BKLG-*`, or `lane:B` on a tracker) that answers yes to any of Contract 4's three questions, has no `Done when`, or says "needs a spec". Say why in one sentence and point at `/bk:grill-me <ID>`, then `/bk:spec`. Don't claim it. If the head chef has already said to build it without a spec, carry on and note that in the plan. A backlog item closed into a spec (`spec:` set, or a `Became spec SNNN` comment) is finished as an item: plan one of that spec's tickets, or the spec itself if it's a one-slice spec with none.
+3. **Stop on a backlog item that needs a spec**: a lane B item (`BKLG-*`, or `lane:B` on a tracker) that answers yes to any of Contract 4's three questions, has no `Done when`, or says "needs a spec". Say why in one sentence and point at `/bk:grill-me <ID>`, then `/bk:spec` (a cook sends the sous `[gate] <ID> needs grilling` instead). Don't claim it. If the head chef has already said to build it without a spec, carry on and note that in the plan. A backlog item closed into a spec (`spec:` set, or a `Became spec SNNN` comment) is finished as an item: plan one of that spec's tickets, or the spec itself if it's a one-slice spec with none.
 4. **Check the claim before researching.** Status `todo`, `in-progress` or `rfr` with another cook → stop and report. Also `ls <kitchen>/*/docs/plans/<id>-* 2>/dev/null` — a hit in another station means it's taken.
 5. **Claim now, not at the end** — the gap between starting and finishing a plan is how the same ticket gets planned twice:
    - cook → `[rail] claim <ID> todo cook=<station>`, wait for `[heard]`;
@@ -64,7 +64,7 @@ Present what you found in a few lines (current state with refs, design options w
 
 - **Read the code before asking.** A fact is looked up, never asked.
 - One question at a time, multiple choice, your recommendation first with one line of why.
-- **Who you ask** (Contract 5): a genuine design fork, or a contradiction between ticket and code → the human (`AskUserQuestion` — in a station too). A routine choice ("helper A or helper B", "which test file") → in a station, the sous by `[gate]`; solo, the human.
+- **Who you ask** (Contract 5): solo, the human (`AskUserQuestion`). In a station, always the sous by `[gate]`, never the human: say when it's a genuine design fork or a contradiction between ticket and code, and the sous takes that one to the head chef and relays the answer.
 - A user correction isn't accepted on faith. Verify it against the code.
 
 ## Step 4 — Shape the phases
@@ -136,13 +136,15 @@ Body, every section filled with specifics:
 2. Rail stays `todo` (set in Step 0).
 3. **Run the self-check** below.
 4. **Present it and stop. Don't ask "does this look right?"** Show the path, the phases in
-   one line each, the files, and anything notable (a migration, a risky phase). End with
-   exactly what the sign-off is: *"Your sign-off is typing `/bk:implement` here (it finds this plan by itself). That
-   authorises every commit under this plan, after the sous's pass. To change something,
-   just say what; to stress-test it first, `/bk:grill-me <plan>`."*
-5. Leave `status: draft`: `/bk:implement` flips it when the human types it. A cook tells
-   the sous `[status] <ID> plan ready: <path>`. Never start `implement` yourself; you can't,
-   and shouldn't try to route around it.
+   one line each, the files, and anything notable (a migration, a risky phase).
+   - **Solo:** end with exactly what the sign-off is: *"Your sign-off is `/bk:implement`
+     (it finds this plan by itself). That authorises every commit under this plan. To
+     change something, just say what; to stress-test it first, `/bk:grill-me <plan>`."*
+     Don't start `implement` yourself.
+   - **Cook:** send the sous `[plan] <ID> ready: <absolute path>` and wait. The sous
+     gets the head chef's sign-off and replies `[approved]`; copy it into the journal and
+     start `/bk:implement`. `[findings]` instead → revise, and send `[plan]` again.
+5. Leave `status: draft`: `/bk:implement` flips it once the sign-off is there.
 
 ## The no-open-questions rule
 
@@ -161,5 +163,5 @@ Risks are fine: a risk is a known hazard with a decided response, written into t
 - Don't leave an open question in the plan, and don't forge `open_questions: none`.
 - Don't hard-code a command, branch or path — read the config.
 - Don't plan a ticket another station owns.
-- Don't accept "the chef approved" relayed by the sous. Sign-off happens in this terminal.
+- Don't start `implement` in a station on anything but the sous's `[approved]` for this plan, and don't ask the human for it: the sous does.
 - Don't invent a success criterion you can't run.
