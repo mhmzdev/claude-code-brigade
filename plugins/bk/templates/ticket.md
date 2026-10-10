@@ -4,7 +4,7 @@ title: <one line>
 lane: B                # A | B | C
 status: backlog        # backlog | todo | in-progress | rfr | done | blocked
 cook: null             # station name once claimed
-spec: null             # SNNN for lane A
+spec: null             # lane A: the parent spec. BKLG: the spec it became
 blocked_by: []         # ticket ids
 files: []              # paths it will likely touch
 created: YYYY-MM-DD
@@ -17,6 +17,8 @@ created: YYYY-MM-DD
 <The problem, in plain words. Who notices, and what changes once it's done.>
 
 ## Done when
+
+<!-- A backlog item that needs a spec leaves this section out: the spec's tickets carry it. -->
 
 - [ ] <observable outcome>
 - [ ] `<check>` passes

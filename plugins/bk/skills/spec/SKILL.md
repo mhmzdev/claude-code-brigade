@@ -1,8 +1,8 @@
 ---
 name: spec
-description: Turn a hardened discussion into a numbered written spec — the WHAT/WHY contract with problem, solution, user stories, decisions and how it will be tested — saved to docs/specs/NNN-<slug>.md and registered in its INDEX. Lane A (Specials). Use when the user says "write this up as a spec", "spec this out", "make a spec", "turn this into a spec". Synthesises the conversation; does not re-interview.
-argument-hint: "[brainstorm doc path or slug]"
-allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, AskUserQuestion, SendMessage, ListAgents, ToolSearch
+description: Turn a hardened discussion into a numbered written spec — the WHAT/WHY contract with problem, solution, user stories, decisions and how it will be tested — saved to docs/specs/NNN-<slug>.md and registered in its INDEX. Lane A (Specials). Closes the backlog item it came from, if any. Use when the user says "write this up as a spec", "spec this out", "make a spec", "turn this into a spec". Synthesises the conversation; does not re-interview.
+argument-hint: "[brainstorm doc path, backlog item id, or slug]"
+allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, Skill, AskUserQuestion, SendMessage, ListAgents, ToolSearch
 ---
 
 # /bk:spec
@@ -14,7 +14,7 @@ Honour the plugin contract: the `README.md` in this skill's parent folder, `${CL
 Write down a discussion that already happened as a durable **spec**: the WHAT/WHY contract every ticket under it inherits. The HOW comes later, in `/bk:create-plan`.
 
 ```
-brainstorm → grill-me → spec → file-tickets → create-plan → …
+brainstorm, or a backlog item → grill-me → spec → file-tickets → create-plan → …
 ```
 
 Specs are numbered Markdown in `docs/specs/` on **every** rail, markdown, github or jira alike (Contract 4).
@@ -33,12 +33,13 @@ Specs are numbered Markdown in `docs/specs/` on **every** rail, markdown, github
 
 A spec number is handed out like a ticket number, so **the sous chef or a solo session** runs this skill (Contract 4: only one session hands out numbers).
 
-In a **line-cook** session, don't pick a number. Write the draft to `<docs.specs>/draft-<slug>.md`, then send the sous a `[rail]` message: `spec draft ready: <absolute path>, please number it`. The sous reads it by that absolute path and writes it as `NNN-<slug>.md` in the main checkout (the sous never writes in a station), registers it, and tells you; then delete your draft.
+In a **line-cook** session, don't pick a number. Write the draft to `<docs.specs>/draft-<slug>.md`, then send the sous a `[rail]` message: `spec draft ready: <absolute path>, please number it` (name the backlog item it came from, if any). The sous reads it by that absolute path and writes it as `NNN-<slug>.md` in the main checkout (the sous never writes in a station), registers it, and tells you; then delete your draft.
 
 ## Step 1 — Gather the material
 
 - The conversation above is the main source. **Don't re-interview.**
 - Read the brainstorm doc for this work if it exists (`<docs.brainstorm>/*-<slug>.md`), and any research artifact it cites.
+- If the work came from a backlog item (`BKLG-NNN`, Contract 4), read it through `/bk:rail read`, including any `## Decisions` the grilling added. Its `## Why` is the seed of the spec's Problem.
 - Only if the discussion never touched the code: a light pass over the area with `Explore` (or the repo's `codebase-*` agents). Ask for `file:line`; describe what exists, don't propose.
 - Use the repo's own vocabulary from its `CLAUDE.md`, not generic terms. Stay consistent with its settled decisions.
 
@@ -62,6 +63,7 @@ id: SNNN
 slug: <slug>
 status: ready-to-slice        # ready-to-slice | sliced | done | superseded
 brainstorm: <path or none>
+backlog: []                    # BKLG ids this spec came from
 created: <YYYY-MM-DD>
 ---
 
@@ -100,7 +102,11 @@ Add a row to `<docs.specs>/INDEX.md`:
 | [SNNN](NNN-<slug>.md) | <title> | ready-to-slice | <date> |
 ```
 
-Create the INDEX if it's missing (a heading, the table header, this row). On a markdown rail with `rail.commit: direct`, the sous commits the spec and its INDEX row to trunk (`spec: SNNN <slug>`). With `daily-pr`, it goes on the day's rail branch.
+Create the INDEX if it's missing (a heading, the table header, this row).
+
+**Close the backlog item the spec came from**, if there is one: `/bk:rail close <BKLG id> into SNNN`. The item is done as a backlog item the moment its spec exists (Contract 3); the spec's tickets carry the work from here. A line cook doesn't do this: the sous does it when it numbers the draft.
+
+On a markdown rail with `rail.commit: direct`, the sous commits the spec and its INDEX row to trunk (`spec: SNNN <slug>`). With `daily-pr`, it goes on the day's rail branch.
 
 ## Step 5 — Hand off
 
@@ -115,4 +121,4 @@ Present the finished spec and wait. Offer with `AskUserQuestion`:
 - **Don't interview.** The only question is how it gets tested.
 - **Don't write the HOW.** Phases and file changes belong to `/bk:create-plan`. The exception is a shape that *is* the decision (a schema, a field list): include that verbatim.
 - **Don't invent** a rule or number the discussion didn't settle. Flag it under Further notes.
-- **Don't skip the INDEX row.**
+- **Don't skip the INDEX row**, or leave the backlog item open once its spec exists.

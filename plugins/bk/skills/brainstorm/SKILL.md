@@ -11,7 +11,7 @@ Honour the plugin contract: the `README.md` in this skill's parent folder, `${CL
 
 **Station check first** (Contract 1): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`. If it prints `cook …`, you are a line cook even if nobody typed `/bk:line-cook` (e.g. after a `/clear`): read and follow `${CLAUDE_SKILL_DIR}/../line-cook/SKILL.md` for where questions go, the journal, and what a cook never does.
 
-Pin down **WHAT** to build and **WHY**. Never HOW: no file lists, no phases, no code. Those belong to `/bk:create-plan`. This is the first stop of lane A:
+Pin down **WHAT** to build and **WHY**. Never HOW: no file lists, no phases, no code. Those belong to `/bk:create-plan`. This is the usual first stop of lane A (the other way in is a backlog item that needs a spec, through `/bk:pick-ticket`):
 
 ```
 brainstorm → grill-me → spec → file-tickets → create-plan → implement → review-task → open-pr
@@ -43,7 +43,7 @@ Classify it. The class decides whether code gets read at all.
 
 - **Generic**: process, tooling, docs, team practice. Skip Step 2.
 - **Touches the code**: a feature, a behaviour change, a contract or data change. Step 2 is mandatory.
-- **Already small and crisp**: a one-file fix, a copy tweak. Say so and recommend `/bk:file-tickets` (one standalone ticket) or `/bk:create-plan` directly. Don't brainstorm what doesn't need it.
+- **Already small and crisp**: a one-file fix, a copy tweak. Say so and recommend `/bk:file-tickets` (one backlog item) or `/bk:create-plan` directly. Don't brainstorm what doesn't need it.
 
 Pick the slug now: lowercase-kebab, 2–5 words. The file is `<docs.brainstorm>/YYYY-MM-DD-<slug>.md` (Contract 4). If a brainstorm with the same slug already exists, read it fully and extend it. Never overwrite a file you haven't read.
 

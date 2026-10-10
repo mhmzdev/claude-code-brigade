@@ -1,7 +1,7 @@
 ---
 name: file-tickets
-description: Put work on the rail. Two modes — slice an approved spec into thin end-to-end tickets (lane A, ids SNNN-NN, with blocked-by edges), or fire one standalone ticket for something found mid-flight (lane B, BKLG-NNN). Works on a markdown, GitHub or Jira rail through /bk:rail. Use when the user says "file a ticket", "make tickets", "break this into tickets", "slice this spec", "fire a ticket", "log this as a ticket".
-argument-hint: "[<path to spec> | <description of the one ticket>]"
+description: Put work on the rail. Two modes — slice an approved spec into thin end-to-end tickets (lane A, ids SNNN-NN, with blocked-by edges), or add one backlog item (lane B, BKLG-NNN): a bug, a chore, a follow-up, or a capability nobody has grilled or specced yet. Works on a markdown, GitHub or Jira rail through /bk:rail. Use when the user says "file a ticket", "make tickets", "break this into tickets", "slice this spec", "fire a ticket", "log this as a ticket", "add this to the backlog", "park this idea".
+argument-hint: "[<path to spec> | <description of the one backlog item>]"
 allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, Skill, AskUserQuestion, SendMessage, ListAgents, ToolSearch
 ---
 
@@ -16,7 +16,7 @@ Honour the plugin contract: the `README.md` in this skill's parent folder, `${CL
 - [Who writes the rail](#who-writes-the-rail)
 - [Pick the mode](#pick-the-mode)
 - [Mode A — Slice a spec](#mode-a--slice-a-spec)
-- [Mode B — One standalone ticket](#mode-b--one-standalone-ticket)
+- [Mode B — One backlog item](#mode-b--one-backlog-item)
 - [What not to do](#what-not-to-do)
 
 ## Who writes the rail
@@ -31,17 +31,11 @@ Firing a ticket is a rail write, and **only the sous chef writes the rail** (Con
 | Mode | When | Creates |
 |---|---|---|
 | **A — Slice a spec** | a spec in `<docs.specs>` is approved, or the user says "break this into tickets" | one ticket per thin slice, `SNNN-NN`, lane A, with `blocked_by` edges |
-| **B — Standalone** | something found mid-flight: a bug, a chore, a follow-up | one `BKLG-NNN` ticket, lane B |
+| **B — Backlog item** | anything not yet grilled or specced: a bug, a chore, a follow-up, a new capability | one `BKLG-NNN` item, lane B |
 
 If it's ambiguous, ask. Hygiene tickets (`HYG-NNN`, lane C) come from `/bk:clean`, not from here.
 
-**Mode B isn't for new capability.** Before firing standalone, ask yourself:
-
-- Would a user notice the behaviour and have opinions about it?
-- Would it plausibly need more than one slice?
-- Is there a real fork in *what* to build, not just *how*?
-
-Any yes → say so in one sentence and recommend `/bk:brainstorm` or `/bk:spec` first. If the human says fire it anyway, fire it, and note in the body that it has no spec. Never refuse.
+**Capturing a backlog item is cheap, whatever its size** (Contract 4). Don't push back on a big one and don't ask for a spec first: the backlog is where un-specced work waits. Whether an item is built directly or becomes a spec is decided when someone picks it up (`/bk:pick-ticket`). If the item plainly needs a spec, say so in one line under `## Notes` so the next reader knows.
 
 ## Mode A — Slice a spec
 
@@ -73,13 +67,12 @@ Any yes → say so in one sentence and recommend `/bk:brainstorm` or `/bk:spec` 
 6. **Update the spec.** Set its `status: sliced` and its INDEX row to `sliced · N tickets`. Create `<docs.specs>/NNN-<slug>/INDEX.md` with one row per ticket.
 7. **Hand off.** Report every ticket id, which start blocked, and the first free one. Offer, by name, and wait: `/bk:create-plan <id>` to plan now, or `/bk:pick-ticket <id>` for picking it up cold later. The sous can assign free tickets to stations straight away.
 
-## Mode B — One standalone ticket
+## Mode B — One backlog item
 
-1. **Raise the spec question once.** Accept the answer and move on.
-2. **Ground it in reality.**
-   - **Measure it.** Real numbers from the real system, not impressions.
-   - **Name the code.** A `file:line` for the mechanism, read in this run.
-   - **Check for siblings.** Use `/bk:rail list` and search titles and bodies for the same keywords. If an existing ticket owns half of this, add to it instead (a rail write, so: sous only).
+1. **Check for siblings.** Use `/bk:rail list` and search titles and bodies for the same keywords. If an existing ticket owns half of this, add to it instead (a rail write, so: sous only).
+2. **Ground it as far as it's known.**
+   - **A bug, chore or follow-up:** measure it (real numbers from the real system, not impressions) and name the code (a `file:line` for the mechanism, read in this run).
+   - **A capability:** the `## Why` is enough: who wants it and what they can't do today. Don't design it here; that's the spec's job. Leave `## Done when` out, since the spec's tickets will carry it.
 3. **Write it.** Next number = highest existing `BKLG-NNN` (on a markdown rail) plus one, zero-padded. The file is `<docs.backlog>/BKLG-NNN-<slug>.md`, from the ticket template with `lane: B`, `status: backlog`:
 
    ```markdown
@@ -89,15 +82,15 @@ Any yes → say so in one sentence and recommend `/bk:brainstorm` or `/bk:spec` 
    ## Options            <!-- only if there's a real fork -->
    1. … — trade-off
 
-   ## Done when
+   ## Done when         <!-- omit for an item that needs a spec -->
    - [ ] <observable outcome>
    - [ ] `<check from config>` passes
 
    ## Notes
-   The mechanism (file:line) and what you ruled out.
+   The mechanism (file:line) and what you ruled out. Or one line: "needs a spec".
    ```
 
-4. **Fire** through `/bk:rail fire`, add the row to `<docs.backlog>/INDEX.md`, commit per `rail.commit`. Report the id and offer `/bk:create-plan <id>` or `/bk:pick-ticket <id>`, then wait.
+4. **Fire** through `/bk:rail fire`, add the row to `<docs.backlog>/INDEX.md`, commit per `rail.commit`. Report the id and offer `/bk:pick-ticket <id>`, which says whether the item is built directly or needs a spec. Then wait.
 
 ## What not to do
 

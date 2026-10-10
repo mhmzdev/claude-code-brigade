@@ -73,6 +73,11 @@ First confirm the ticket is **free**:
 - no open PR or branch for it (`gh pr list --search <id>` / `git ls-remote --heads origin | grep -i <id>`);
 - no plan for it in any station: `ls <kitchen>/*/docs/plans/<id>-* 2>/dev/null`.
 
+**A backlog item that needs a spec isn't ready to cook** (Contract 4). Don't brief a cook to
+plan it. Tell the head chef it needs grilling and a spec first, and offer to do that here
+(`/bk:grill-me <ID>`, then `/bk:spec`): the spec closes the item, and its tickets are what
+you fire.
+
 Then check the two hard rules against the `files` board:
 
 - **Overlapping files → one cook.** A ticket whose `files:` overlap another station's work
@@ -137,6 +142,11 @@ markdown rail, commit per `rail.commit`:
 
 You also allocate every new number (specs, tickets). That's why numbers can't collide.
 
+On `[rail] spec draft ready: <path>`: read the draft by that absolute path, write it as
+`<docs.specs>/NNN-<slug>.md` in this checkout with its INDEX row (never in the station), and
+close the backlog item it came from: `/bk:rail close <ID> into SNNN`. Reply `[heard]` with
+the spec id.
+
 ## The walk-in
 
 On `[walk-in]`: check the other stations (`files`, and ask them if their work touches the
@@ -174,7 +184,8 @@ LGTM as a PR comment: verdict, "Done when" walk, what you verified yourself, dep
 prerequisites. Merge is the head chef's. The journal is the one file allowed to differ
 from what you passed: the cook adds its closing handoff after `[go]`.
 
-After the head chef merges, close the ticket on a markdown rail (`status: done`).
+After the head chef merges, close the ticket on a markdown rail (`status: done`). A backlog
+item that became a spec is the one close that doesn't wait for a merge (Contract 3).
 
 ## Cleaning
 
@@ -212,7 +223,7 @@ Run `/bk:handoff`. It counts lessons and promotes the due ones, writes
 
 - Never write in a station: no edits, resets or branch switches. Running `check` or the
   inspector there is fine.
-- Never merge or deploy. Recommend; the head chef decides. Close a markdown-rail ticket only after the head chef has merged its PR.
+- Never merge or deploy. Recommend; the head chef decides. Close a markdown-rail ticket only after the head chef has merged its PR, or when a backlog item's spec is written.
 - Verify before you relay: a ticket's premise, a station's state, a claimed green check.
 - Keep credentials out of committed files. They live in `.claude/brigade.local.md`.
 - Never overwrite a claim (`todo`, `in-progress`, `rfr`) that isn't being moved by its own cook.

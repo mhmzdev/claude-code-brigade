@@ -3,6 +3,7 @@ id: SNNN
 title: <one line>
 status: draft          # draft | approved | sliced | done | superseded
 brainstorm: null       # docs/brainstorm/YYYY-MM-DD-<slug>.md, if any
+backlog: []            # BKLG ids this spec came from
 created: YYYY-MM-DD
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: rail
 description: The Brigade's ticket store, behind one interface — list, read, claim, fire, link and close tickets on a markdown rail in docs/, GitHub Projects, or Jira, as .claude/brigade.md's rail.adapter says. Other brigade skills call this instead of talking to a tracker directly. Enforces the rail's two rules — only the sous chef (or a solo session) writes, and a claim is never overwritten. Use when the user says "show the rail", "claim BKLG-4", "move S001-02 to rfr", "fire a ticket", "close HYG-3", "/bk:rail".
-argument-hint: "list | read <id> | claim <id> <status> [cook] | fire <lane> <title> | link <id> blocked-by <id> | close <id>"
+argument-hint: "list | read <id> | claim <id> <status> [cook] | fire <lane> <title> | link <id> blocked-by <id> | close <id> [into <spec id>]"
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 ---
 
@@ -43,7 +43,7 @@ may move them, or the sous closing an `rfr` ticket to `done` after the head chef
 | `claim` | id, new status, cook | status and cook updated |
 | `fire` | lane, title, body, optional spec, `blocked_by`, `files` | the new id and where it lives |
 | `link` | id, blocked-by id | the edge recorded |
-| `close` | id | status `done` |
+| `close` | id, optional spec id (a backlog item that became a spec) | status `done`, and the spec recorded |
 
 ## markdown adapter
 
@@ -53,7 +53,9 @@ Tickets are files (Contract 4). **The frontmatter is the rail.**
 - **read**: find the file by id: `docs/backlog/<ID>-*.md`, or for `SNNN-NN` the
   `NN-*.md` inside `docs/specs/NNN-*/`.
 - **claim / link / close**: edit only the frontmatter fields (`status`, `cook`,
-  `blocked_by`). Never rewrite the body in a status change.
+  `blocked_by`). Never rewrite the body in a status change. Closing a backlog item into
+  a spec also sets `spec: SNNN` and its INDEX row to `→ SNNN`; commit it as
+  `rail: <ID> → SNNN`.
 - **fire**: next number = highest existing number in that family + 1, zero-padded
   (`BKLG-007`, `HYG-003`, `S002-04`). Write from `${CLAUDE_SKILL_DIR}/../../templates/ticket.md`
   with `status: backlog` and `created:` today. Add the row to the folder's `INDEX.md`.
@@ -79,6 +81,7 @@ Config: `rail.github.owner`, `rail.github.project`, `rail.github.status_field`. 
 - **link**: native sub-issue or blocked-by where the repo supports it; otherwise a
   `Blocked by #n` line in the body.
 - **close**: `gh issue close <n>` (the board's own workflow usually moves it to Done).
+  Into a spec: add `--comment "Became spec SNNN: <spec path>"`.
 
 Map the six statuses onto the board's real column names once, and record the mapping in
 the config's free-text section so every session uses the same one.
@@ -92,7 +95,7 @@ one, else the `jira` CLI. If neither is available, say so and stop.
 - **claim**: a transition to the mapped status, plus the assignee.
 - **fire**: create the issue in `<KEY>`, with the lane as a label.
 - **link**: an "is blocked by" issue link.
-- **close**: transition to the done status.
+- **close**: transition to the done status. Into a spec: comment `Became spec SNNN: <spec path>` first.
 
 As with GitHub, record the status → transition mapping in the config once.
 

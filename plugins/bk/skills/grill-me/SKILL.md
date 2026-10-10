@@ -2,7 +2,7 @@
 name: grill-me
 description: Question the human relentlessly about a brainstorm, spec, plan, ticket, or bare idea until you both hold one picture of it. Maps the decisions as a tree and asks, each round, every question that can be answered now, numbered, each with a recommended answer. Facts are looked up, never asked. Use when the user says "grill me", "grill this", "poke holes in this", "stress-test this", "what am I missing", or when /bk:pick-ticket reports the WHAT is still contested.
 argument-hint: "<path to a brainstorm/spec/plan, a ticket id, or a topic>"
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash, Agent, AskUserQuestion, SendMessage, ListAgents, ToolSearch
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash, Agent, Skill, AskUserQuestion, SendMessage, ListAgents, ToolSearch
 ---
 
 # /bk:grill-me
@@ -13,8 +13,8 @@ Honour the plugin contract: the `README.md` in this skill's parent folder, `${CL
 
 Interview the human until you share one understanding. This skill writes no code; it sharpens what comes before code. It fits in three places:
 
-- **Lane A**: `brainstorm → grill-me → spec`, to harden the leaning approach before it becomes a contract.
-- **Lane B**: `pick-ticket → grill-me → create-plan`, for a ticket whose WHAT is still contested.
+- **Lane A**: `brainstorm → grill-me → spec`, or `pick-ticket → grill-me → spec` for a backlog item that needs a spec, to harden the leaning approach before it becomes a contract.
+- **Lane B**: `pick-ticket → grill-me → create-plan`, for a small backlog item whose WHAT is still contested.
 - **Before implement**: a last pass against a finished plan.
 
 Method adapted from Matt Pocock's `grilling` skill (github.com/mattpocock/skills).
@@ -85,7 +85,7 @@ Push hardest where the artifact is vague:
    - plan → its decisions, and keep `open_questions:` honest (`/bk:implement` refuses a plan with an open question);
    - ticket → on a markdown rail, append a `## Decisions` section. That's a rail write, so a line cook sends it to the sous as a `[rail]` message instead of editing the file. On a github or jira rail, add a comment.
    - no artifact → the summary is the input to the next skill.
-3. **Hand off** with `AskUserQuestion`, then wait: lane A → `/bk:spec`; lane B or small work → `/bk:create-plan` (say why no spec is needed); or stop.
+3. **Hand off** with `AskUserQuestion`, then wait: lane A, or a backlog item that needs a spec → `/bk:spec` (name the item, so the spec closes it); a small backlog item or other small work → `/bk:create-plan` (say why no spec is needed); or stop.
 
 ## What not to do
 

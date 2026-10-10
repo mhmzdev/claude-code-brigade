@@ -123,7 +123,7 @@ place that knows how each backend does each operation.
 | **claim** (status + cook) | edit `status:`, `cook:` | Status field + assignee | transition + assignee |
 | **fire** (create) | write a new file | `gh issue create` + add to project | create issue |
 | **link** (blocked by) | `blocked_by:` | native blocked-by / sub-issue | issue link |
-| **close** | `status: done` | close the issue | transition to Done |
+| **close** | `status: done` (plus `spec:` for a backlog item that became a spec) | close the issue (same case: with a comment naming the spec) | transition to Done (same case: comment first) |
 
 **Statuses, the same on every backend:** `backlog` → `todo` → `in-progress` → `rfr` →
 `done`, plus `blocked`.
@@ -151,6 +151,11 @@ accumulates them on a `rail/YYYY-MM-DD` branch and opens one PR. Cooks read tick
 do that, so the sous closes the ticket (`status: done`) through `/bk:rail` once the
 head chef has merged.
 
+**A backlog item that became a spec closes when the spec is written**, not when the code
+merges. `close` then also records the spec: `spec: SNNN` on a markdown rail, a closing
+comment naming the spec on github or jira. From there the spec's tickets carry the work
+(Contract 4).
+
 ## Contract 4 — Names and ids
 
 **Things the rail tracks get numbers. Everything else gets a date.** Numbers are safe
@@ -160,7 +165,7 @@ because only one session (the sous) hands them out. They are zero-padded and nev
 |---|---|---|
 | Spec | `docs/specs/NNN-<slug>.md` | `SNNN` |
 | Spec's ticket (lane A) | `docs/specs/NNN-<slug>/NN-<slug>.md` | `SNNN-NN` |
-| Standalone ticket (lane B) | `docs/backlog/BKLG-NNN-<slug>.md` | `BKLG-NNN` |
+| Backlog item (lane B) | `docs/backlog/BKLG-NNN-<slug>.md` | `BKLG-NNN` |
 | Hygiene ticket (lane C) | `docs/backlog/HYG-NNN-<slug>.md` | `HYG-NNN` |
 | Plan | `docs/plans/<id>-<slug>.md` | the ticket's id |
 | Checklist | `docs/checklists/<id>-<slug>.md` | the ticket's id |
@@ -189,12 +194,31 @@ title: One line
 lane: B                  # A | B | C
 status: backlog          # backlog | todo | in-progress | rfr | done | blocked
 cook: null               # station name once claimed
-spec: null               # SNNN for lane A
+spec: null               # lane A: the parent spec. BKLG: the spec it became
 blocked_by: []
 files: []                # paths it will likely touch
 created: YYYY-MM-DD
 ---
 ```
+
+**A backlog item is work nobody has grilled or specced yet.** `BKLG-NNN` is where anything
+lands first: a bug, a chore, a follow-up, or a whole new capability. Capturing one is
+cheap. It leaves the backlog one of two ways, and the call is made when someone picks it
+up (`/bk:pick-ticket`), not when it's filed:
+
+- **Small**: one slice, and the WHAT is settled. The item is its own ticket:
+  `create-plan`, then build.
+- **Needs a spec**: a user would notice the behaviour and have opinions about it, or it
+  needs more than one slice, or there's a real fork in *what* to build. It goes
+  `grill-me` → `spec` → `file-tickets`, and the spec's `SNNN-NN` tickets are what gets
+  built. The item is closed with `spec: SNNN`, and the spec lists it under `backlog:`.
+
+A backlog item that needs a spec isn't planned or built directly, and isn't claimed: it
+stays `backlog` until its spec closes it. The one exception is the head chef saying to
+build it without a spec; the plan then notes that it has none.
+
+On a github or jira rail a backlog item is an issue labelled `lane:B`, and "closed into a
+spec" shows as its closing comment (`Became spec SNNN: <path>`) rather than a `spec:` field.
 
 **Plans don't move between folders.** A plan's lifecycle is its `status:` field,
 `draft → approved → active → done`. Plan frontmatter:
@@ -360,8 +384,8 @@ A lane is defined by **where its tickets come from**.
 
 | Lane | Name | Source | Path through the skills |
 |---|---|---|---|
-| **A** | Specials | a spec, sliced into tickets | brainstorm → grill-me → spec → file-tickets → create-plan → implement → review-task → open-pr |
-| **B** | À la carte | standalone tickets already on the rail | pick-ticket → (grill-me) → create-plan → implement → review-task → open-pr |
+| **A** | Specials | a spec, sliced into tickets. The spec starts from a brainstorm or from a backlog item that needs one | (brainstorm or pick-ticket) → grill-me → spec → file-tickets → create-plan → implement → review-task → open-pr |
+| **B** | À la carte | backlog items small enough to build without a spec. Every backlog item is filed `lane: B`; one that turns out to need a spec leaves for lane A | pick-ticket → (grill-me) → create-plan → implement → review-task → open-pr |
 | **C** | Clean as you go | the kitchen generates them: `/bk:clean around` / `scan` | pick-ticket → implement → clean check → the pass → on `[go]`: clean around → handoff → open-pr |
 
 **Lane C skips the plan, the checklist and `review-task`.** Its claim goes straight from
@@ -465,9 +489,9 @@ journal, written at handoff:
 | `/bk:rail` | — | the six rail operations on any adapter |
 | `/bk:brainstorm` | A | explore what to build and why |
 | `/bk:grill-me` | A, B | question a plan or idea until there's one shared picture |
-| `/bk:spec` | A | write the numbered spec |
-| `/bk:file-tickets` | A | slice a spec into tickets, or fire one standalone ticket |
-| `/bk:pick-ticket` | B, C | pick a ticket up cold: context, staleness, claim |
+| `/bk:spec` | A | write the numbered spec, and close the backlog item it came from |
+| `/bk:file-tickets` | A, B | slice a spec into tickets, or add one backlog item |
+| `/bk:pick-ticket` | A, B, C | pick a ticket up cold: context, staleness, whether it needs a spec, claim |
 | `/bk:create-plan` | A, B | write the plan for one ticket |
 | `/bk:implement` | A, B, C | carry out the plan, phase by phase, check after each |
 | `/bk:review-task` | A, B | acceptance checklist from intent plus diff, with evidence |
