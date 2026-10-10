@@ -32,7 +32,7 @@ plugins/bk/                         the plugin (skills are invoked /bk:<skill>)
 ├── skills/kitchen/kitchen.sh       the only runtime script: stations, boards, role, questions, lessons,
 │                                   sessions
 ├── agents/                         inspector (report-only), taster (the pass), runner (noisy commands)
-└── templates/                      spec, ticket, plan, checklist, journal
+└── templates/                      spec, ticket, plan, checklist, journal, brigade.local
 scripts/check.sh                    THE gate: manifests, shellcheck, frontmatter, tests
 .github/workflows/check.yml         runs the gate in CI on Linux and macOS
 tests/kitchen.test.sh               behaviour tests for kitchen.sh, both kitchen modes

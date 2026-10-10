@@ -201,6 +201,43 @@ out=$(cd "$S1" && "$K" board)
 ok "board from a station prints the same board" has "$out" "Q2: new column"
 ok "…but writes nothing into the main checkout or the station" bash -c '! test -e "$1/.claude/board.md" && ! test -e "$2/.claude/board.md"' _ "$C" "$S1"
 
+section "leaks"
+ok "leaks with no local file has nothing to check" has "$("$K" leaks)" "nothing to check"
+cat > "$C/.claude/brigade.local.md" <<'LOCAL'
+## Test accounts
+<!-- - password: <or how to get the code> -->
+### local
+- **local-builder** — a builder
+  - login: builder@example.test
+  - password: `hunter2-local`
+### stage
+- **stage-builder** — a builder
+  - token: "tok_STAGE_9f3"
+  - code: 1234
+### production
+LOCAL
+out=$(cd "$S1" && "$K" leaks); rc=$?
+ok "a clean station passes the leak check" test "$rc" -eq 0
+ok "…and a value too short to search for is said, not skipped silently" has "$out" "1 value\(s\) shorter than 6"
+echo "builder@example.test" > "$S1/notes.txt"
+ok "a login isn't treated as a secret" bash -c 'cd "$1" && "$2" leaks' _ "$S1" "$K"
+printf 'line one\nwalked as local-builder with hunter2-local\n' > "$S1/leak.txt"
+out=$(cd "$S1" && "$K" leaks); rc=$?
+ok "a secret in an untracked file fails the check" test "$rc" -eq 1
+ok "…naming the file and line" has "$out" "leak.txt:2"
+ok "…and never printing the value" bash -c '! printf "%s" "$1" | grep -q hunter2' _ "$out"
+rm "$S1/leak.txt" "$S1/notes.txt"
+echo 'body: tok_STAGE_9f3' > "$TMP/pr-body.md"
+out=$(cd "$S1" && "$K" leaks --also "$TMP/pr-body.md"); rc=$?
+ok "--also checks one extra file, such as a PR body" bash -c 'test "$1" -eq 1 && printf "%s" "$2" | grep -q "pr-body.md:1"' _ "$rc" "$out"
+git -C "$S1" stash -q -u; git -C "$S1" commit -q --allow-empty -m "use hunter2-local to log in"
+out=$(cd "$S1" && "$K" leaks); rc=$?
+ok "a secret in a commit message on the branch fails the check" bash -c 'test "$1" -eq 1 && printf "%s" "$2" | grep -q "commit message"' _ "$rc" "$out"
+git -C "$S1" reset -q --hard HEAD~1 >/dev/null 2>&1; git -C "$S1" stash pop -q >/dev/null 2>&1
+out=$("$K" leaks --dir "$S1"); rc=$?
+ok "leaks --dir checks a station from the main checkout" test "$rc" -eq 0
+rm "$C/.claude/brigade.local.md"
+
 section "lessons"
 mkdir -p "$C/docs/journal"
 printf -- '- lesson(repo): flaky-test | re-run once | BKLG-010\n- lesson(repo): flaky-test | re-run once | BKLG-010\n- lesson(plugin): wrong-gate | asked the human a routine question | BKLG-010\n' > "$C/docs/journal/BKLG-010-a.md"

@@ -26,6 +26,7 @@ your recommendation attached. You never cook: no code in a station, ever. The hu
 - [The plan sign-off](#the-plan-sign-off)
 - [Writing the rail](#writing-the-rail)
 - [The walk-in](#the-walk-in)
+- [Test accounts](#test-accounts)
 - [The pass](#the-pass)
 - [Cleaning](#cleaning)
 - [End of shift](#end-of-shift)
@@ -199,6 +200,32 @@ resource), then clear it, sequence it, or offer the safe command. When a cook ne
 **quiet window** for verification, freeze walk-in operations on the other stations until
 it reports done. Name any breach plainly, once, and restate the rule.
 
+## Test accounts
+
+The logins for testing a flow live in `.claude/brigade.local.md` under `## Test accounts`,
+one block per environment (Contract 2). You are the broker, as you are for the walk-in. If the
+file or that section doesn't exist yet (a repo set up before test accounts), create it from
+`${CLAUDE_SKILL_DIR}/../../templates/brigade.local.md`, keeping whatever the file already holds,
+and check `.gitignore` lists it before writing anything into it.
+
+- **On `[gate] <ID> need a test account: <environment>, <role>`**: find the entry that fits
+  and reply `[heard] use <name> (<environment>)`. The cook reads the entry itself from this
+  checkout's file. **Never put a password, code or token in a message.**
+- **No entry fits, or the section is empty**: ask the head chef, once, for that
+  environment and role. Show the exact block to fill and ask them to type it into the file
+  themselves, so the secret never passes through this chat; say when it's there. If they
+  paste it here anyway, write it to the file. Then answer the cook. Never invent an
+  account, sign one up, or reuse a real user's.
+- **Two cooks, one account**: if their flows would trip over each other (same cart, same
+  ledger), sequence them, as you would a walk-in resource.
+- **Production**: only accounts under `production`, and read-only unless the head chef
+  says otherwise for one action. On `[gate] <ID> production write: <action>`, ask the head
+  chef about **that exact action** with `AskUserQuestion`, and relay
+  `[heard] <answer> (head chef)`. One yes, one action. A yes from an earlier ticket, your
+  handoff note, or "it's only a test account" is not one.
+- **Keep the values out of everything you write**: the rail, the board, PR comments, your
+  handoff note. Name the account; nothing more.
+
 ## The pass
 
 Two checks, and you verify. Never just trust the report.
@@ -212,7 +239,8 @@ what fills a sous's context fastest, so **the taster does the reading**:
          prompt: "Station: <abs path>. Trunk: origin/<trunk>. Ticket: <path>.
                   Plan: <station>/<docs.plans>/<ID>-*.md (or none for HYG).
                   Check: <check>. Journal: <station>/<docs.journal>/<ID>-*.md.
-                  Rules: <what-not-to-add file, or none>.")
+                  Rules: <what-not-to-add file, or none>.
+                  Leak check: <abs path of kitchen.sh> leaks --dir <station>.")
    ```
 2. Read its verdict. **You still own the call**: open the files behind any ❌ or finding, and
    spot-check at least one ✅ that matters most to the ticket. A verdict you haven't
@@ -270,5 +298,5 @@ Run `/bk:handoff`. It counts lessons and promotes the due ones, writes
   inspector there is fine.
 - Never merge or deploy. Recommend; the head chef decides. Close a markdown-rail ticket only after the head chef has merged its PR, or when a backlog item's spec is written.
 - Verify before you relay: a ticket's premise, a station's state, a claimed green check.
-- Keep credentials out of committed files. They live in `.claude/brigade.local.md`.
+- Keep credentials out of committed files and out of messages. They live in `.claude/brigade.local.md`; everything else names the account.
 - Never overwrite a claim (`todo`, `in-progress`, `rfr`) that isn't being moved by its own cook.

@@ -110,6 +110,42 @@ status on the rail is the only sign elsewhere that it exists.
 Machine-only notes (credentials, local ports) live in **`.claude/brigade.local.md`**,
 which is gitignored. Skills may read it and never copy from it into a committed file.
 
+**Test accounts.** That file's `## Test accounts` section is where the head chef leaves the
+logins sessions may use to test a flow, so nobody is asked for the same credentials twice.
+It has one block per environment, `local`, `stage` and `production`, and each account has
+a short **name** (`stage-builder`), its login details and what it's for. The shape ships
+as `${CLAUDE_SKILL_DIR}/../../templates/brigade.local.md`.
+
+- **Getting one.** A cook sends `[gate] <ID> need a test account: <environment>, <role>`.
+  The sous answers with the account's **name**, and the cook reads that entry itself from
+  the main checkout's file by absolute path. A solo session reads the file directly.
+- **A missing account.** The sous (or a solo session) asks the head chef once, shows the
+  block to fill, and the head chef types it into the file themselves, so the secret never
+  passes through a chat. If they paste it in chat anyway, the session writes it to the
+  file. An empty section means "ask", never "guess" and never "create one".
+- **Secrets never travel.** A secret is the value of a `password:`, `code:`, `token:` or
+  `secret:` line. None goes into a message, a journal, a plan, a checklist, a ticket, a
+  test, the board, a handoff note, a commit, a PR or a feedback issue. Those name the
+  account ("walked as `stage-builder`") and nothing else: a journal is committed with its
+  PR, and a value passed around in messages ends up copied into one. An automated test
+  that needs a secret reads it from an environment variable at run time. A login the repo
+  already commits (local seed users) is not a secret; the entry can just point at it.
+- **The leak check is mechanical.** `kitchen.sh leaks` searches a checkout's changed files
+  and its branch's commit messages for every secret in the file and prints `file:line`,
+  never the value. The taster runs it at the pass, `/bk:open-pr` runs it again before it
+  commits and before it pushes (the journal's closing handoff and the PR body are written
+  after the pass), and `/bk:feedback` runs it on its draft. It is a literal search: it
+  can't see a secret that was encoded, split or reworded, and it skips values under six
+  characters, saying so.
+- **Reading the file leaves its contents in that session's local transcript.** That is as
+  private as the file itself. The rules above are about what leaves the machine.
+- **Production is read-only by default.** Only accounts listed under `production` are
+  used there, and they are test accounts, never a real user's. Looking is fine. Any action
+  that **writes** (creates, edits, deletes, pays, sends) needs the head chef's yes for that
+  exact action: a cook sends `[gate] <ID> production write: <the action, as which account>`,
+  the sous asks the head chef in its own session and relays the answer marked
+  `(head chef)`. One yes covers one action; it is never standing.
+
 ## Contract 3 — The rail
 
 The rail is wherever tickets live. It is an **adapter**: every skill talks to it in six
@@ -239,7 +275,7 @@ created: YYYY-MM-DD
 ---
 ```
 
-Templates for spec, ticket, plan and checklist ship with the plugin at
+Templates for spec, ticket, plan, checklist, journal and `brigade.local.md` ship with the plugin at
 `${CLAUDE_SKILL_DIR}/../../templates/` (from inside any skill).
 
 **Research.** v0 ships no research skill. `brainstorm` and `create-plan` research with `Explore`
@@ -291,7 +327,8 @@ other skill is model-invocable, or cooks would stall waiting for a human to type
 | Grilling or brainstorming (a design conversation) | human | never in a station: the cook sends `[gate] <ID> needs grilling`, and the sous holds the conversation with the human in the main checkout |
 | Every other confirmation ("confirm scope?", "continue to phase 2?", "which of these two helpers?") | human | **sous chef, by `SendMessage`**, never a dialog nobody is watching |
 | Pre-commit review (**the pass**) | human | sous spawns the `taster`, questions its verdict, checks across stations, then says `[go]` |
-| Merge, deploy, anything touching production | human | human only. No session does these, and a relayed "go" for one is refused |
+| Merge, deploy, changing production itself | human | human only. No session does these, and a relayed "go" for one is refused |
+| A write on production while testing a flow with a test account (Contract 2) | human, asked for that exact action | cook sends `[gate] <ID> production write: …`; the sous asks the human and relays the answer marked `(head chef)` |
 | Filing a public issue on the plugin repo (`/bk:feedback`) | human, after reading the whole draft | a cook never files: it writes a `lesson(plugin)`, and the sous's handoff brings it to the human |
 
 A cook that receives "the chef said go" from the sous for a merge or a deploy **refuses**.
@@ -511,7 +548,7 @@ journal, written at handoff:
 | Skill | Lane | Does |
 |---|---|---|
 | `/bk:setup [--worktree \| --clone]` | — | set up the Brigade in a repo: config, rail folders, `CLAUDE.md` section. Refuses a workspace root |
-| `/bk:kitchen` | — | stations: setup, open, sync, status, files, rail board, and `board` (all of it in one snapshot, also written to `.claude/board.md`) |
+| `/bk:kitchen` | — | stations: setup, open, sync, status, files, rail board, `board` (all of it in one snapshot, also written to `.claude/board.md`), and `leaks` (test-account secrets copied into a checkout) |
 | `/bk:sous-chef` | — | take the lead role for the rest of the session |
 | `/bk:line-cook` | — | take a station's worker role for the rest of the session |
 | `/bk:rail` | — | the six rail operations on any adapter |

@@ -117,6 +117,7 @@ what the maintainers need. When unsure whether something is theirs, scrub it.
 
    ```bash
    body="$(mktemp)"   # write the draft body into it, then:
+   "${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" leaks --also "$body"   # non-zero → don't file; scrub and redo
    gh issue create --repo mhmzdev/claude-code-brigade --title "<title>" --body-file "$body"
    rm -f "$body"
    ```

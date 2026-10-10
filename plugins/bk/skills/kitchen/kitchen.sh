@@ -39,6 +39,11 @@
 #   kitchen.sh board                      status, files, rail and open questions in one
 #                                         go; from the main checkout it also writes them
 #                                         to .claude/board.md (kept out of git)
+#   kitchen.sh leaks [--dir D] [--also F] search a checkout's changed files and branch
+#                                         commit messages (D, default: here; plus file F,
+#                                         e.g. a PR body) for any test-account secret in
+#                                         .claude/brigade.local.md. Prints file:line only,
+#                                         never the value; exits 1 on a hit
 #   kitchen.sh remove                     delete every station (asks first)
 #   kitchen.sh role                       "cook <station> <main checkout>" when run inside
 #                                         a station, else "main <main checkout>"
@@ -126,7 +131,8 @@ PERMISSION_MODE="${BRIGADE_PERMISSION_MODE:-$(cfg permission_mode)}"; PERMISSION
 TERMINAL="${BRIGADE_TERMINAL:-}"
 BARE=false
 NO_LAUNCH=false
-SESSIONS_DIR=""   # --dir, for sessions
+SESSIONS_DIR=""   # --dir, for sessions and leaks
+ALSO=""           # --also, one extra file for leaks
 MODELS=()
 ARGV=()   # set by native_argv
 
@@ -140,6 +146,7 @@ while [[ $# -gt 0 ]]; do
     --bare) BARE=true; shift ;;
     --no-launch) NO_LAUNCH=true; shift ;;
     --dir) SESSIONS_DIR="$2"; shift 2 ;;
+    --also) ALSO="$2"; shift 2 ;;
     -m|--model) shift
       while [[ $# -gt 0 && "$1" != -* ]]; do
         for tok in ${1//,/ }; do MODELS+=("$tok"); done; shift
@@ -674,6 +681,50 @@ cmd_board() {
 }
 
 # ---------------------------------------------------------------------------
+# leaks — has a test-account secret been copied out of .claude/brigade.local.md?
+# Secrets are the values of `password:`, `code:`, `token:` and `secret:` lines in
+# that file. They are matched as fixed strings from a temp pattern file, so no
+# value ever appears on a command line or in the output: a hit prints file:line.
+# A literal search: it can't see a value that was encoded, split or reworded.
+# ---------------------------------------------------------------------------
+cmd_leaks() {
+  local file="$ROOT/.claude/brigade.local.md" dir="${SESSIONS_DIR:-$HERE}" pat short f n hits=0 checked=0
+  [[ -f "$file" ]] || { echo "No .claude/brigade.local.md in the main checkout: nothing to check."; return 0; }
+  pat="$(mktemp "${TMPDIR:-/tmp}/brigade-leaks.XXXXXX")"
+  short=$(awk -v out="$pat" -v q="'" '
+    /^[ \t]*(-[ \t]*)?(password|code|token|secret)[ \t]*:/ {
+      v=$0; sub(/^[^:]*:[ \t]*/, "", v); sub(/[ \t]+$/, "", v)
+      gsub("^[`\"" q "]|[`\"" q "]$", "", v)
+      if (v == "" || v ~ /^</) next
+      if (length(v) < 6) { s++; next }
+      print v > out
+    } END { print s+0 }' "$file")
+  if [[ ! -s "$pat" ]]; then
+    rm -f "$pat"; echo "No test-account secrets on file: nothing to check."
+    (( short > 0 )) && echo "  ($short value(s) shorter than 6 characters can't be searched for)"
+    return 0
+  fi
+  while IFS= read -r f; do
+    [[ -f "$dir/$f" ]] || continue
+    checked=$((checked+1))
+    while IFS= read -r n; do echo "  $f:$n"; hits=$((hits+1)); done < <(grep -anF -f "$pat" -- "$dir/$f" | cut -d: -f1)
+  done < <(changed_files "$dir")
+  if git -C "$dir" log "origin/$TRUNK..HEAD" --format=%B 2>/dev/null | grep -qaF -f "$pat"; then
+    echo "  (a commit message on this branch)"; hits=$((hits+1))
+  fi
+  if [[ -n "$ALSO" && -f "$ALSO" ]]; then
+    while IFS= read -r n; do echo "  $ALSO:$n"; hits=$((hits+1)); done < <(grep -anF -f "$pat" -- "$ALSO" | cut -d: -f1)
+  fi
+  rm -f "$pat"
+  (( short > 0 )) && echo "  ($short value(s) shorter than 6 characters weren't searched for)"
+  if (( hits > 0 )); then
+    echo "LEAK: $hits place(s) hold a test-account secret. Remove it; name the account instead."
+    return 1
+  fi
+  echo "No test-account secrets in $checked changed file(s) or this branch's commit messages."
+}
+
+# ---------------------------------------------------------------------------
 # role — am I a cook? Skills call this first: a session inside a station is a
 # line cook whether or not /bk:line-cook was typed (e.g. after /clear).
 # ---------------------------------------------------------------------------
@@ -792,7 +843,7 @@ cmd_remove() {
 
 case "$CMD" in
   setup) cmd_setup ;; open) cmd_open ;; sync) cmd_sync ;; status) cmd_status ;;
-  files) cmd_files ;; rail) cmd_rail ;; board) cmd_board ;; remove) cmd_remove ;;
+  files) cmd_files ;; rail) cmd_rail ;; board) cmd_board ;; leaks) cmd_leaks ;; remove) cmd_remove ;;
   role) cmd_role ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   sessions) cmd_sessions ;; *) usage ;;
 esac

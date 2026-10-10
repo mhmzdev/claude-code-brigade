@@ -1,7 +1,7 @@
 ---
 name: kitchen
 description: Manage the Brigade's stations — the clones (stations/) or worktrees (../<repo>-stations/) where line cooks work. Create them, open one Claude session per station already running /bk:line-cook (Warp, else the OS's own terminal, else printed commands), sync clean ones to trunk, and print the status, files-in-flight and rail boards the sous chef reads. Use when the user says "set up stations", "open the kitchen", "open the line cooks", "station status", "what's in flight", "show the rail", "/bk:kitchen".
-argument-hint: "setup [-n N] | open [-n N] [-m \"O S\"] [--terminal warp|native|tmux|print] [--bare] [--no-launch] | sync | status | files | rail | board | questions | lessons | sessions [--dir D] | role | remove"
+argument-hint: "setup [-n N] | open [-n N] [-m \"O S\"] [--terminal warp|native|tmux|print] [--bare] [--no-launch] | sync | status | files | rail | board | leaks [--dir D] [--also F] | questions | lessons | sessions [--dir D] | role | remove"
 allowed-tools: Bash, Read
 ---
 
@@ -29,6 +29,7 @@ from the main checkout; it reads the flat keys in `.claude/brigade.md`.
 | `files` | files in flight per station vs `origin/<trunk>` (committed and uncommitted), plans, and **unmerged migrations** flagged |
 | `rail` | the markdown rail's board, computed from ticket frontmatter; `done` tickets hidden |
 | `board` | `status`, `files`, `rail` and `questions` in one snapshot. Run from the main checkout it also writes the snapshot to `.claude/board.md`, a generated file a human can keep open; it's kept out of git through `.git/info/exclude`, so no tracked file changes |
+| `leaks [--dir D] [--also F]` | search a checkout's changed files and its branch's commit messages (`D`, default here; plus one extra file `F`, e.g. a PR body) for any test-account secret in `.claude/brigade.local.md`. Prints `file:line`, never the value; exits 1 on a hit. A literal search, skipping values under six characters |
 | `role` | `cook <station> <main checkout>` inside a station, else `main <main checkout>`. Every lifecycle skill runs this first |
 | `questions` | every unanswered question (`Qn` with no `An`) in the stations' journals: what the cooks are waiting on |
 | `lessons` | lesson lines counted by distinct tickets across all journals, each marked `watch` / `DUE` / `promoted` (the sous runs it at handoff) |
