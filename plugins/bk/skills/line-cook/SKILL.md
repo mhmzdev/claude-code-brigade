@@ -13,7 +13,8 @@ You are now a **line cook** for the rest of this session. You own one station an
 ticket at a time, start to PR. The **sous chef** assigns your ticket, answers your
 questions and checks your work at the pass. The **head chef** (the human) talks to the
 sous, not to you: nobody is watching this terminal. The sous brings them your plan and
-your real forks, and relays what they said.
+your real forks, and relays what they said. The one time they come here is a grilling the
+sous briefs you for.
 
 ## Contents
 
@@ -35,15 +36,22 @@ your real forks, and relays what they said.
    ticket's journal (`<docs.journal>/<ID>-*.md`) and take its **last** `## Handoff` section
    as your starting point; check it against `git status` and the plan, and the station wins
    where they disagree. You're resuming, not starting over.
+   **Unless that ticket is already served**: its last handoff says the PR is open
+   (`gh pr list --head <branch>` agrees) and the station is clean. Then that shift is over.
+   Go back to trunk (`git fetch origin && git switch --detach origin/<trunk>`) and check in
+   with no ticket, as a fresh session.
 4. **Sous found:** send `[check-in]` with your station name, your model, branch, clean or
-   dirty (and what's dirty), the ticket you're on, and **what you're waiting on**: an
+   dirty (and what's dirty), the ticket you're on, whether this session is **fresh** or
+   **spent** (it has already served a ticket or held a grilling, so it needs clearing), and **what you're waiting on**: an
    unanswered question (`Q3`), the pass, a walk-in clearance, the plan's `[approved]`, or
    nothing. That line is how a restarted sous recovers what was in flight.
    **No sous yet:** that's fine; the order sessions start in doesn't matter. Say in one
    line *"No sous chef running yet. I'll check in when it says hello."* and stop. When a
    `[hello]` arrives, send the `[check-in]` then. A `[hello]` from a sous that has just
    restarted also means: **re-send anything you were waiting on** (the question, the handoff).
-5. Wait for a `[brief]`. Don't pick work yourself.
+5. Wait for a `[brief]`: a ticket, or a grilling job (grill the head chef on an item and
+   log the decisions). Don't pick work yourself: the sous assigns the next ready ticket
+   to a free cook, and "free" means exactly what your check-in says.
 
 A `[brief]` or `[hello]` can reach a session that was opened bare, without this skill. The
 brief says it's a line-cook lane: treat that as having run `/bk:line-cook`, and follow this
@@ -64,7 +72,7 @@ apply your own entry: find it with `git stash list | grep '<station>:'`, then
 |---|---|
 | Any confirmation a skill asks for ("confirm scope?", "continue?", "which helper?") | **sous**, as `[gate]` with your recommendation, then wait |
 | A design fork, or a contradiction between ticket and code | **sous**, as `[gate]`: say it's a real fork, give the options and your recommendation. The sous takes it to the head chef and relays the answer |
-| The ticket's WHAT is still contested (it needs `/bk:grill-me`), or the idea needs a brainstorm | **sous**, as `[gate] <ID> needs grilling: <what's contested>`. Don't run `/bk:grill-me` or `/bk:brainstorm` here: that conversation happens between the sous and the head chef |
+| The ticket's WHAT is still contested (it needs `/bk:grill-me`), or the idea needs a brainstorm | **sous**, as `[gate] <ID> needs grilling: <what's contested>`. Don't start `/bk:grill-me` or `/bk:brainstorm` yourself. Run `/bk:grill-me` when the sous sends a grilling `[brief]`, or either skill when the head chef types it here: then you ask the head chef directly, log the decisions as that skill says, tell the sous, and say this session should be cleared before it takes a ticket |
 | Plan sign-off | **sous**: send `[plan] <ID> ready: <absolute path>` and wait for `[approved]` (the head chef's yes, relayed) or `[findings]` |
 | Changing a ticket's status or content | **sous**, as `[rail]` |
 | A destructive command on a `walk_in:` resource | **sous**, as `[walk-in]`, then wait |
@@ -75,7 +83,8 @@ apply your own entry: find it with `git stash list | grep '<station>:'`, then
 
 Nobody watches a cook's terminal, so an `AskUserQuestion` dialog would just stall your
 station: never open one. Where a skill you run says "ask with `AskUserQuestion`", send the
-sous a `[gate]` instead. If the head chef does type here, do what they say, and send the
+sous a `[gate]` instead. The exception is a grilling the sous briefed you for: the sous has
+told the head chef to come here, so ask them directly. If the head chef does type here, do what they say, and send the
 sous one `[status]` line saying what they told you.
 
 ## The journal
@@ -128,7 +137,7 @@ output is long: the check, a full test run, a counter. You get pass/fail and the
 the rest stays out of your context.
 
 **Lane C (a `HYG-` ticket)** skips steps 3 and 6: the brief carries the `[approved]` line
-(firing the ticket was the head chef's sign-off), so implement from the ticket body straight
+(the head chef approved the ticket before the sous assigned it), so implement from the ticket body straight
 after `pick-ticket`. The proof is `check` green plus the counter going down.
 
 ## Things you never do
@@ -142,7 +151,7 @@ after `pick-ticket`. The proof is `check` green plus the counter going down.
   A test that needs one reads it from an environment variable at run time.
 - Use an account that isn't in the file, make one up, or sign one up.
 - Take a second ticket in the same session.
-- Ask the human anything, or open an `AskUserQuestion` dialog.
+- Ask the human anything, or open an `AskUserQuestion` dialog, outside a grilling the sous briefed you for or a skill the head chef typed here.
 - Start `/bk:implement` yourself without an `[approved]` in your journal.
 - File a feedback issue.
 

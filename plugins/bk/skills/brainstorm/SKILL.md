@@ -35,7 +35,7 @@ brainstorm → grill-me → spec → file-tickets → create-plan → implement 
 4. **Look before you ask.** If the answer is in the repo, read it.
 5. **Ground before you opine.** No approach or recommendation about the code before Step 2 is done.
 
-This skill is a conversation with the human, so it runs in a **sous or solo** session (Contract 5). In a line-cook session, don't start one: nobody watches a cook's terminal. Send the sous `[gate] <ID> needs grilling: <the idea and why it isn't settled>`, and the sous holds the conversation with the head chef.
+This skill is a conversation with the human, usually in a **sous or solo** session (Contract 5). In a line-cook session, never start one yourself: nobody watches a cook's terminal. Send the sous `[gate] <ID> needs grilling: <the idea and why it isn't settled>`, and the sous takes it from there (it may hand a grilling to a cook, but never a brainstorm). If the human typed `/bk:brainstorm` in your station themselves, they're here: carry on, send the sous `[status] brainstorming with the head chef`, write the doc in your station **without its INDEX row** (the sous adds that), and at the end send `[rail] brainstorm ready: <absolute path>` so the sous files it in the main checkout (delete your copy on `[heard]`, which leaves the station clean). That session is then spent: it should be cleared before it takes a ticket.
 
 ## Step 1 — Scope the idea
 

@@ -29,9 +29,20 @@ Method adapted from Matt Pocock's `grilling` skill (github.com/mattpocock/skills
 
 ## Who you grill
 
-Always the **human**, in a **sous or solo** session. Grilling is a design conversation, and Contract 5 keeps those between the head chef and the one session they talk to. The sous never answers grilling questions on the human's behalf.
+Always the **human**. Grilling is a design conversation, so it happens wherever the human chose to have it: usually the sous's or a solo session. The sous never answers grilling questions on the human's behalf.
 
-**In a line-cook session, don't run this.** Send the sous `[gate] <ID> needs grilling: <what's contested>` and wait. The sous grills the head chef in the main checkout, folds the decisions into the ticket (or sends you the ones that belong in your plan), and replies `[heard]`.
+**In a line-cook session, never start this yourself** (Contract 5): nobody is watching your terminal. Send the sous `[gate] <ID> needs grilling: <what's contested>` and wait. The sous grills the head chef, folds the decisions into the ticket (or sends you the ones that belong in your plan), and replies `[heard]`.
+
+**The sous sent you a grilling `[brief]`, or the human typed `/bk:grill-me` in your station themselves?** Then the human is coming to this terminal: grill them, and ask with `AskUserQuestion` as this skill says. This is the one job where a cook asks the human directly. Four things differ from a sous session:
+
+- Send the sous `[status] grilling <ID> with the head chef` at the start.
+- You can't write the rail, and specs and tickets live in the main checkout. So **log every decision where the brief says**:
+  - a backlog item that needs a spec → go straight on to `/bk:spec`. It writes `<docs.specs>/draft-<slug>.md` in your station with the decisions in its Decisions section, and sends `[rail] spec draft ready: <absolute path>`, naming the item, for the sous to number and file;
+  - an existing spec, or a ticket → write the decisions to `<docs.journal>/grill-<slug>.md` in your station (not `<ID>-…`, which is a ticket journal's name) and send `[rail] <ID> add decisions: <absolute path>`; delete the file on `[heard]`;
+  - a bare topic, with nothing to attach them to → the same file, and give its path in the `[status]` line below; the sous decides where it belongs;
+  - your own ticket's plan → straight into the plan.
+- **Tell the sous it's done**: `[status] <ID> grilled: <one line of what was decided, and where it's written>`. Don't offer the next skill with a dialog; the brief already said what comes next.
+- This session is now spent. Say so: it should be cleared before it takes a ticket.
 
 ## Step 0 — Read the input
 

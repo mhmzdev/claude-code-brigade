@@ -5,6 +5,7 @@ lane: B                # A | B | C
 status: backlog        # backlog | todo | in-progress | rfr | done | blocked
 cook: null             # station name once claimed
 spec: null             # lane A: the parent spec. BKLG: the spec it became
+priority: normal       # high | normal | low
 blocked_by: []         # ticket ids
 files: []              # paths it will likely touch
 created: YYYY-MM-DD

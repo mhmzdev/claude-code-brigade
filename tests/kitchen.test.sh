@@ -114,6 +114,21 @@ ok "role from a station names the main checkout" has "$(cd "$C/stations/station-
 out=$("$K" rail)
 ok "rail lists open tickets" has "$out" "BKLG-001"
 ok "rail hides done tickets" bash -c "! printf '%s' \"\$1\" | grep -q BKLG-002" _ "$out"
+ok "rail shows a ticket with no priority as normal (-)" has "$out" "BKLG-001 +B +backlog +- +- +Open ticket"
+printf -- '---\nid: BKLG-003\ntitle: Urgent one\nlane: B\nstatus: backlog\npriority: high   # jumps the queue\ncook: null\n---\n' > "$C/docs/backlog/BKLG-003-urgent.md"
+printf -- '---\nid: BKLG-004\ntitle: Someday\nlane: B\nstatus: backlog\npriority: low\ncook: null\n---\n' > "$C/docs/backlog/BKLG-004-someday.md"
+out=$("$K" rail)
+ok "rail shows high priority" has "$out" "BKLG-003 +B +backlog +high +- +Urgent one"
+ok "rail shows low priority" has "$out" "BKLG-004 +B +backlog +low +- +Someday"
+printf -- '---\nid: BKLG-005\ntitle: Plain\nlane: B\nstatus: blocked\npriority: normal\ncook: null\nblocked_by: [BKLG-001, BKLG-003]\n---\n' > "$C/docs/backlog/BKLG-005-plain.md"
+printf -- '---\nid: BKLG-006\ntitle: Odd\nlane: B\nstatus: backlog\npriority: urgent\ncook: null\nblocked_by: []\n---\n' > "$C/docs/backlog/BKLG-006-odd.md"
+out=$("$K" rail)
+ok "an explicit normal priority reads as -" has "$out" "BKLG-005 +B +blocked +- +- +Plain"
+ok "an unknown priority reads as normal, not as itself" has "$out" "BKLG-006 +B +backlog +- +- +Odd"
+ok "rail prints a ticket's blockers after its title" has "$out" "Plain  \(blocked by: BKLG-001, BKLG-003\)"
+ok "…and nothing for an empty blocked_by" bash -c '! printf "%s" "$1" | grep -q "Odd.*blocked by"' _ "$out"
+rm "$C/docs/backlog/BKLG-005-plain.md" "$C/docs/backlog/BKLG-006-odd.md"
+rm "$C/docs/backlog/BKLG-003-urgent.md" "$C/docs/backlog/BKLG-004-someday.md"
 
 out=$("$K" open --terminal print -m "o s")
 ok "open names cooks <repo>-cook-N" has "$out" "--name app-cook-2"
