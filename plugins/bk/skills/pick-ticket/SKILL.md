@@ -1,6 +1,6 @@
 ---
 name: pick-ticket
-description: Pick up a ticket cold. Rebuilds the context behind it (why it exists, what it links to, what happened since), checks the code at origin/<trunk>, returns one of six staleness verdicts with evidence, checks nobody else owns it, then recommends the next skill and — only on a yes — claims it on the rail. Works on any rail (markdown, GitHub, Jira). Read-only until told otherwise. Use when the user says "pick a ticket", "pick up BKLG-004", "catch me up on S001-02", "is this ticket still valid", "what's the story on HYG-003".
+description: Pick up a ticket cold. Rebuilds the context behind it (why it exists, what it links to, what happened since), checks the code at origin/<trunk>, returns one of six staleness verdicts with evidence, checks nobody else owns it, says whether a backlog item is small enough to build or needs a spec, then recommends the next skill and — only on a yes — claims it on the rail. Works on any rail (markdown, GitHub, Jira). Read-only until told otherwise. Use when the user says "pick a ticket", "pick up BKLG-004", "catch me up on S001-02", "is this ticket still valid", "what's the story on HYG-003".
 argument-hint: "<ticket id, path, or URL>"
 allowed-tools: Bash, Read, Skill, ListAgents, SendMessage, AskUserQuestion, ToolSearch
 ---
@@ -41,7 +41,7 @@ Find it with the rail's **read** operation for `rail.adapter`:
 - **github** — `gh issue view <N> --json number,title,body,state,labels,assignees,comments`.
 - **jira** — the Jira MCP or CLI named in `.claude/brigade.local.md`.
 
-A closed or `done` ticket is a valid target. The verdict then says what closed it.
+A closed or `done` ticket is a valid target. The verdict then says what closed it. A closed backlog item with `spec:` set (on a tracker: a `Became spec SNNN` closing comment) wasn't built: it became that spec. Say so, and point at the spec's tickets.
 
 ## Step 1 — Fix the code baseline
 
@@ -106,7 +106,7 @@ Exactly one applies.
 | **Done** | every `Done when` box holds at trunk | close |
 | **Unclear** | too vague to check against code | name what's missing; recommend grill-me |
 
-Every verdict cites evidence: a `file:line` at `origin/<trunk>`, a merged PR, or a commit. No evidence → `Unclear`. Walk the `Done when` boxes one at a time. For a spec with several tickets, one row per ticket plus a one-line roll-up.
+Every verdict cites evidence: a `file:line` at `origin/<trunk>`, a merged PR, or a commit. No evidence → `Unclear`. Walk the `Done when` boxes one at a time. A backlog item with no `Done when` (a capability waiting for its spec) is judged on its `## Why` alone: `Stands` while the need is still unmet at trunk, never `Done`, and Step 6 sends it to a spec instead of a claim. For a spec with several tickets, one row per ticket plus a one-line roll-up.
 
 ## Step 5 — Write it up
 
@@ -129,7 +129,13 @@ Code read at `origin/<trunk>` <sha>
 **(a) Recommend the next skill by name, and wait.**
 
 - The WHAT is contested (`Unclear`, `Body drifted`, comments disagree with the body) → `/bk:grill-me <ID>`.
-- The WHAT is crisp, lane A or B → `/bk:create-plan <ID>`.
+- **A backlog item (`BKLG-*`, or `lane:B` on a tracker) that needs a spec** → `/bk:grill-me <ID>`, then `/bk:spec`. It needs one if any of these is a yes (Contract 4):
+  - Would a user notice the behaviour and have opinions about it?
+  - Would it plausibly need more than one slice?
+  - Is there a real fork in *what* to build, not just *how*?
+
+  Say which one in a sentence. Offer no claim: the item stays `backlog` until `/bk:spec` closes it into the spec. If the head chef says build it directly anyway, do (Contract 4's one exception), and note in the plan that it has no spec.
+- The WHAT is crisp: a lane A ticket, or a small backlog item → `/bk:create-plan <ID>`.
 - **Lane C (`HYG-*`)** → `/bk:implement <ID>`. Hygiene tickets have no plan and no checklist (Contract 9); the ticket body is the spec and the counter is the proof.
 
 **(b) Claim it — on a yes (solo), on the head chef's "fire it" (sous), or straight away on a brief (cook).** The claim for lane A/B is `todo` (it's set again by `create-plan`, harmlessly); for lane C it's `in-progress`, because nothing comes between picking and implementing.
@@ -148,4 +154,5 @@ Close, body rewrite and comment offers follow the same rule: show the text, wait
 - Don't claim a ticket in `todo`, `in-progress` or `rfr` that isn't yours.
 - Don't write the rail from a cook session. Ask the sous.
 - Don't produce a verdict without evidence; that's what `Unclear` is for.
+- Don't send a backlog item that needs a spec to `/bk:create-plan`, and don't claim it.
 - Don't run the next skill yourself. The human (or, in a station, the brief) fires it.

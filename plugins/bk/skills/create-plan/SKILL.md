@@ -2,7 +2,7 @@
 name: create-plan
 description: Turn one ticket (or a spec's ticket, or a bare task) into a detailed, file:line-grounded plan through parallel codebase research and one-question-at-a-time decisions. Writes docs/plans/<id>-<slug>.md with open_questions none, moves the ticket to todo on the rail, and waits for the head chef's sign-off — which authorises every commit made under the plan. Use when the user says "plan this", "plan BKLG-004", "write the plan", "how would we build S001-02", "/bk:create-plan".
 argument-hint: "<ticket id | ticket path | task description>"
-allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, AskUserQuestion, ListAgents, SendMessage, ToolSearch
+allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, Skill, AskUserQuestion, ListAgents, SendMessage, ToolSearch
 ---
 
 # /bk:create-plan
@@ -31,11 +31,12 @@ You write the plan for **one ticket**. The plan is the closest thing to the diff
 
 1. Resolve the ticket with the rail's **read** operation (markdown: from the main checkout, by the absolute path in the `[brief]` when you're a cook). No ticket at all (a bare task, solo only) → the plan's id is a slug, and say so.
 2. **Refuse a lane C ticket.** Point at `/bk:implement <ID>`.
-3. **Check the claim before researching.** Status `todo`, `in-progress` or `rfr` with another cook → stop and report. Also `ls <kitchen>/*/docs/plans/<id>-* 2>/dev/null` — a hit in another station means it's taken.
-4. **Claim now, not at the end** — the gap between starting and finishing a plan is how the same ticket gets planned twice:
+3. **Stop on a backlog item that needs a spec**: a lane B item (`BKLG-*`, or `lane:B` on a tracker) that answers yes to any of Contract 4's three questions, has no `Done when`, or says "needs a spec". Say why in one sentence and point at `/bk:grill-me <ID>`, then `/bk:spec`. Don't claim it. If the head chef has already said to build it without a spec, carry on and note that in the plan. A backlog item closed into a spec (`spec:` set, or a `Became spec SNNN` comment) is finished as an item: plan one of that spec's tickets, or the spec itself if it's a one-slice spec with none.
+4. **Check the claim before researching.** Status `todo`, `in-progress` or `rfr` with another cook → stop and report. Also `ls <kitchen>/*/docs/plans/<id>-* 2>/dev/null` — a hit in another station means it's taken.
+5. **Claim now, not at the end** — the gap between starting and finishing a plan is how the same ticket gets planned twice:
    - cook → `[rail] claim <ID> todo cook=<station>`, wait for `[heard]`;
    - sous or solo → set `status: todo` (and `cook:` if assigning) via the rail's **claim** operation.
-5. **Honour `blocked_by:`.** Any blocker not `done` → say so and stop, unless the human wants to plan ahead.
+6. **Honour `blocked_by:`.** Any blocker not `done` → say so and stop, unless the human wants to plan ahead.
 
 ## Step 1 — Read everything named
 

@@ -32,7 +32,7 @@ here and from the plugin contract. Renaming stays a one-line change.
 | Lane | Kitchen name | Source |
 |---|---|---|
 | A | **Specials** | a spec, sliced into tickets |
-| B | **À la carte** | standalone tickets already on the rail |
+| B | **À la carte** | backlog items small enough to build without a spec |
 | C | **Clean as you go** | the kitchen generates them: `/bk:clean scan` |
 
 ## Why a kitchen

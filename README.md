@@ -60,8 +60,8 @@ The full table, plus an Urdu alternate (Qafila), is in [`docs/the-names.md`](doc
 
 | Lane | Source | Path |
 |---|---|---|
-| **A — Specials** | a spec, sliced into tickets | brainstorm → grill-me → spec → file-tickets → create-plan → implement → review-task → open-pr |
-| **B — À la carte** | tickets already on the rail | pick-ticket → (grill-me) → create-plan → implement → review-task → open-pr |
+| **A — Specials** | a spec, sliced into tickets | (brainstorm or pick-ticket) → grill-me → spec → file-tickets → create-plan → implement → review-task → open-pr |
+| **B — À la carte** | backlog items small enough to build without a spec | pick-ticket → (grill-me) → create-plan → implement → review-task → open-pr |
 | **C — Clean as you go** | the kitchen finds its own mess: `/bk:clean scan` | pick-ticket → implement → open-pr |
 
 ## The rules
@@ -138,7 +138,7 @@ It reads the repo, asks one round of questions, and writes:
 ```
 .claude/brigade.md          # config: trunk, check command, walk-in, rail adapter
 docs/specs/001-<slug>.md    # specs; their tickets in docs/specs/001-<slug>/01-<slug>.md
-docs/backlog/BKLG-001-*.md  # standalone tickets;  HYG-001-*.md for hygiene
+docs/backlog/BKLG-001-*.md  # backlog items, not yet specced;  HYG-001-*.md for hygiene
 docs/plans/  docs/checklists/  docs/research/  docs/brainstorm/
 stations/station-1 …        # gitignored clones, one per cook
 ```
@@ -260,7 +260,7 @@ drafted issue on this repo (through `/bk:feedback`), filed only on your OK.
 | `kitchen` | stations: setup, open, sync, status, files in flight, the rail board |
 | `sous-chef` / `line-cook` | take the lead or worker role |
 | `rail` | list, read, claim, fire, link, close: markdown, GitHub or Jira |
-| `brainstorm` · `grill-me` · `spec` · `file-tickets` | lane A, from idea to tickets |
+| `brainstorm` · `grill-me` · `spec` · `file-tickets` | lane A, from idea to tickets. `file-tickets` also adds backlog items |
 | `pick-ticket` · `create-plan` · `implement` · `review-task` · `open-pr` | from ticket to PR. `implement` is typed by you: it's the sign-off |
 | `clean` | `check` your own diff (every ticket), `around` your station at end of shift, `scan` the kitchen; hygiene drafts go to the sous |
 | `handoff` | write this session's handoff (cook: journal section; sous: local note) so it can be cleared |
@@ -305,6 +305,12 @@ You can also [open an issue](https://github.com/mhmzdev/claude-code-brigade/issu
   exclude `stations/` from tools that don't read `.gitignore` (setup helps with this).
 
 ## Status
+
+**v0.9.** The backlog is now where un-specced work waits. A `BKLG` item can be anything not
+yet grilled or specced, a whole capability included, and `/bk:file-tickets` no longer asks
+for a spec first. `/bk:pick-ticket` says whether an item is small enough to build directly
+or needs a spec; `/bk:spec` then closes the item into the spec it became (`spec: SNNN`),
+and the spec's tickets carry the work.
 
 **v0.8.** `/bk:feedback` sends feedback to the maintainers as a GitHub issue: scrubbed of
 anything from your repo, session context only if you agree, filed only on your yes. The sous's
