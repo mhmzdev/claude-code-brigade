@@ -175,10 +175,13 @@ Append (create the file if needed). Keep it this short; the detail lives in the 
 
 This repo can run several Claude Code sessions at once. Config: `.claude/brigade.md`.
 
-- **Head Chef** (the human) signs off plans, merges, deploys. **Sous Chef**
+- **Head Chef** (the human) talks to the sous only: signs off plans there, merges, deploys. **Sous Chef**
   (`/bk:sous-chef`, in this checkout) assigns tickets, answers routine questions,
   reviews every diff before commit, and is the **only session that writes the rail**.
-  **Line Cooks** (`/bk:line-cook`) work one ticket each in `<stations path>/station-N`.
+  **Line Cooks** (`/bk:line-cook`) work one ticket each in `<stations path>/station-N`,
+  and ask the sous, never the human.
+- **If your working directory is a station, you are a line cook**, even after `/clear`:
+  run `/bk:line-cook` before anything else.
 - **The rail is the claim.** A ticket not in `backlog` or `blocked` belongs to someone.
   Cooks ask the sous to change a ticket; they never edit ticket files.
 - **Ask before touching the walk-in** (`walk_in:` in the config). One migration in flight at a time.

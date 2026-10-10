@@ -128,7 +128,7 @@ Code read at `origin/<trunk>` <sha>
 
 **(a) Recommend the next skill by name, and wait.**
 
-- The WHAT is contested (`Unclear`, `Body drifted`, comments disagree with the body) → `/bk:grill-me <ID>`.
+- The WHAT is contested (`Unclear`, `Body drifted`, comments disagree with the body) → `/bk:grill-me <ID>`. A cook doesn't grill: it sends the sous `[gate] <ID> needs grilling: <what's contested>` and waits.
 - **A backlog item (`BKLG-*`, or `lane:B` on a tracker) that needs a spec** → `/bk:grill-me <ID>`, then `/bk:spec`. It needs one if any of these is a yes (Contract 4):
   - Would a user notice the behaviour and have opinions about it?
   - Would it plausibly need more than one slice?

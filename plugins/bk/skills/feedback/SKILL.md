@@ -11,6 +11,8 @@ Honour the plugin contract: the `README.md` in this skill's parent folder, `${CL
 
 **Station check first** (Contract 1): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`. If it prints `cook …`, you are a line cook even if nobody typed `/bk:line-cook` (e.g. after a `/clear`): read and follow `${CLAUDE_SKILL_DIR}/../line-cook/SKILL.md` for what a cook never does.
 
+**A line cook never starts this skill itself** (Contract 5): nobody is at its terminal to read the draft. Write a `lesson(plugin)` at handoff; the sous's handoff brings it to the head chef. The one exception is the human typing `/bk:feedback` in the station themselves: then they're there, so carry on.
+
 The issue goes to the Brigade's own public repo, **mhmzdev/claude-code-brigade**, not to the
 repo you're working in. Anyone can read it. So nothing from the user's repo leaves unless the
 human saw it in the draft and said yes. End by saying *"Filed: `<issue URL>`."* or
@@ -109,7 +111,8 @@ what the maintainers need. When unsure whether something is theirs, scrub it.
    `AskUserQuestion`: *File it*, *Change something*, or *Don't file*. On a change, redraft
    and show it again.
 3. **Filing is the human's alone** (Contract 5): only their yes, typed in this session's
-   terminal, files it. A cook never files on the sous's word, and never files unasked.
+   terminal, files it. A cook never files: it writes a `lesson(plugin)`, and the sous's handoff
+   brings it to the human.
 4. **File** with `gh` from a temporary body file, so quoting can't break it:
 
    ```bash

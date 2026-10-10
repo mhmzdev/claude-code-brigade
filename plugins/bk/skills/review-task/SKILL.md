@@ -75,7 +75,7 @@ Start from `${CLAUDE_SKILL_DIR}/../../templates/checklist.md`. Write outcomes, n
 
 **Any `[!]` outstanding** → the ticket stays where it is. Say why. Ready-for-review with a known gap is not ready.
 
-**All green** (no `[!]`, and every `[?]` either run or accepted by the human as a post-merge check):
+**All green** (no `[!]`, and every `[?]` either run or accepted as a post-merge check: by the human solo; in a station, by the sous, who asks the head chef when it's theirs to accept):
 
 - **Solo or sous session** → move the ticket to `rfr` yourself through `/bk:rail` (on a markdown rail that's an edit to `status:` plus a `rail:` commit per `rail.commit`).
 - **Line cook** → you never write the rail. Append a `handoff for the pass` entry to the

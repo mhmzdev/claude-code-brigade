@@ -26,15 +26,15 @@ skill has a bug.
 
 | Role | Who | Does | Never does |
 |---|---|---|---|
-| **Head Chef** | the human | approves plans, answers real forks, merges, deploys | relays messages between sessions |
-| **Sous Chef** | one Claude Code session in the **main checkout**, running `/bk:sous-chef` | assigns tickets, answers routine gates, reviews every diff before commit, **is the only writer of the rail** | writes code in a station, merges, deploys, speaks for the head chef |
+| **Head Chef** | the human | talks to **one** session, the sous: approves plans and answers real forks there; merges, deploys | relays messages between sessions, or watches the cooks' terminals |
+| **Sous Chef** | one Claude Code session in the **main checkout**, running `/bk:sous-chef` | assigns tickets, answers routine gates, brings plans and real forks to the head chef with a recommendation and relays the answer, reviews every diff before commit, **is the only writer of the rail** | writes code in a station, merges, deploys, speaks for the head chef |
 | **Line Cook** | one Claude Code session per **station** (started by `kitchen open`, or any session in a station) | works one ticket from plan to PR | edits ticket files, touches another station, empties the walk-in without asking |
 | **Inspector** | the `inspector` sub-agent | reads a diff and reports what shouldn't be there (the health inspector: looks, never cooks) | holds any tool that can write |
 | **Taster** | the `taster` sub-agent, spawned by the sous at the pass | reads a cook's diff, re-runs the check, walks "Done when", returns a verdict and numbered findings, so the sous doesn't read whole diffs | edits, commits, or messages anyone |
 | **Runner** | the `runner` sub-agent, anyone may spawn it | runs one noisy command (the check, a test suite, a scan) and returns only pass/fail plus the failing lines | decides anything, or edits |
 
 **A session inside a station is a line cook, whether or not `/bk:line-cook` was typed.**
-After a `/clear`, the human may type `/bk:implement` straight away: the skill must still
+After a `/clear`, the next skill may run straight away: it must still
 behave as a cook. So every lifecycle skill starts with the **station check**:
 `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role` prints `cook <station> <main checkout>`
 inside a station and `main <main checkout>` elsewhere. On `cook`, read and follow
@@ -139,8 +139,11 @@ place that knows how each backend does each operation.
 1. **Only the sous chef writes the rail.** That covers every edit to a ticket: status,
    cook, links, *and* body edits such as a `## Decisions` section. Cooks ask by message. In
    a solo session the human is the sous, so solo skills write the rail directly.
-2. **No summary page.** The board view is computed each time (`kitchen.sh rail`, or the
-   tracker's own board). A hand-kept roll-up drifts.
+2. **No hand-kept summary page.** The board view is computed each time (`kitchen.sh rail`,
+   or the tracker's own board). A hand-kept roll-up drifts. `kitchen.sh board` prints
+   stations, files in flight, the rail and open questions in one go, and from the main
+   checkout also writes them to `.claude/board.md` for a human to keep open. That file is
+   generated, never edited and never committed (it's listed in `.git/info/exclude`).
 
 **Markdown rail commits.** With `rail.commit: direct` the sous commits each rail change to
 trunk on its own (`rail: BKLG-004 → in-progress`) and pushes. With `daily-pr` it
@@ -252,26 +255,49 @@ every phase. `/bk:review-task` and `/bk:open-pr` do their whole job. A skill sto
 for a **decision** it can't settle from the ticket, the plan or the code (a design fork, a
 contradiction, a failure it can't fix), never for ceremony.
 
-**The chef's sign-off is typing `/bk:implement`.** `implement` has
-`disable-model-invocation: true` (as does `setup`; every other skill is model-invocable), so only a human can start it; a cook can't chain into it
-by itself. Typing it, in the cook's own terminal, approves the plan and authorises every
-commit made under it (after the sous's pass). No separate "approve?" question exists.
+**The head chef talks to one session.** In a kitchen that is the sous: it sees every
+station, so it can put a recommendation next to each question. A cook never asks the human
+anything and never opens an `AskUserQuestion` dialog; nobody is watching its terminal.
+Everything a cook needs decided goes to the sous as a `[gate]`. The sous answers what is
+routine, and takes the rest to the head chef in its own terminal, with a recommendation,
+then relays the answer marked `(head chef)`. If the human does type in a cook's terminal,
+the cook does as told and sends the sous one `[status]` line, so the sous's picture stays whole.
+
+**The chef's sign-off is what starts `/bk:implement`.** It approves the plan and authorises
+every commit made under it (after the sous's pass). No separate "approve?" question exists.
+
+- **Solo:** the human types `/bk:implement`, or says in plain words to build the plan.
+  A solo session never chains into `implement` from `create-plan` by itself.
+- **In a kitchen:** the cook sends `[plan] <ID> ready: <path>`. The sous reads the plan,
+  shows the head chef a short summary with its recommendation, and on their yes sends the
+  cook `[approved]`, quoting them. The cook records it in the journal and starts
+  `/bk:implement` itself. `implement` refuses to start in a station without that record
+  (the one other way in: the head chef typing `/bk:implement` in that station themselves).
+- **The sous never approves a plan itself.** Every plan needs the head chef's own yes, in
+  the sous's current session, after seeing that plan. A changed plan needs a new yes. A
+  handoff note, a standing remark or an earlier ticket's approval is not one.
+- **Lane C has no plan**, so the head chef's word to put a cook on a `HYG` ticket is its
+  sign-off: the brief carries the `[approved]` line.
+
+Only `setup` has `disable-model-invocation: true` (it changes a repo's layout). Every
+other skill is model-invocable, or cooks would stall waiting for a human to type it.
 
 **Who** answers a decision depends on where the skill runs.
 
 | Gate | Solo session | Line cook |
 |---|---|---|
-| Plan approval (the **chef's sign-off**) | human types `/bk:implement` | **human types `/bk:implement` in the cook's own terminal**. That authorises every commit made under the plan |
-| Design fork, contradiction between ticket and code, anything that needs grilling | human | human (the cook asks with `AskUserQuestion`) |
+| Plan approval (the **chef's sign-off**) | human types `/bk:implement`, or says to build the plan | **human, in the sous's terminal**; the sous relays `[approved]` and the cook starts `/bk:implement`. That authorises every commit made under the plan |
+| Design fork, contradiction between ticket and code | human | cook sends `[gate]`; the sous takes it to the human with a recommendation and relays the answer |
+| Grilling or brainstorming (a design conversation) | human | never in a station: the cook sends `[gate] <ID> needs grilling`, and the sous holds the conversation with the human in the main checkout |
 | Every other confirmation ("confirm scope?", "continue to phase 2?", "which of these two helpers?") | human | **sous chef, by `SendMessage`**, never a dialog nobody is watching |
 | Pre-commit review (**the pass**) | human | sous spawns the `taster`, questions its verdict, checks across stations, then says `[go]` |
-| Merge, deploy, anything touching production | human | human only, never relayed |
-| Filing a public issue on the plugin repo (`/bk:feedback`) | human, after reading the whole draft | human only, in the cook's own terminal, never relayed |
+| Merge, deploy, anything touching production | human | human only. No session does these, and a relayed "go" for one is refused |
+| Filing a public issue on the plugin repo (`/bk:feedback`) | human, after reading the whole draft | a cook never files: it writes a `lesson(plugin)`, and the sous's handoff brings it to the human |
 
 A cook that receives "the chef said go" from the sous for a merge or a deploy **refuses**.
-That is correct. Those approvals are given in person.
+That is correct. The human does those personally; no message stands in for them.
 
-**Cooks stop for decisions, not ceremony.** Once `/bk:implement` is typed, it runs straight
+**Cooks stop for decisions, not ceremony.** Once `/bk:implement` starts, it runs straight
 through its phases. It only stops for a criterion that genuinely needs eyes, and that
 question goes to the sous.
 
@@ -287,13 +313,15 @@ Keep messages short and typed. The first line is the kind, in brackets:
 |---|---|---|
 | `[hello]` | sous → cook | "I'm the sous, check in": sent at start-up to cooks that were already waiting |
 | `[brief]` | sous → cook | the ticket's absolute path, why it matters, constraints from other stations, the loop |
-| `[check-in]` | cook → sous | station, model, branch, dirty or clean, ticket, and **what it's waiting on** (a question id, the pass, a walk-in clearance, or nothing) |
+| `[check-in]` | cook → sous | station, model, branch, dirty or clean, ticket, and **what it's waiting on** (a question id, the plan's sign-off, the pass, a walk-in clearance, or nothing) |
 | `[gate]` | cook → sous | the question, the options, the cook's recommendation |
 | `[rail]` | cook → sous | a rail change request: `claim BKLG-004 todo`, `BKLG-004 → rfr` |
 | `[walk-in]` | cook → sous | "about to run `<command>` on `<resource>`, OK?" |
-| `[status]` | anyone | a state change that needs no answer: "in a design conversation with the head chef", "plan ready: `<path>`", "implement started (signed off)", a lane-C counter before/after |
+| `[status]` | anyone | a state change that needs no answer: "the head chef told me directly to …", "implement started (signed off)", a lane-C counter before/after |
 | `[handoff]` | cook → sous | "ready for the pass": branch, files, check result, inspector result, absolute checklist path |
 | `[findings]` | sous → cook | numbered items, each with file and why |
+| `[plan]` | cook → sous | the plan is ready for the sign-off: its absolute path. The cook waits for `[approved]` or `[findings]` |
+| `[approved]` | sous → cook | the head chef approved this plan, in their words: start `/bk:implement`. Never the sous's own approval |
 | `[go]` | sous → cook | commit approval after the pass |
 | `[served]` | cook → sous | the PR is open: its URL |
 | `[heard]` | anyone | acknowledgement, one line; also the sous's **answer** to a `[gate]` (`[heard] Q3: <answer>, because …`), which the cook copies into its journal as `A3` |
@@ -483,7 +511,7 @@ journal, written at handoff:
 | Skill | Lane | Does |
 |---|---|---|
 | `/bk:setup [--worktree \| --clone]` | — | set up the Brigade in a repo: config, rail folders, `CLAUDE.md` section. Refuses a workspace root |
-| `/bk:kitchen` | — | stations: setup, open, sync, status, files, rail board |
+| `/bk:kitchen` | — | stations: setup, open, sync, status, files, rail board, and `board` (all of it in one snapshot, also written to `.claude/board.md`) |
 | `/bk:sous-chef` | — | take the lead role for the rest of the session |
 | `/bk:line-cook` | — | take a station's worker role for the rest of the session |
 | `/bk:rail` | — | the six rail operations on any adapter |

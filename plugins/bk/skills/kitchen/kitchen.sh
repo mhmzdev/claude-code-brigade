@@ -36,6 +36,9 @@
 #                                         plans, and unmerged migrations
 #   kitchen.sh rail                       the board, computed from ticket frontmatter
 #                                         (markdown rail only)
+#   kitchen.sh board                      status, files, rail and open questions in one
+#                                         go; from the main checkout it also writes them
+#                                         to .claude/board.md (kept out of git)
 #   kitchen.sh remove                     delete every station (asks first)
 #   kitchen.sh role                       "cook <station> <main checkout>" when run inside
 #                                         a station, else "main <main checkout>"
@@ -641,6 +644,36 @@ cmd_rail() {
 }
 
 # ---------------------------------------------------------------------------
+# board — everything the sous reads, in one snapshot. Run from the main checkout
+# it is also written to .claude/board.md, for a human to keep open. The file is
+# generated, never edited, and never committed: it goes in .git/info/exclude so
+# no tracked file changes.
+# ---------------------------------------------------------------------------
+cmd_board() {
+  local here_real out exclude text
+  text="$(echo "# The board: $REPO_NAME"
+    echo ""
+    echo "Generated $(date '+%Y-%m-%d %H:%M') by \`kitchen.sh board\`. Rewritten each time; don't edit it."
+    echo ""; echo '```'
+    cmd_status; cmd_files
+    echo ""; echo "The rail:"; cmd_rail
+    echo ""; echo "Open questions:"; cmd_questions
+    echo '```')"
+  printf '%s\n' "$text"
+  here_real="$(cd "$HERE" && pwd -P)"
+  [[ "$here_real" == "$ROOT_REAL" && -d "$ROOT/.claude" ]] || return 0
+  out="$ROOT/.claude/board.md"
+  if ! git -C "$ROOT" check-ignore -q "$out"; then
+    exclude="$(git -C "$ROOT" rev-parse --path-format=absolute --git-path info/exclude)"
+    mkdir -p "$(dirname "$exclude")"
+    # a file that doesn't end in a newline would fuse our line onto its last one
+    [[ -s "$exclude" && -n "$(tail -c1 "$exclude")" ]] && echo "" >> "$exclude"
+    echo ".claude/board.md" >> "$exclude"
+  fi
+  printf '%s\n' "$text" > "$out"
+}
+
+# ---------------------------------------------------------------------------
 # role — am I a cook? Skills call this first: a session inside a station is a
 # line cook whether or not /bk:line-cook was typed (e.g. after /clear).
 # ---------------------------------------------------------------------------
@@ -759,7 +792,7 @@ cmd_remove() {
 
 case "$CMD" in
   setup) cmd_setup ;; open) cmd_open ;; sync) cmd_sync ;; status) cmd_status ;;
-  files) cmd_files ;; rail) cmd_rail ;; remove) cmd_remove ;;
+  files) cmd_files ;; rail) cmd_rail ;; board) cmd_board ;; remove) cmd_remove ;;
   role) cmd_role ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   sessions) cmd_sessions ;; *) usage ;;
 esac

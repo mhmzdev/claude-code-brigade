@@ -16,6 +16,7 @@ It reaches trunk with the PR, next to the plan and checklist.
 - YYYY-MM-DD HH:MM · <session name> · Q1: <question> — options: a / b — recommend: a
 - YYYY-MM-DD HH:MM · <session name> · A1 (sous): <answer>
 - YYYY-MM-DD HH:MM · <session name> · decision: <what, and why> (copied into the plan)
+- YYYY-MM-DD HH:MM · <session name> · approved (sous): head chef: "<their words>"
 - YYYY-MM-DD HH:MM · <session name> · walk-in: cleared to run `<cmd>` (sous)
 - YYYY-MM-DD HH:MM · <session name> · finding 2 (pass): <what> → fixed in <file>
 - YYYY-MM-DD HH:MM · <session name> · go (sous)

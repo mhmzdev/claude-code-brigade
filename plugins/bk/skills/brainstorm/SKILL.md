@@ -35,7 +35,7 @@ brainstorm → grill-me → spec → file-tickets → create-plan → implement 
 4. **Look before you ask.** If the answer is in the repo, read it.
 5. **Ground before you opine.** No approach or recommendation about the code before Step 2 is done.
 
-This skill talks to the human directly, even in a line-cook session: a brainstorm is a design conversation, which Contract 5 gives to the human. In a cook session, tell the sous in one `[status]` line that you're brainstorming and with whom.
+This skill is a conversation with the human, so it runs in a **sous or solo** session (Contract 5). In a line-cook session, don't start one: nobody watches a cook's terminal. Send the sous `[gate] <ID> needs grilling: <the idea and why it isn't settled>`, and the sous holds the conversation with the head chef.
 
 ## Step 1 — Scope the idea
 

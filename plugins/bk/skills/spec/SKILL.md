@@ -50,7 +50,7 @@ This is **the one question you may ask**. Decide where the feature gets verified
 - Start from the config's `check`. Those are the real gates.
 - Prefer **existing** ways of testing. Name the kind (unit, integration, schema or contract, migration applies, manual check) and what a test would exercise. Don't spec a new test harness into existence casually.
 
-Ask with `AskUserQuestion`. A line cook sends it to the sous as a `[gate]` instead, unless it's a real design fork (Contract 5).
+Ask with `AskUserQuestion`. A line cook sends it to the sous as a `[gate]` instead, always (Contract 5).
 
 ## Step 3 — Number and write
 

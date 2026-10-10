@@ -29,7 +29,9 @@ Method adapted from Matt Pocock's `grilling` skill (github.com/mattpocock/skills
 
 ## Who you grill
 
-Always the **human**. Grilling is a design conversation, and Contract 5 keeps those with the head chef even in a line-cook session. A cook runs this in its own terminal, with the human there, and tells the sous in one `[status]` line that it's grilling ticket `<id>`. The sous never answers grilling questions on the human's behalf.
+Always the **human**, in a **sous or solo** session. Grilling is a design conversation, and Contract 5 keeps those between the head chef and the one session they talk to. The sous never answers grilling questions on the human's behalf.
+
+**In a line-cook session, don't run this.** Send the sous `[gate] <ID> needs grilling: <what's contested>` and wait. The sous grills the head chef in the main checkout, folds the decisions into the ticket (or sends you the ones that belong in your plan), and replies `[heard]`.
 
 ## Step 0 — Read the input
 
@@ -82,8 +84,8 @@ Push hardest where the artifact is vague:
 2. **Fold them into the artifact** (confirm first):
    - brainstorm → its open questions become resolved;
    - spec → its Decisions section;
-   - plan → its decisions, and keep `open_questions:` honest (`/bk:implement` refuses a plan with an open question);
-   - ticket → on a markdown rail, append a `## Decisions` section. That's a rail write, so a line cook sends it to the sous as a `[rail]` message instead of editing the file. On a github or jira rail, add a comment.
+   - plan → its decisions, and keep `open_questions:` honest (`/bk:implement` refuses a plan with an open question). A plan in a station is the cook's file: the sous sends the decisions as `[findings]` and the cook folds them in;
+   - ticket → on a markdown rail, append a `## Decisions` section. That's a rail write, which the sous or a solo session may make. On a github or jira rail, add a comment.
    - no artifact → the summary is the input to the next skill.
 3. **Hand off** with `AskUserQuestion`, then wait: lane A, or a backlog item that needs a spec → `/bk:spec` (name the item, so the spec closes it); a small backlog item or other small work → `/bk:create-plan` (say why no spec is needed); or stop.
 
