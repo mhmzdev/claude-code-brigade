@@ -33,7 +33,7 @@ Specs are numbered Markdown in `docs/specs/` on **every** rail, markdown, github
 
 A spec number is handed out like a ticket number, so **the sous chef or a solo session** runs this skill (Contract 4: only one session hands out numbers).
 
-In a **line-cook** session, don't pick a number. Write the draft to `<docs.specs>/draft-<slug>.md`, then send the sous a `[rail]` message: `spec draft ready: <absolute path>, please number it` (name the backlog item it came from, if any). The sous reads it by that absolute path and writes it as `NNN-<slug>.md` in the main checkout (the sous never writes in a station), registers it, and tells you; then delete your draft.
+In a **line-cook** session (usually straight after a grilling the sous handed you), don't pick a number. Every decision from the grilling goes in the draft's Decisions section: the draft is where they're logged. Write the draft to `<docs.specs>/draft-<slug>.md`, then send the sous a `[rail]` message: `spec draft ready: <absolute path>, please number it` (name the backlog item it came from, if any). The sous reads it by that absolute path and writes it as `NNN-<slug>.md` in the main checkout (the sous never writes in a station), registers it, and tells you; then delete your draft.
 
 ## Step 1 — Gather the material
 

@@ -77,6 +77,7 @@ walk_in:
     destructive: ["make reset", "docker compose down -v"]
     safe: ["make migrate"]
 gates:
+  assign: sous-chef                      # sous-chef (assigns the next ticket itself) | head-chef (proposes, waits for a yes)
   plan_approval: head-chef
   pre_commit: sous-chef
   merge: head-chef
@@ -170,6 +171,23 @@ place that knows how each backend does each operation.
 - `todo` means a plan exists, even if you can't see it. The plan is an uncommitted file in
   another station.
 
+**Priority** is optional: `priority: high | normal | low` in a markdown ticket's
+frontmatter (absent means `normal`), the tracker's own priority field or a
+`priority:high` label on github or jira. It is set by the head chef's word, when the
+ticket is fired or later, and written by the sous like any other rail change.
+`kitchen.sh rail` shows it in the `PRI` column, and prints each ticket's open `blocked_by`
+ids after its title. A blocker that isn't on the board is `done` (the board hides those).
+
+**What's next.** A ticket is **ready** when its status is `backlog`, or `blocked` with every
+`blocked_by` ticket now `done`, and it isn't a backlog item that needs a spec (Contract 4).
+Among ready tickets the next one is picked in this order:
+
+1. what the head chef has said to do first, or to hold;
+2. `priority`: `high` before `normal` before `low`;
+3. the ticket more other tickets are blocked by;
+4. lane A before lane B before lane C; within a spec, ticket-number order; otherwise the
+   lowest id (the oldest) first.
+
 **Two rules that keep any rail honest:**
 
 1. **Only the sous chef writes the rail.** That covers every edit to a ticket: status,
@@ -234,6 +252,7 @@ lane: B                  # A | B | C
 status: backlog          # backlog | todo | in-progress | rfr | done | blocked
 cook: null               # station name once claimed
 spec: null               # lane A: the parent spec. BKLG: the spec it became
+priority: normal         # high | normal | low (optional; Contract 3)
 blocked_by: []
 files: []                # paths it will likely touch
 created: YYYY-MM-DD
@@ -293,11 +312,22 @@ contradiction, a failure it can't fix), never for ceremony.
 
 **The head chef talks to one session.** In a kitchen that is the sous: it sees every
 station, so it can put a recommendation next to each question. A cook never asks the human
-anything and never opens an `AskUserQuestion` dialog; nobody is watching its terminal.
+anything unasked and never opens an `AskUserQuestion` dialog for its own questions; nobody
+is watching its terminal.
 Everything a cook needs decided goes to the sous as a `[gate]`. The sous answers what is
 routine, and takes the rest to the head chef in its own terminal, with a recommendation,
-then relays the answer marked `(head chef)`. If the human does type in a cook's terminal,
+then relays the answer marked `(head chef)`. The one planned exception is a grilling the
+sous hands to a cook (the table below): the questions are for the human, so the human
+answers them in that station. If the human does type in a cook's terminal,
 the cook does as told and sends the sous one `[status]` line, so the sous's picture stays whole.
+
+**The sous assigns the work.** With `gates.assign: sous-chef` (the default), the sous puts
+each free cook on the next ready ticket (Contract 3) without asking, and tells the head
+chef what it assigned and why in one line. The head chef steers by saying what comes first
+or what to hold, and still signs off every plan. With `gates.assign: head-chef`, the sous
+proposes and waits for a yes. Either way a cook only gets a ticket when it is **free**: it
+has checked in with no ticket, a clean station, and a fresh session. A cook that has just
+served is not free until its session has been cleared.
 
 **The chef's sign-off is what starts `/bk:implement`.** It approves the plan and authorises
 every commit made under it (after the sous's pass). No separate "approve?" question exists.
@@ -312,8 +342,9 @@ every commit made under it (after the sous's pass). No separate "approve?" quest
 - **The sous never approves a plan itself.** Every plan needs the head chef's own yes, in
   the sous's current session, after seeing that plan. A changed plan needs a new yes. A
   handoff note, a standing remark or an earlier ticket's approval is not one.
-- **Lane C has no plan**, so the head chef's word to put a cook on a `HYG` ticket is its
-  sign-off: the brief carries the `[approved]` line.
+- **Lane C has no plan**, so the sign-off is on the ticket itself: before assigning a
+  `HYG` ticket the sous shows it to the head chef, and on their yes the brief carries the
+  `[approved]` line.
 
 Only `setup` has `disable-model-invocation: true` (it changes a repo's layout). Every
 other skill is model-invocable, or cooks would stall waiting for a human to type it.
@@ -323,8 +354,10 @@ other skill is model-invocable, or cooks would stall waiting for a human to type
 | Gate | Solo session | Line cook |
 |---|---|---|
 | Plan approval (the **chef's sign-off**) | human types `/bk:implement`, or says to build the plan | **human, in the sous's terminal**; the sous relays `[approved]` and the cook starts `/bk:implement`. That authorises every commit made under the plan |
+| Which ticket a free cook takes next | human | the sous (`gates.assign`), from the ready tickets in Contract 3's order |
 | Design fork, contradiction between ticket and code | human | cook sends `[gate]`; the sous takes it to the human with a recommendation and relays the answer |
-| Grilling or brainstorming (a design conversation) | human | never in a station: the cook sends `[gate] <ID> needs grilling`, and the sous holds the conversation with the human in the main checkout |
+| Grilling (`/bk:grill-me`) | human | a cook never starts one unasked: it sends `[gate] <ID> needs grilling`. The sous grills the human itself, or **hands the grilling to a free cook** with a `[brief]` and tells the human which station is waiting. The human may also type `/bk:grill-me` in a station. The cook then grills the human in its own terminal, logs every decision (a backlog item that needs a spec: in the spec draft it writes; an existing spec or ticket: sent to the sous, who writes them in), tells the sous, and is cleared before it takes a ticket |
+| Brainstorming (`/bk:brainstorm`) | human | the sous's and the human's: the sous never hands one to a cook. Only the human typing `/bk:brainstorm` in a station starts one there |
 | Every other confirmation ("confirm scope?", "continue to phase 2?", "which of these two helpers?") | human | **sous chef, by `SendMessage`**, never a dialog nobody is watching |
 | Pre-commit review (**the pass**) | human | sous spawns the `taster`, questions its verdict, checks across stations, then says `[go]` |
 | Merge, deploy, changing production itself | human | human only. No session does these, and a relayed "go" for one is refused |
@@ -349,10 +382,10 @@ Keep messages short and typed. The first line is the kind, in brackets:
 | Kind | From → to | Carries |
 |---|---|---|
 | `[hello]` | sous → cook | "I'm the sous, check in": sent at start-up to cooks that were already waiting |
-| `[brief]` | sous → cook | the ticket's absolute path, why it matters, constraints from other stations, the loop |
-| `[check-in]` | cook → sous | station, model, branch, dirty or clean, ticket, and **what it's waiting on** (a question id, the plan's sign-off, the pass, a walk-in clearance, or nothing) |
+| `[brief]` | sous → cook | the ticket's absolute path, why it matters, constraints from other stations, the loop. Or a **grilling brief**: the item to grill the head chef on, and where its decisions go |
+| `[check-in]` | cook → sous | station, model, branch, dirty or clean, ticket, whether the session is **fresh or spent** (it has already served a ticket or held a grilling, so it needs clearing), and **what it's waiting on** (a question id, the plan's sign-off, the pass, a walk-in clearance, or nothing) |
 | `[gate]` | cook → sous | the question, the options, the cook's recommendation |
-| `[rail]` | cook → sous | a rail change request: `claim BKLG-004 todo`, `BKLG-004 → rfr` |
+| `[rail]` | cook → sous | a rail change request: `claim BKLG-004 todo`, `BKLG-004 → rfr`. Also a file for the sous to record in the main checkout, by absolute path: a spec draft, grilling decisions, a brainstorm doc |
 | `[walk-in]` | cook → sous | "about to run `<command>` on `<resource>`, OK?" |
 | `[status]` | anyone | a state change that needs no answer: "the head chef told me directly to …", "implement started (signed off)", a lane-C counter before/after |
 | `[handoff]` | cook → sous | "ready for the pass": branch, files, check result, inspector result, absolute checklist path |

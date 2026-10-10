@@ -179,7 +179,7 @@ This repo can run several Claude Code sessions at once. Config: `.claude/brigade
   (`/bk:sous-chef`, in this checkout) assigns tickets, answers routine questions,
   reviews every diff before commit, and is the **only session that writes the rail**.
   **Line Cooks** (`/bk:line-cook`) work one ticket each in `<stations path>/station-N`,
-  and ask the sous, never the human.
+  and ask the sous, never the human (except a grilling the sous hands them).
 - **If your working directory is a station, you are a line cook**, even after `/clear`:
   run `/bk:line-cook` before anything else.
 - **The rail is the claim.** A ticket not in `backlog` or `blocked` belongs to someone.
@@ -212,7 +212,7 @@ human how to start:
 
 1. The kitchen is open (or open one terminal per station by hand).
 2. Here: `/bk:sous-chef`. In the stations there's nothing to type: `kitchen open` started each one as a line cook (unless `--bare`).
-3. Tell the sous which ticket to fire, or ask it to propose one per lane.
+3. The sous puts each free cook on the next ready ticket by itself and tells you what it assigned. Steer it by saying what comes first, or mark a ticket `priority: high`.
 
 And two one-line reminders: the sous never merges or deploys; and test logins go in
 `.claude/brigade.local.md` under `## Test accounts` (fill them now, or the sous asks the

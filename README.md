@@ -176,7 +176,10 @@ Two worktree habits: stashes are shared between stations (stash with
 1. In the main checkout: `/bk:sous-chef`. With no cooks yet, it tells you so and waits.
 2. From the sous (or any terminal): `/bk:kitchen open`. Each station opens **already running
    `/bk:line-cook`**, finds the sous and checks in. There's nothing to type in the stations.
-3. Tell the sous which ticket to fire, or ask it to propose one per lane.
+3. The sous puts each free cook on the next ready ticket and tells you what it assigned:
+   `priority: high` first, then whatever unblocks the most, then spec tickets before small
+   backlog items before hygiene, oldest first. Steer it by
+   saying what comes first or what to hold. To make it ask first, set `gates.assign: head-chef`.
 
 A cook's plan and checklist are written in its station and reach trunk with its PR, not
 before. Specs and tickets are written by the sous in the main checkout and reach trunk
@@ -195,7 +198,8 @@ plain sessions? `kitchen open --bare`, then name them to the sous (`/bk:sous-che
 its brief tells each one it's a line cook.
 
 **You talk to one session: the sous.** Cooks never ask you anything, and you don't need to
-watch their terminals. Invoking a skill *is* the approval for its whole job, so no skill
+watch their terminals. The one exception is a grilling the sous hands to a free cook: it
+tells you which station is waiting, and you answer the questions there. Invoking a skill *is* the approval for its whole job, so no skill
 asks "does this look right?" or "go on to phase 2?". Per ticket, two things need you: a
 yes to the plan, which the sous shows you with its recommendation, and the merge. Real
 design forks reach you through the sous too, the same way.
@@ -321,6 +325,13 @@ You can also [open an issue](https://github.com/mhmzdev/claude-code-brigade/issu
   exclude `stations/` from tools that don't read `.gitignore` (setup helps with this).
 
 ## Status
+
+**v0.12.** The sous assigns work itself: each free cook gets the next ready ticket, by
+`priority` (a new optional ticket field, shown on the rail board), then by what unblocks
+the most, then oldest first. It tells you what it assigned; `gates.assign: head-chef` makes
+it ask first. The sous can hand a grilling to a free cook: it tells you which station is
+waiting, the cook grills you there, logs the decisions in the spec, and reports back.
+Brainstorming stays between you and the sous.
 
 **v0.11.** Test accounts: logins for local, stage and production live in the gitignored
 `.claude/brigade.local.md`, so you share them once. Cooks ask the sous for an account by

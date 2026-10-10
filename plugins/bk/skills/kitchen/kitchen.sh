@@ -35,7 +35,7 @@
 #   kitchen.sh files                      files in flight per station vs origin/<trunk>,
 #                                         plans, and unmerged migrations
 #   kitchen.sh rail                       the board, computed from ticket frontmatter
-#                                         (markdown rail only)
+#                                         (markdown rail only), with each ticket's priority
 #   kitchen.sh board                      status, files, rail and open questions in one
 #                                         go; from the main checkout it also writes them
 #                                         to .claude/board.md (kept out of git)
@@ -636,17 +636,22 @@ cmd_rail() {
     { find "$specs" -mindepth 2 -maxdepth 2 -name '[0-9][0-9]-*.md' 2>/dev/null
       find "$backlog" -maxdepth 1 \( -name 'BKLG-*.md' -o -name 'HYG-*.md' \) 2>/dev/null; } | sort)
   (( ${#files[@]} == 0 )) && { echo "The rail is empty."; return 0; }
-  printf '%-10s %-4s %-12s %-11s %s\n' ID LANE STATUS COOK TITLE
+  printf '%-10s %-4s %-12s %-5s %-11s %s\n' ID LANE STATUS PRI COOK TITLE
   awk '
-    FNR==1 { if (id!="") out(); id=lane=status=cook=title=""; fm=0 }
+    FNR==1 { if (id!="") out(); id=lane=status=cook=title=pri=blk=""; fm=0 }
     FNR==1 && $0=="---" { fm=1; next }
     fm && $0=="---" { fm=0; next }
     fm {
       line=$0; key=line; sub(/:.*/, "", key); val=line; sub(/^[^:]*:[ ]*/, "", val); sub(/[ ]+#.*$/, "", val); gsub(/^"|"$/, "", val)
       if (key=="id") id=val; else if (key=="lane") lane=val; else if (key=="status") status=val
-      else if (key=="cook") cook=val; else if (key=="title") title=val
+      else if (key=="cook") cook=val; else if (key=="title") title=val; else if (key=="priority") pri=val
+      else if (key=="blocked_by") { blk=val; gsub(/[][ ]/, "", blk); gsub(/,/, ", ", blk) }
     }
-    function out() { if (cook=="null"||cook=="") cook="-"; printf "%-10s %-4s %-12s %-11s %s\n", id, lane, status, cook, title }
+    function out() {
+      if (cook=="null"||cook=="") cook="-"
+      if (pri!="high" && pri!="low") pri="-"   # normal, absent or anything else reads as normal
+      printf "%-10s %-4s %-12s %-5s %-11s %s%s\n", id, lane, status, pri, cook, title, (blk=="" ? "" : "  (blocked by: " blk ")")
+    }
     END { if (id!="") out() }' "${files[@]}" | awk '$3!="done"'
 }
 
