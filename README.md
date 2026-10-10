@@ -61,7 +61,7 @@ The full table, plus an Urdu alternate (Qafila), is in [`docs/the-names.md`](doc
 | Lane | Source | Path |
 |---|---|---|
 | **A — Specials** | a spec, sliced into tickets | (brainstorm or pick-ticket) → grill-me → spec → file-tickets → create-plan → implement → review-task → open-pr |
-| **B — À la carte** | backlog items small enough to build without a spec | pick-ticket → (grill-me) → create-plan → implement → review-task → open-pr |
+| **B — À la carte** | bugs on the backlog (`kind: bug`). Every other backlog item becomes a spec and tickets first | pick-ticket → (grill-me) → create-plan → implement → review-task → open-pr |
 | **C — Clean as you go** | the kitchen finds its own mess: `/bk:clean scan` | pick-ticket → implement → open-pr |
 
 ## The rules
@@ -177,8 +177,8 @@ Two worktree habits: stashes are shared between stations (stash with
 2. From the sous (or any terminal): `/bk:kitchen open`. Each station opens **already running
    `/bk:line-cook`**, finds the sous and checks in. There's nothing to type in the stations.
 3. The sous puts each free cook on the next ready ticket and tells you what it assigned:
-   `priority: high` first, then whatever unblocks the most, then spec tickets before small
-   backlog items before hygiene, oldest first. Steer it by
+   `priority: high` first, then whatever unblocks the most, then spec tickets before
+   backlog bugs before hygiene, oldest first. Steer it by
    saying what comes first or what to hold. To make it ask first, set `gates.assign: head-chef`.
 
 A cook's plan and checklist are written in its station and reach trunk with its PR, not
@@ -325,6 +325,15 @@ You can also [open an issue](https://github.com/mhmzdev/claude-code-brigade/issu
   exclude `stations/` from tools that don't read `.gitignore` (setup helps with this).
 
 ## Status
+
+**v0.13.** A backlog item is work that still has to become tickets. Only a bug
+(`kind: bug`) is planned and built straight from the backlog; every other item goes through
+a spec first, however small. The old "small enough to build" judgement is gone. The rail
+board now says so itself: `RDY` is `yes`, `no` (a blocker is open) or `spec` (a backlog
+item waiting for its spec). It also resolves blockers itself, listing only the open ones
+and marking an id that is no ticket on the rail with `?`, which holds the ticket; before,
+the sous was told a blocker missing from the board was done. **Existing backlog items have
+no `kind:` and now read as items:** mark the real bugs `kind: bug`.
 
 **v0.12.** The sous assigns work itself: each free cook gets the next ready ticket, by
 `priority` (a new optional ticket field, shown on the rail board), then by what unblocks
