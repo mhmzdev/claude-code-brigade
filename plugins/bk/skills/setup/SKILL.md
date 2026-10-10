@@ -122,7 +122,7 @@ Write `.claude/brigade.md` with the shape in Contract 2, filled from steps 2–3
 flat keys on one line each: `kitchen.sh` reads them. Put repo-specific notes in the body
 as plain sentences.
 
-Create `.claude/brigade.local.md` (one placeholder line) and add it to `.gitignore`, together
+Create `.claude/brigade.local.md` from `${CLAUDE_SKILL_DIR}/../../templates/brigade.local.md` (the `## Test accounts` skeleton, Contract 2; leave the accounts empty and never ask for a password here: the sous asks when a flow first needs one). If the file already exists, keep what it holds and only add the section if it's missing. Add it to `.gitignore`, together
 with `.claude/sous-handoff.md` (the sous's handoff note is machine-local, Contract 11).
 `docs/lessons.md` is created later, by the first lesson promotion.
 
@@ -214,7 +214,9 @@ human how to start:
 2. Here: `/bk:sous-chef`. In the stations there's nothing to type: `kitchen open` started each one as a line cook (unless `--bare`).
 3. Tell the sous which ticket to fire, or ask it to propose one per lane.
 
-And the one-line reminder: the sous never merges or deploys.
+And two one-line reminders: the sous never merges or deploys; and test logins go in
+`.claude/brigade.local.md` under `## Test accounts` (fill them now, or the sous asks the
+first time a flow needs one).
 
 ## 9. First service
 

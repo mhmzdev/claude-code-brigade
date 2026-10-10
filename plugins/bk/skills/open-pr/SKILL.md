@@ -57,6 +57,8 @@ The branch is `<lowercase id>-<slug>`, e.g. `bklg-004-fix-login`, reusing the pl
 
 Stage only the ticket's files: the ones in the diff that the plan, the ticket's `files:` and the checklist account for, plus the ticket's plan, checklist and **journal** (`<docs.journal>/<ID>-<slug>.md`) and their INDEX rows. The journal is the one file allowed to have changed since the sous's `[go]`: it carries the closing handoff. A file you had to guess about is a fork: ask. Never `git add -A` unasked.
 
+**Leak check before the commit, and again before the push** (Contract 2): `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" leaks`, the second time with `--also <the PR body file>`. It prints `file:line` for any test-account secret that reached a file, a commit message or the PR body. A non-zero exit → stop, remove it (name the account instead), and run it again; a cook then sends `[handoff]` again if the fix changed anything but the journal.
+
 Commit message: `[<ID>] <imperative summary>`, then a short body of why. Keep the repo's attribution trailer if its history uses one.
 
 ## 4 — Bring trunk in and re-check

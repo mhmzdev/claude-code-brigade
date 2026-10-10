@@ -97,7 +97,7 @@ One plan phase per pass:
 | the plan is wrong or contradicts the repo | sous by `[gate]` (solo: human). Back to `/bk:create-plan`, and the changed plan needs a new sign-off |
 | a dependency the plan never mentions blocks you | sous by `[gate]` (solo: human) |
 | the same fix has failed ~3 times | sous by `[gate]` (solo: human) |
-| a decision only the human can make (destructive migration, credential, anything outward-facing) | sous by `[gate]`, who takes it to the human (solo: human) |
+| a decision only the human can make (destructive migration, a secret that isn't a listed test account, anything outward-facing) | sous by `[gate]`, who takes it to the human (solo: human) |
 
 Never accumulate broken state. Don't build beyond the plan.
 

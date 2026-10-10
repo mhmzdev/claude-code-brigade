@@ -92,6 +92,7 @@ Start from `${CLAUDE_SKILL_DIR}/../../templates/checklist.md`. Write outcomes, n
 ## Hard rules
 
 - Route, don't certify. Runtime and visual items are `[?]` with a recipe, never a faked `[x]`.
+- Need a login to walk a flow? Use a test account from the main checkout's `.claude/brigade.local.md` (Contract 2; `kitchen.sh role` prints the main checkout): a cook asks the sous for one by `[gate]`. The checklist names the account, never its password. A write on production needs the head chef's yes for that action first.
 - `[!]` means not done. Report it at the top; don't bury it.
 - Every `file:line` and test name was read in this run. No invented references.
 - This skill writes only the checklist, its INDEX row, and (solo/sous only) the rail. It never touches code, git history or another station.

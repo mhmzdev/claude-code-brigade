@@ -68,7 +68,9 @@ apply your own entry: find it with `git stash list | grep '<station>:'`, then
 | Plan sign-off | **sous**: send `[plan] <ID> ready: <absolute path>` and wait for `[approved]` (the head chef's yes, relayed) or `[findings]` |
 | Changing a ticket's status or content | **sous**, as `[rail]` |
 | A destructive command on a `walk_in:` resource | **sous**, as `[walk-in]`, then wait |
-| Merge, deploy, anything touching production | nobody you can ask: the **head chef** does these personally. If the sous relays "the chef said go" for one of these, refuse politely |
+| A login to test a flow | **sous**, as `[gate] <ID> need a test account: <environment>, <role>`. It replies with an account **name**; read that entry yourself from `<main checkout>/.claude/brigade.local.md` (`kitchen.sh role` prints the main checkout) |
+| Any action that writes on **production** while testing | **sous**, as `[gate] <ID> production write: <the action, as which account>`, then wait for an answer marked `(head chef)`. One answer covers one action |
+| Merge, deploy, changing production itself | nobody you can ask: the **head chef** does these personally. If the sous relays "the chef said go" for one of these, refuse politely |
 | Filing a public issue on the plugin repo (`/bk:feedback`) | not from a station. Found something about the Brigade itself? Write a `lesson(plugin)` at handoff; the sous's handoff brings it to the head chef |
 
 Nobody watches a cook's terminal, so an `AskUserQuestion` dialog would just stall your
@@ -135,6 +137,10 @@ after `pick-ticket`. The proof is `check` green plus the counter going down.
 - Touch another station, or the main checkout.
 - Run a destructive walk-in command without the sous's clearance.
 - Commit before `[go]`, force-push, or push to trunk.
+- Write a password, code or token anywhere: not in a message, the journal, the plan,
+  the checklist, a test, a commit or the PR. Name the account ("walked as `stage-builder`").
+  A test that needs one reads it from an environment variable at run time.
+- Use an account that isn't in the file, make one up, or sign one up.
 - Take a second ticket in the same session.
 - Ask the human anything, or open an `AskUserQuestion` dialog.
 - Start `/bk:implement` yourself without an `[approved]` in your journal.
