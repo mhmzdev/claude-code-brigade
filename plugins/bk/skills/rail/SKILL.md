@@ -38,10 +38,10 @@ may move them, or the sous closing an `rfr` ticket to `done` after the head chef
 
 | Operation | Input | Output |
 |---|---|---|
-| `list` | optional lane / status filter | table: id · lane · status · priority · cook · title (done hidden unless asked) |
+| `list` | optional lane / status filter | table: id · lane · status · priority · ready · cook · title, with open blockers (done hidden unless asked) |
 | `read` | id | the ticket's full body plus status fields |
 | `claim` | id, new status, cook | status and cook updated |
-| `fire` | lane, title, body, optional spec, `blocked_by`, `files`, `priority` | the new id and where it lives |
+| `fire` | lane, title, body, optional spec, `blocked_by`, `files`, `priority`; for a backlog item its `kind` (`item` or `bug`) | the new id and where it lives |
 | `link` | id, blocked-by id | the edge recorded |
 | `close` | id, optional spec id (a backlog item that became a spec) | status `done`, and the spec recorded |
 
@@ -52,6 +52,8 @@ Tickets are files (Contract 4). **The frontmatter is the rail.**
 - **list**: `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" rail`, then filter.
 - **read**: find the file by id: `docs/backlog/<ID>-*.md`, or for `SNNN-NN` the
   `NN-*.md` inside `docs/specs/NNN-*/`.
+- **kind** (Contract 4, backlog items only): edit `kind:` (`item` or `bug`) with one line of
+  why; commit it as `rail: <ID> kind <value>`. On github or jira, the `bug` label.
 - **priority** (Contract 3): edit `priority:` (`high`, `normal` or `low`) on the head
   chef's word; commit it as `rail: <ID> priority <value>`. On github use the project's
   priority field if it has one, else a `priority:high` / `priority:low` label; on jira the

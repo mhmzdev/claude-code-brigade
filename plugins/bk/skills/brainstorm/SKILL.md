@@ -43,7 +43,7 @@ Classify it. The class decides whether code gets read at all.
 
 - **Generic**: process, tooling, docs, team practice. Skip Step 2.
 - **Touches the code**: a feature, a behaviour change, a contract or data change. Step 2 is mandatory.
-- **Already small and crisp**: a one-file fix, a copy tweak. Say so and recommend `/bk:file-tickets` (one backlog item) or `/bk:create-plan` directly. Don't brainstorm what doesn't need it.
+- **A bug, not an idea**: something that exists works wrong. Say so and recommend `/bk:file-tickets` (one backlog item, `kind: bug`). Don't brainstorm what doesn't need it.
 
 Pick the slug now: lowercase-kebab, 2–5 words. The file is `<docs.brainstorm>/YYYY-MM-DD-<slug>.md` (Contract 4). If a brainstorm with the same slug already exists, read it fully and extend it. Never overwrite a file you haven't read.
 

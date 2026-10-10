@@ -35,7 +35,9 @@
 #   kitchen.sh files                      files in flight per station vs origin/<trunk>,
 #                                         plans, and unmerged migrations
 #   kitchen.sh rail                       the board, computed from ticket frontmatter
-#                                         (markdown rail only), with each ticket's priority
+#                                         (markdown rail only): priority, whether each
+#                                         free ticket is ready (or still needs a spec),
+#                                         and its open blockers
 #   kitchen.sh board                      status, files, rail and open questions in one
 #                                         go; from the main checkout it also writes them
 #                                         to .claude/board.md (kept out of git)
@@ -636,23 +638,48 @@ cmd_rail() {
     { find "$specs" -mindepth 2 -maxdepth 2 -name '[0-9][0-9]-*.md' 2>/dev/null
       find "$backlog" -maxdepth 1 \( -name 'BKLG-*.md' -o -name 'HYG-*.md' \) 2>/dev/null; } | sort)
   (( ${#files[@]} == 0 )) && { echo "The rail is empty."; return 0; }
-  printf '%-10s %-4s %-12s %-5s %-11s %s\n' ID LANE STATUS PRI COOK TITLE
+  printf '%-10s %-4s %-12s %-5s %-4s %-11s %s\n' ID LANE STATUS PRI RDY COOK TITLE
+  # Two passes over the same files: the first learns every ticket's status (done
+  # ones included), the second prints. So a blocker is resolved here, not guessed:
+  # done → dropped; open → listed; an id that is no ticket on this rail → listed
+  # with "?", and it holds the ticket like an open one.
   awk '
-    FNR==1 { if (id!="") out(); id=lane=status=cook=title=pri=blk=""; fm=0 }
+    function flush(   n, i, x, b, held, rdy) {
+      if (id == "") return
+      if (cur == 1) { st[id] = status; id = ""; return }
+      if (status != "done") {
+        if (cook == "null" || cook == "") cook = "-"
+        if (pri != "high" && pri != "low") pri = "-"   # normal, absent or anything else reads as normal
+        held = ""; n = split(blk, b, ",")
+        for (i = 1; i <= n; i++) {
+          x = b[i]; if (x == "") continue
+          if (!(x in st)) { x = x "?"; unknown = 1 } else if (st[x] == "done") continue
+          held = held (held == "" ? "" : ", ") x
+        }
+        rdy = "-"
+        if (status == "backlog" || status == "blocked") {
+          rdy = (held == "" ? "yes" : "no")
+          # a backlog item is built directly only when it is a bug; anything else
+          # still has to become a spec and tickets (Contract 4)
+          if (id ~ /^BKLG-/ && kind != "bug") rdy = "spec"
+        }
+        printf "%-10s %-4s %-12s %-5s %-4s %-11s %s%s\n", id, lane, status, pri, rdy, cook, title, (held == "" ? "" : "  (blocked by: " held ")")
+      }
+      id = ""
+    }
+    FNR==1 { flush(); cur = pass; lane=status=cook=title=pri=blk=kind=""; fm=0 }
     FNR==1 && $0=="---" { fm=1; next }
     fm && $0=="---" { fm=0; next }
     fm {
       line=$0; key=line; sub(/:.*/, "", key); val=line; sub(/^[^:]*:[ ]*/, "", val); sub(/[ ]+#.*$/, "", val); gsub(/^"|"$/, "", val)
       if (key=="id") id=val; else if (key=="lane") lane=val; else if (key=="status") status=val
-      else if (key=="cook") cook=val; else if (key=="title") title=val; else if (key=="priority") pri=val
-      else if (key=="blocked_by") { blk=val; gsub(/[][ ]/, "", blk); gsub(/,/, ", ", blk) }
+      else if (key=="cook") cook=val; else if (key=="title") title=val; else if (key=="priority") pri=val; else if (key=="kind") kind=val
+      else if (key=="blocked_by") { blk=val; gsub(/[]["\047 ]/, "", blk) }
     }
-    function out() {
-      if (cook=="null"||cook=="") cook="-"
-      if (pri!="high" && pri!="low") pri="-"   # normal, absent or anything else reads as normal
-      printf "%-10s %-4s %-12s %-5s %-11s %s%s\n", id, lane, status, pri, cook, title, (blk=="" ? "" : "  (blocked by: " blk ")")
-    }
-    END { if (id!="") out() }' "${files[@]}" | awk '$3!="done"'
+    END {
+      flush()
+      if (unknown) print "\n? = not a ticket on this rail (an id from elsewhere, or a typo). It holds the ticket until the blocker is removed."
+    }' pass=1 "${files[@]}" pass=2 "${files[@]}"
 }
 
 # ---------------------------------------------------------------------------

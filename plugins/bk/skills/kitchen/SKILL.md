@@ -27,7 +27,7 @@ from the main checkout; it reads the flat keys in `.claude/brigade.md`.
 | `sync` | reset **clean** stations to `origin/<trunk>` (worktrees: detached there). Dirty ones are skipped: a cook may be mid-ticket |
 | `status` | branch, dirty/clean, commits ahead per station, plus open PRs against trunk |
 | `files` | files in flight per station vs `origin/<trunk>` (committed and uncommitted), plans, and **unmerged migrations** flagged |
-| `rail` | the markdown rail's board, computed from ticket frontmatter; `done` tickets hidden |
+| `rail` | the markdown rail's board, computed from ticket frontmatter; `done` tickets hidden. `PRI` is the ticket's priority; `RDY` says whether a free ticket can be taken (`yes`: no open blocker; `spec`: a backlog item that isn't a bug, so it needs a spec first); open blockers follow the title, and one that is no ticket on the rail is marked `?` and holds the ticket |
 | `board` | `status`, `files`, `rail` and `questions` in one snapshot. Run from the main checkout it also writes the snapshot to `.claude/board.md`, a generated file a human can keep open; it's kept out of git through `.git/info/exclude`, so no tracked file changes |
 | `leaks [--dir D] [--also F]` | search a checkout's changed files and its branch's commit messages (`D`, default here; plus one extra file `F`, e.g. a PR body) for any test-account secret in `.claude/brigade.local.md`. Prints `file:line`, never the value; exits 1 on a hit. A literal search, skipping values under six characters |
 | `role` | `cook <station> <main checkout>` inside a station, else `main <main checkout>`. Every lifecycle skill runs this first |

@@ -175,11 +175,17 @@ place that knows how each backend does each operation.
 frontmatter (absent means `normal`), the tracker's own priority field or a
 `priority:high` label on github or jira. It is set by the head chef's word, when the
 ticket is fired or later, and written by the sous like any other rail change.
-`kitchen.sh rail` shows it in the `PRI` column, and prints each ticket's open `blocked_by`
-ids after its title. A blocker that isn't on the board is `done` (the board hides those).
+`kitchen.sh rail` shows it in the `PRI` column.
 
-**What's next.** A ticket is **ready** when its status is `backlog`, or `blocked` with every
-`blocked_by` ticket now `done`, and it isn't a backlog item that needs a spec (Contract 4).
+**What's next.** A ticket is **ready** when its status is `backlog` or `blocked`, every
+ticket in its `blocked_by` is `done`, and it isn't a backlog item that still needs a spec
+(Contract 4: every `BKLG` item that isn't `kind: bug`). `kitchen.sh rail` works all of
+that out itself: the `RDY` column says `yes`, `no` (a blocker is open) or `spec` (a backlog
+item that has to become a spec and tickets first), and a ticket's still-open blockers are
+printed after its title. A blocker id that
+is no ticket on the rail (an id from an older scheme, or a typo) is printed with `?` and
+**holds** the ticket: nothing proves it's done. The sous removes it from `blocked_by` once
+the head chef says that work is finished.
 Among ready tickets the next one is picked in this order:
 
 1. what the head chef has said to do first, or to hold;
@@ -251,6 +257,7 @@ title: One line
 lane: B                  # A | B | C
 status: backlog          # backlog | todo | in-progress | rfr | done | blocked
 cook: null               # station name once claimed
+kind: item               # BKLG only: item (becomes a spec and tickets) | bug (planned and built directly)
 spec: null               # lane A: the parent spec. BKLG: the spec it became
 priority: normal         # high | normal | low (optional; Contract 3)
 blocked_by: []
@@ -259,24 +266,29 @@ created: YYYY-MM-DD
 ---
 ```
 
-**A backlog item is work nobody has grilled or specced yet.** `BKLG-NNN` is where anything
-lands first: a bug, a chore, a follow-up, or a whole new capability. Capturing one is
-cheap. It leaves the backlog one of two ways, and the call is made when someone picks it
-up (`/bk:pick-ticket`), not when it's filed:
+**A backlog item is work that still has to become tickets.** `BKLG-NNN` is where anything
+lands first, and capturing one is cheap. A **ticket** (`SNNN-NN`) is what a cook plans and
+builds: it has been grilled, specced and sliced, so it is one step from a plan. A backlog
+item is further back. Its `kind:` says which way it leaves the backlog:
 
-- **Small**: one slice, and the WHAT is settled. The item is its own ticket:
-  `create-plan`, then build.
-- **Needs a spec**: a user would notice the behaviour and have opinions about it, or it
-  needs more than one slice, or there's a real fork in *what* to build. It goes
-  `grill-me` → `spec` → `file-tickets`, and the spec's `SNNN-NN` tickets are what gets
-  built. The item is closed with `spec: SNNN`, and the spec lists it under `backlog:`.
+- **`kind: item`** (the default, and what a missing `kind:` means): a capability, a change
+  in behaviour, a chore, a follow-up. It goes `grill-me` → `spec` → `file-tickets`, and the
+  spec's `SNNN-NN` tickets are what gets built. The item is closed with `spec: SNNN`, and
+  the spec lists it under `backlog:`. It is never planned, built or claimed directly: it
+  stays `backlog` until its spec closes it.
+- **`kind: bug`**: something that already exists and works wrong, measured against how it
+  is meant to work. It needs no spec, because the intended behaviour is already decided.
+  The item is its own ticket: `create-plan`, then build.
 
-A backlog item that needs a spec isn't planned or built directly, and isn't claimed: it
-stays `backlog` until its spec closes it. The one exception is the head chef saying to
-build it without a spec; the plan then notes that it has none.
+**Bug or item is a fact about the work, not a size.** A "small" new behaviour is still an
+item. A fix that turns out to need a decision about *what* the behaviour should be was
+never a bug: say so, and it becomes an item. The sous sets or corrects `kind:` as a rail
+change, with one line of why. The one way an item is built without a spec is the head chef
+saying so for that item; the plan then notes that it has none.
 
-On a github or jira rail a backlog item is an issue labelled `lane:B`, and "closed into a
-spec" shows as its closing comment (`Became spec SNNN: <path>`) rather than a `spec:` field.
+On a github or jira rail a backlog item is an issue labelled `lane:B` (plus `bug` for a
+bug), and "closed into a spec" shows as its closing comment (`Became spec SNNN: <path>`)
+rather than a `spec:` field.
 
 **Plans don't move between folders.** A plan's lifecycle is its `status:` field,
 `draft → approved → active → done`. Plan frontmatter:
@@ -483,7 +495,7 @@ A lane is defined by **where its tickets come from**.
 | Lane | Name | Source | Path through the skills |
 |---|---|---|---|
 | **A** | Specials | a spec, sliced into tickets. The spec starts from a brainstorm or from a backlog item that needs one | (brainstorm or pick-ticket) → grill-me → spec → file-tickets → create-plan → implement → review-task → open-pr |
-| **B** | À la carte | backlog items small enough to build without a spec. Every backlog item is filed `lane: B`; one that turns out to need a spec leaves for lane A | pick-ticket → (grill-me) → create-plan → implement → review-task → open-pr |
+| **B** | À la carte | bugs: backlog items marked `kind: bug`. Every backlog item is filed `lane: B`; one that isn't a bug leaves for lane A through a spec | pick-ticket → (grill-me) → create-plan → implement → review-task → open-pr |
 | **C** | Clean as you go | the kitchen generates them: `/bk:clean around` / `scan` | pick-ticket → implement → clean check → the pass → on `[go]`: clean around → handoff → open-pr |
 
 **Lane C skips the plan, the checklist and `review-task`.** Its claim goes straight from
@@ -588,8 +600,8 @@ journal, written at handoff:
 | `/bk:brainstorm` | A | explore what to build and why |
 | `/bk:grill-me` | A, B | question a plan or idea until there's one shared picture |
 | `/bk:spec` | A | write the numbered spec, and close the backlog item it came from |
-| `/bk:file-tickets` | A, B | slice a spec into tickets, or add one backlog item |
-| `/bk:pick-ticket` | A, B, C | pick a ticket up cold: context, staleness, whether it needs a spec, claim |
+| `/bk:file-tickets` | A, B | slice a spec into tickets, or add one backlog item (an item or a bug) |
+| `/bk:pick-ticket` | A, B, C | pick a ticket up cold: context, staleness, whether a backlog item is a bug or still needs a spec, claim |
 | `/bk:create-plan` | A, B | write the plan for one ticket |
 | `/bk:implement` | A, B, C | carry out the plan, phase by phase, check after each |
 | `/bk:review-task` | A, B | acceptance checklist from intent plus diff, with evidence |

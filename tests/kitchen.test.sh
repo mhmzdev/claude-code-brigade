@@ -49,7 +49,7 @@ new_repo() {
   git -C "$dir" checkout -q -b main
   mkdir -p "$dir/.claude" "$dir/docs/backlog"
   printf -- '---\n%s\n---\n' "$body" > "$dir/.claude/brigade.md"
-  printf -- '---\nid: BKLG-001\ntitle: Open ticket\nlane: B\nstatus: backlog\ncook: null\n---\n' > "$dir/docs/backlog/BKLG-001-open.md"
+  printf -- '---\nid: BKLG-001\ntitle: Open ticket\nlane: B\nkind: bug\nstatus: backlog\ncook: null\n---\n' > "$dir/docs/backlog/BKLG-001-open.md"
   printf -- '---\nid: BKLG-002\ntitle: Done ticket\nlane: B\nstatus: done\ncook: null\n---\n' > "$dir/docs/backlog/BKLG-002-done.md"
 }
 push_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2" && git -C "$1" push -q -u origin main 2>/dev/null; }
@@ -114,19 +114,40 @@ ok "role from a station names the main checkout" has "$(cd "$C/stations/station-
 out=$("$K" rail)
 ok "rail lists open tickets" has "$out" "BKLG-001"
 ok "rail hides done tickets" bash -c "! printf '%s' \"\$1\" | grep -q BKLG-002" _ "$out"
-ok "rail shows a ticket with no priority as normal (-)" has "$out" "BKLG-001 +B +backlog +- +- +Open ticket"
-printf -- '---\nid: BKLG-003\ntitle: Urgent one\nlane: B\nstatus: backlog\npriority: high   # jumps the queue\ncook: null\n---\n' > "$C/docs/backlog/BKLG-003-urgent.md"
-printf -- '---\nid: BKLG-004\ntitle: Someday\nlane: B\nstatus: backlog\npriority: low\ncook: null\n---\n' > "$C/docs/backlog/BKLG-004-someday.md"
+ok "rail shows a ticket with no priority as normal (-)" has "$out" "BKLG-001 +B +backlog +- +yes +- +Open ticket"
+printf -- '---\nid: BKLG-003\ntitle: Urgent one\nlane: B\nkind: bug\nstatus: backlog\npriority: high   # jumps the queue\ncook: null\n---\n' > "$C/docs/backlog/BKLG-003-urgent.md"
+printf -- '---\nid: BKLG-004\ntitle: Someday\nlane: B\nkind: bug\nstatus: backlog\npriority: low\ncook: null\n---\n' > "$C/docs/backlog/BKLG-004-someday.md"
 out=$("$K" rail)
-ok "rail shows high priority" has "$out" "BKLG-003 +B +backlog +high +- +Urgent one"
-ok "rail shows low priority" has "$out" "BKLG-004 +B +backlog +low +- +Someday"
-printf -- '---\nid: BKLG-005\ntitle: Plain\nlane: B\nstatus: blocked\npriority: normal\ncook: null\nblocked_by: [BKLG-001, BKLG-003]\n---\n' > "$C/docs/backlog/BKLG-005-plain.md"
-printf -- '---\nid: BKLG-006\ntitle: Odd\nlane: B\nstatus: backlog\npriority: urgent\ncook: null\nblocked_by: []\n---\n' > "$C/docs/backlog/BKLG-006-odd.md"
+ok "rail shows high priority" has "$out" "BKLG-003 +B +backlog +high +yes +- +Urgent one"
+ok "rail shows low priority" has "$out" "BKLG-004 +B +backlog +low +yes +- +Someday"
+printf -- '---\nid: BKLG-005\ntitle: Plain\nlane: B\nkind: bug\nstatus: blocked\npriority: normal\ncook: null\nblocked_by: [BKLG-001, BKLG-003]\n---\n' > "$C/docs/backlog/BKLG-005-plain.md"
+printf -- '---\nid: BKLG-006\ntitle: Odd\nlane: B\nkind: bug\nstatus: backlog\npriority: urgent\ncook: null\nblocked_by: []\n---\n' > "$C/docs/backlog/BKLG-006-odd.md"
 out=$("$K" rail)
-ok "an explicit normal priority reads as -" has "$out" "BKLG-005 +B +blocked +- +- +Plain"
-ok "an unknown priority reads as normal, not as itself" has "$out" "BKLG-006 +B +backlog +- +- +Odd"
+ok "an explicit normal priority reads as -" has "$out" "BKLG-005 +B +blocked +- +no +- +Plain"
+ok "an unknown priority reads as normal, not as itself" has "$out" "BKLG-006 +B +backlog +- +yes +- +Odd"
 ok "rail prints a ticket's blockers after its title" has "$out" "Plain  \(blocked by: BKLG-001, BKLG-003\)"
 ok "…and nothing for an empty blocked_by" bash -c '! printf "%s" "$1" | grep -q "Odd.*blocked by"' _ "$out"
+ok "no footnote when every blocker is a ticket on the rail" bash -c '! printf "%s" "$1" | grep -q "not a ticket on this rail"' _ "$out"
+printf -- '---\nid: BKLG-007\ntitle: After done\nlane: B\nkind: bug\nstatus: blocked\ncook: null\nblocked_by: [BKLG-002]\n---\n' > "$C/docs/backlog/BKLG-007-after.md"
+printf -- '---\nid: BKLG-008\ntitle: Mixed\nlane: B\nkind: bug\nstatus: backlog\ncook: null\nblocked_by: ["BKLG-002", T-007, BKLG-001]\n---\n' > "$C/docs/backlog/BKLG-008-mixed.md"
+printf -- '---\nid: BKLG-009\ntitle: Claimed\nlane: B\nstatus: todo\ncook: station-2\nblocked_by: []\n---\n' > "$C/docs/backlog/BKLG-009-claimed.md"
+out=$("$K" rail)
+ok "a ticket whose only blocker is done is ready, with no blocker shown" has "$out" "BKLG-007 +B +blocked +- +yes +- +After done$"
+ok "a done blocker is dropped; an open one and an unknown one hold the ticket" has "$out" "BKLG-008 +B +backlog +- +no +- +Mixed  \(blocked by: T-007\?, BKLG-001\)"
+ok "an unknown blocker gets the footnote" has "$out" "\? = not a ticket on this rail"
+ok "a claimed ticket is neither ready nor not" has "$out" "BKLG-009 +B +todo +- +- +station-2 +Claimed"
+ok "done tickets stay hidden" bash -c '! printf "%s" "$1" | grep -q "^BKLG-002"' _ "$out"
+rm "$C/docs/backlog/BKLG-007-after.md" "$C/docs/backlog/BKLG-008-mixed.md" "$C/docs/backlog/BKLG-009-claimed.md"
+printf -- '---\nid: BKLG-010\ntitle: A capability\nlane: B\nstatus: backlog\ncook: null\n---\n' > "$C/docs/backlog/BKLG-010-cap.md"
+printf -- '---\nid: BKLG-011\ntitle: Also an item\nlane: B\nkind: item\nstatus: backlog\ncook: null\n---\n' > "$C/docs/backlog/BKLG-011-item.md"
+mkdir -p "$C/docs/specs/001-demo"
+printf -- '---\nid: S001-01\ntitle: A spec ticket\nlane: A\nstatus: backlog\ncook: null\n---\n' > "$C/docs/specs/001-demo/01-first.md"
+out=$("$K" rail)
+ok "a backlog item with no kind still needs a spec" has "$out" "BKLG-010 +B +backlog +- +spec +- +A capability"
+ok "a backlog item of kind item still needs a spec" has "$out" "BKLG-011 +B +backlog +- +spec +- +Also an item"
+ok "a spec ticket is ready without any kind" has "$out" "S001-01 +A +backlog +- +yes +- +A spec ticket"
+ok "the last ticket read is listed once, not once per pass" test "$(printf '%s\n' "$out" | grep -c '^S001-01')" = 1
+rm -r "$C/docs/backlog/BKLG-010-cap.md" "$C/docs/backlog/BKLG-011-item.md" "$C/docs/specs/001-demo"
 rm "$C/docs/backlog/BKLG-005-plain.md" "$C/docs/backlog/BKLG-006-odd.md"
 rm "$C/docs/backlog/BKLG-003-urgent.md" "$C/docs/backlog/BKLG-004-someday.md"
 

@@ -31,11 +31,11 @@ Firing a ticket is a rail write, and **only the sous chef writes the rail** (Con
 | Mode | When | Creates |
 |---|---|---|
 | **A — Slice a spec** | a spec in `<docs.specs>` is approved, or the user says "break this into tickets" | one ticket per thin slice, `SNNN-NN`, lane A, with `blocked_by` edges |
-| **B — Backlog item** | anything not yet grilled or specced: a bug, a chore, a follow-up, a new capability | one `BKLG-NNN` item, lane B |
+| **B — Backlog item** | anything that isn't a ticket yet: a capability, a change, a chore, a follow-up (`kind: item`), or a bug (`kind: bug`) | one `BKLG-NNN` item, lane B |
 
 If it's ambiguous, ask. Hygiene tickets (`HYG-NNN`, lane C) come from `/bk:clean`, not from here.
 
-**Capturing a backlog item is cheap, whatever its size** (Contract 4). Don't push back on a big one and don't ask for a spec first: the backlog is where un-specced work waits. Whether an item is built directly or becomes a spec is decided when someone picks it up (`/bk:pick-ticket`). If the item plainly needs a spec, say so in one line under `## Notes` so the next reader knows.
+**Capturing a backlog item is cheap, whatever its size** (Contract 4). Don't push back on a big one and don't ask for a spec first: the backlog is where work waits before it becomes tickets. **Set `kind:` when you file it.** `bug` only when something that exists works wrong, measured against how it's meant to work. Everything else, however small, is `item`: it becomes a spec and tickets before anyone builds it. Not sure → `item`.
 
 ## Mode A — Slice a spec
 
@@ -71,9 +71,9 @@ If it's ambiguous, ask. Hygiene tickets (`HYG-NNN`, lane C) come from `/bk:clean
 
 1. **Check for siblings.** Use `/bk:rail list` and search titles and bodies for the same keywords. If an existing ticket owns half of this, add to it instead (a rail write, so: sous only).
 2. **Ground it as far as it's known.**
-   - **A bug, chore or follow-up:** measure it (real numbers from the real system, not impressions) and name the code (a `file:line` for the mechanism, read in this run).
-   - **A capability:** the `## Why` is enough: who wants it and what they can't do today. Don't design it here; that's the spec's job. Leave `## Done when` out, since the spec's tickets will carry it.
-3. **Write it.** Next number = highest existing `BKLG-NNN` (on a markdown rail) plus one, zero-padded. The file is `<docs.backlog>/BKLG-NNN-<slug>.md`, from the ticket template with `lane: B`, `status: backlog`:
+   - **A bug (`kind: bug`):** measure it (real numbers from the real system, not impressions), name the code (a `file:line` for the mechanism, read in this run), and say what the intended behaviour is and where that's written. It gets a `## Done when`: a cook will plan straight from it.
+   - **An item (`kind: item`):** the `## Why` is enough: who wants it and what they can't do today. Don't design it here; that's the spec's job. Leave `## Done when` out, since the spec's tickets will carry it.
+3. **Write it.** Next number = highest existing `BKLG-NNN` (on a markdown rail) plus one, zero-padded. The file is `<docs.backlog>/BKLG-NNN-<slug>.md`, from the ticket template with `lane: B`, `kind: item` or `kind: bug`, `status: backlog`:
 
    ```markdown
    ## Why
@@ -82,15 +82,15 @@ If it's ambiguous, ask. Hygiene tickets (`HYG-NNN`, lane C) come from `/bk:clean
    ## Options            <!-- only if there's a real fork -->
    1. … — trade-off
 
-   ## Done when         <!-- omit for an item that needs a spec -->
+   ## Done when         <!-- kind: bug only; an item leaves this out -->
    - [ ] <observable outcome>
    - [ ] `<check from config>` passes
 
    ## Notes
-   The mechanism (file:line) and what you ruled out. Or one line: "needs a spec".
+   A bug: the mechanism (file:line) and what you ruled out. An item: links and constraints.
    ```
 
-4. **Fire** through `/bk:rail fire`, add the row to `<docs.backlog>/INDEX.md`, commit per `rail.commit`. Report the id and offer `/bk:pick-ticket <id>`, which says whether the item is built directly or needs a spec. Then wait.
+4. **Fire** through `/bk:rail fire`, add the row to `<docs.backlog>/INDEX.md`, commit per `rail.commit`. Report the id and its kind, and offer the next step by name: a bug → `/bk:pick-ticket <id>`; an item → `/bk:grill-me <id>`, then `/bk:spec`. Then wait.
 
 ## What not to do
 

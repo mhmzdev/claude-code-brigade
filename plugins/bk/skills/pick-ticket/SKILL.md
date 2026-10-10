@@ -1,6 +1,6 @@
 ---
 name: pick-ticket
-description: Pick up a ticket cold. Rebuilds the context behind it (why it exists, what it links to, what happened since), checks the code at origin/<trunk>, returns one of six staleness verdicts with evidence, checks nobody else owns it, says whether a backlog item is small enough to build or needs a spec, then recommends the next skill and — only on a yes — claims it on the rail. Works on any rail (markdown, GitHub, Jira). Read-only until told otherwise. Use when the user says "pick a ticket", "pick up BKLG-004", "catch me up on S001-02", "is this ticket still valid", "what's the story on HYG-003".
+description: Pick up a ticket cold. Rebuilds the context behind it (why it exists, what it links to, what happened since), checks the code at origin/<trunk>, returns one of six staleness verdicts with evidence, checks nobody else owns it, says whether a backlog item is a bug to build or still needs a spec, then recommends the next skill and — only on a yes — claims it on the rail. Works on any rail (markdown, GitHub, Jira). Read-only until told otherwise. Use when the user says "pick a ticket", "pick up BKLG-004", "catch me up on S001-02", "is this ticket still valid", "what's the story on HYG-003".
 argument-hint: "<ticket id, path, or URL>"
 allowed-tools: Bash, Read, Skill, ListAgents, SendMessage, AskUserQuestion, ToolSearch
 ---
@@ -129,13 +129,9 @@ Code read at `origin/<trunk>` <sha>
 **(a) Recommend the next skill by name, and wait.**
 
 - The WHAT is contested (`Unclear`, `Body drifted`, comments disagree with the body) → `/bk:grill-me <ID>`. A cook doesn't start a grilling unasked: it sends the sous `[gate] <ID> needs grilling: <what's contested>` and waits.
-- **A backlog item (`BKLG-*`, or `lane:B` on a tracker) that needs a spec** → `/bk:grill-me <ID>`, then `/bk:spec`. It needs one if any of these is a yes (Contract 4):
-  - Would a user notice the behaviour and have opinions about it?
-  - Would it plausibly need more than one slice?
-  - Is there a real fork in *what* to build, not just *how*?
-
-  Say which one in a sentence. Offer no claim: the item stays `backlog` until `/bk:spec` closes it into the spec. If the head chef says build it directly anyway, do (Contract 4's one exception), and note in the plan that it has no spec.
-- The WHAT is crisp: a lane A ticket, or a small backlog item → `/bk:create-plan <ID>`.
+- **A backlog item (`BKLG-*`, or `lane:B` on a tracker) that isn't `kind: bug`** → `/bk:grill-me <ID>`, then `/bk:spec` (Contract 4). It still has to become a spec and tickets, however small it looks. Offer no claim: the item stays `backlog` until `/bk:spec` closes it into the spec. If the head chef says build this one directly anyway, do, and note in the plan that it has no spec.
+- **A `kind: bug` that isn't one**: fixing it means deciding *what* the behaviour should be, not restoring what was already decided. Say so with the evidence, and stop: it's an item, and the sous re-marks it (a cook sends `[gate] <ID> isn't a bug: <why>`).
+- The WHAT is crisp: a lane A ticket, or a `kind: bug` backlog item → `/bk:create-plan <ID>`.
 - **Lane C (`HYG-*`)** → `/bk:implement <ID>`. Hygiene tickets have no plan and no checklist (Contract 9); the ticket body is the spec and the counter is the proof.
 
 **(b) Claim it — on a yes (solo), on the head chef's "fire it" (sous), or straight away on a brief (cook).** The claim for lane A/B is `todo` (it's set again by `create-plan`, harmlessly); for lane C it's `in-progress`, because nothing comes between picking and implementing.
@@ -154,5 +150,5 @@ Close, body rewrite and comment offers follow the same rule: show the text, wait
 - Don't claim a ticket in `todo`, `in-progress` or `rfr` that isn't yours.
 - Don't write the rail from a cook session. Ask the sous.
 - Don't produce a verdict without evidence; that's what `Unclear` is for.
-- Don't send a backlog item that needs a spec to `/bk:create-plan`, and don't claim it.
+- Don't send a backlog item that isn't `kind: bug` to `/bk:create-plan`, and don't claim it.
 - Don't run the next skill yourself. The human (or, in a station, the brief) fires it.

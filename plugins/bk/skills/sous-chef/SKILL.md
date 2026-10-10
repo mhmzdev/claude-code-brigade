@@ -88,10 +88,11 @@ been cleared and checks in again. Mid-ticket, waiting on you, dirty, or silent �
 free cook → assign nothing, and say who is busy with what.
 
 **2. Which ticket is next.** From the rail board, take the **ready** tickets (Contract 3):
-`backlog`, or `blocked` whose blockers are all `done` (move those to `backlog` first). The
-board prints `(blocked by: …)` after a ticket's title; a blocker that isn't on the board is
-done, because the board hides done tickets. On a tracker rail, read the links from
-`/bk:rail list`.
+the rows with `yes` under `RDY`. The board has already checked every blocker and every
+backlog item's `kind`, so don't second-guess a `no` or a `spec`. A blocker printed with `?` is no ticket on this rail; it holds its
+ticket until the head chef tells you that work is finished, and then you remove it from
+`blocked_by` (a rail change). A `blocked` row that says `yes` moves to `backlog` when you
+assign it. On a tracker rail, read status and links from `/bk:rail list`.
 Order them:
 
 1. what the head chef told you to do first or to hold (this session, or your handoff note);
@@ -105,10 +106,12 @@ Order them:
 - no open PR or branch for it (`gh pr list --search <id>` / `git ls-remote --heads origin | grep -i <id>`);
 - no plan for it in any station: `ls <kitchen>/*/docs/plans/<id>-* 2>/dev/null`.
 
-**A backlog item that needs a spec isn't ready to cook** (Contract 4). Don't brief a cook to
-plan it. It needs grilling and a spec first, and you can hand that to a cook
+**A backlog item is only ready to cook when it's a bug** (Contract 4). The board says `spec`
+under `RDY` for every other `BKLG` item: never brief a cook to plan one, however small it
+looks. It needs grilling and a spec first, and you can hand that to a cook
 ([Handing a grilling to a cook](#handing-a-grilling-to-a-cook)); the spec closes the item,
-and its tickets are what you assign.
+and its tickets are what you assign. Don't re-mark an item as a bug to make it assignable:
+`kind: bug` means something that exists works wrong against what was already decided.
 
 Then check the two hard rules against the `files` board. A pick that fails one is skipped
 for the next ready ticket, not forced:
@@ -124,8 +127,8 @@ redirect you if they disagree. The plan still comes back to them for sign-off.
 - **A `HYG` ticket is the exception:** it has no plan, so show the head chef the ticket and
   get their yes *before* the brief, which then carries the `[approved]` line.
 - **Lane C goes to Opus-class cooks;** the counters need judgement to cluster well.
-- **Nothing ready?** Say so plainly: what's blocked and on what, which backlog items need a
-  spec. Never invent work to keep a cook busy. If lane C is empty too, a cook that has
+- **Nothing ready?** Say so plainly: what's blocked and on what, which backlog items are
+  waiting for a spec (offer the grilling for the highest-priority one). Never invent work to keep a cook busy. If lane C is empty too, a cook that has
   just served can run `/bk:clean scan` (see [Cleaning](#cleaning)).
 
 ## The brief
