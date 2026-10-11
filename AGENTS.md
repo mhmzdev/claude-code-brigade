@@ -6,7 +6,7 @@ their own station, the human is head chef). You're here to change the plugin its
 use it on a product. `CLAUDE.md` is a symlink to this file, so every coding agent reads the
 same instructions.
 
-User-facing overview: [`README.md`](README.md). Every name the plugin uses:
+User-facing overview: [`README.md`](README.md). How each flow runs: [`PLAYBOOK.md`](PLAYBOOK.md). Every name the plugin uses:
 [`docs/the-names.md`](docs/the-names.md).
 
 ## Contents
@@ -37,6 +37,7 @@ scripts/check.sh                    THE gate: manifests, shellcheck, frontmatter
 .github/workflows/check.yml         runs the gate in CI on Linux and macOS
 tests/kitchen.test.sh               behaviour tests for kitchen.sh, both kitchen modes
 docs/the-names.md                   the Brigade names, plus Qafila as an alternate
+PLAYBOOK.md                         how each flow runs, as questions and answers; the contract wins over it
 assets/hero.jpeg                    README banner
 .github/ISSUE_TEMPLATE/feedback.yml the issue form /bk:feedback mirrors
 ```
