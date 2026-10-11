@@ -55,6 +55,7 @@ into a ticket, and puts one gate between the kitchen and the customer: **the pas
 | **Runner** | `runner`, a sub-agent anyone uses to run a noisy command and get back only pass/fail plus the failing lines |
 
 The full table, plus an Urdu alternate (Qafila), is in [`docs/the-names.md`](docs/the-names.md).
+How each flow runs, question by question, is in [`PLAYBOOK.md`](PLAYBOOK.md).
 
 ## The three lanes
 
