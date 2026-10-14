@@ -321,6 +321,26 @@ ok "a repo lesson in 2 tickets (one unmerged, in a station) is DUE" has "$out" "
 ok "a plugin lesson is DUE at 1 ticket" has "$out" "plugin +wrong-gate +1 +DUE"
 printf '| `slow-install` | repo | BKLG-020 |\n' > "$C/docs/lessons.md"
 ok "a key listed in docs/lessons.md is promoted" has "$("$K" lessons)" "slow-install +2 +promoted"
+mkdir -p "$C/docs/journal/completed"
+printf -- '- lesson(repo): flaky-test | flaked again | BKLG-012\n' > "$C/docs/journal/completed/BKLG-012-done.md"
+ok "a journal moved to a subfolder of docs.journal still counts" has "$("$K" lessons)" "flaky-test +2 +DUE"
+printf -- '- lesson(repo): flaky-test | not a journal | BKLG-013\n' > "$C/docs/journal/completed/INDEX.md"
+ok "…but an INDEX.md there doesn't" has "$("$K" lessons)" "flaky-test +2 +DUE"
+rm -r "$C/docs/journal/completed"
+
+# A repo whose journal is the plans folder, with its own lessons register.
+cp "$C/.claude/brigade.md" "$TMP/brigade.md.bak"
+awk 'NR>1 && $0=="---" && !d { print "docs:\n  journal: docs/plans\n  lessons: docs/notes/lessons.md"; d=1 } { print }' "$TMP/brigade.md.bak" > "$C/.claude/brigade.md"
+mkdir -p "$C/docs/plans/completed" "$C/docs/notes"
+printf -- '# plan\n## Journal\n- lesson(repo): plan-lesson | x | BKLG-030\n' > "$C/docs/plans/BKLG-030-live.md"
+printf -- '# plan\n## Journal\n- lesson(repo): plan-lesson | y | BKLG-031\n' > "$C/docs/plans/completed/BKLG-031-done.md"
+out=$("$K" lessons)
+ok "docs.journal set to plans: lessons in live and completed plans both count" has "$out" "plan-lesson +2 +DUE"
+ok "…and the default journal folder is no longer read" bash -c '! printf "%s" "$1" | grep -q slow-install' _ "$out"
+printf '| `plan-lesson` | repo | BKLG-031 |\n' > "$C/docs/notes/lessons.md"
+ok "docs.lessons sets the register that marks a key promoted" has "$("$K" lessons)" "plan-lesson +2 +promoted"
+cp "$TMP/brigade.md.bak" "$C/.claude/brigade.md"; rm -r "$C/docs/plans/completed" "$C/docs/notes" "$C/docs/plans/BKLG-030-live.md"
+ok "with no docs.lessons the register is docs/lessons.md again" has "$("$K" lessons)" "slow-install +2 +promoted"
 
 section "sessions"
 slug() { (cd "$1" && pwd -P) | sed 's/[^A-Za-z0-9]/-/g'; }

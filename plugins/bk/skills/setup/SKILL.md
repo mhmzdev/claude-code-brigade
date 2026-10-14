@@ -124,7 +124,9 @@ as plain sentences.
 
 Create `.claude/brigade.local.md` from `${CLAUDE_SKILL_DIR}/../../templates/brigade.local.md` (the `## Test accounts` skeleton, Contract 2; leave the accounts empty and never ask for a password here: the sous asks when a flow first needs one). If the file already exists, keep what it holds and only add the section if it's missing. Add it to `.gitignore`, together
 with `.claude/sous-handoff.md` (the sous's handoff note is machine-local, Contract 11).
-`docs/lessons.md` is created later, by the first lesson promotion.
+The lessons register (`docs.lessons`, default `docs/lessons.md`) is created later, by the
+first lesson promotion. If the repo's docs rules don't allow a file there, set
+`docs.lessons` to a path they do.
 
 Add to `.gitattributes` (create it if needed, merge if not):
 

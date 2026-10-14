@@ -126,4 +126,4 @@ what the maintainers need. When unsure whether something is theirs, scrub it.
    the draft to paste and the link
    `https://github.com/mhmzdev/claude-code-brigade/issues/new?template=feedback.yml`.
 5. **Report** the issue URL. When the sous's handoff called this for a lesson, it records
-   `filed #<n>` or `declined` in `docs/lessons.md` (Contract 11).
+   `filed #<n>` or `declined` in the lessons register, `docs.lessons` (Contract 11).

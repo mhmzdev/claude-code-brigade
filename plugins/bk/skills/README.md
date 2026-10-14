@@ -94,7 +94,8 @@ docs:
   backlog: docs/backlog
   plans: docs/plans
   checklists: docs/checklists
-  journal: docs/journal
+  journal: docs/journal                  # any depth: a journal moved to a subfolder still counts
+  lessons: docs/lessons.md               # the promoted-lessons register (a file, not a folder)
   research: docs/research
   brainstorm: docs/brainstorm
 ---
@@ -233,7 +234,7 @@ because only one session (the sous) hands them out. They are zero-padded and nev
 | Plan | `docs/plans/<id>-<slug>.md` | the ticket's id |
 | Checklist | `docs/checklists/<id>-<slug>.md` | the ticket's id |
 | Journal | `docs/journal/<id>-<slug>.md` | the ticket's id |
-| Promoted lessons | `docs/lessons.md` | — (one row per promoted key) |
+| Promoted lessons | `docs/lessons.md` (`docs.lessons`) | — (one row per promoted key) |
 | Sous handoff | `.claude/sous-handoff.md`, **gitignored** | — (overwritten each handoff) |
 | Sous's session name | `.claude/sous`, kept out of git (`.git/info/exclude`) | — (written by `kitchen.sh sous --set` when the sous starts) |
 | Research | `docs/research/YYYY-MM-DD-<slug>.md` | — |
@@ -586,15 +587,18 @@ journal, written at handoff:
 - **When:** only at the **sous's handoff**, the one checkpoint for it.
 - **Count:** `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" lessons` counts distinct tickets per key
   across trunk's and every station's journals, and marks each key `watch`, `DUE` or `promoted`.
+  It reads every `*.md` at any depth under `docs.journal`, so a journal that moves when its
+  ticket is done (say, inside a plan moved to `completed/`) still counts.
 - **Threshold:** a `repo` lesson is due at **2 tickets**; a `plugin` lesson at **1**.
 - **Action for `repo`:** fire a normal `BKLG` ticket, "promote lesson `<key>` into
   CLAUDE.md / the config notes". It goes through a cook, the pass, and the head chef's
-  merge. Add the key to `docs/lessons.md` (`` | `<key>` | repo | <ticket> | ``) so it's
+  merge. Add the key to the register, `docs.lessons` (default `docs/lessons.md`), as
+  `` | `<key>` | repo | <ticket> | `` so it's
   never promoted twice.
 - **Action for `plugin`:** run `/bk:feedback` with the lesson lines as the note. It drafts an
   issue for https://github.com/mhmzdev/claude-code-brigade with repo-specific detail removed,
   and **files it only on the head chef's yes**: it's public. Record the key in
-  `docs/lessons.md` once filed (or declined).
+  the register once filed (or declined).
 
 ## The skills
 

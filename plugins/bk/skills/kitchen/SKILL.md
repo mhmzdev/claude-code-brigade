@@ -1,7 +1,7 @@
 ---
 name: kitchen
 description: Manage the Brigade's stations — the clones (stations/) or worktrees (../<repo>-stations/) where line cooks work. Create them, open one Claude session per station already running /bk:line-cook (Warp, else the OS's own terminal, else printed commands), sync clean ones to trunk, and print the status, files-in-flight and rail boards the sous chef reads. Use when the user says "set up stations", "open the kitchen", "open the line cooks", "station status", "what's in flight", "show the rail", "/bk:kitchen".
-argument-hint: "setup [-n N] | open [-n N] [-m \"O S\"] [--terminal warp|native|tmux|print] [--bare] [--no-launch] | sync | status | files | rail | board | leaks [--dir D] [--also F] | questions | lessons | sessions [--dir D] | role | remove"
+argument-hint: "setup [-n N] | open [-n N] [-m \"O S\"] [--terminal warp|native|tmux|print] [--bare] [--no-launch] | sync | status | files | rail | board | leaks [--dir D] [--also F] | questions | lessons | sessions [--dir D] | role | sous [--set NAME] | remove"
 allowed-tools: Bash, Read
 ---
 
@@ -33,7 +33,7 @@ from the main checkout; it reads the flat keys in `.claude/brigade.md`.
 | `role` | `cook <station> <main checkout>` inside a station, else `main <main checkout>`. Every lifecycle skill runs this first |
 | `sous [--set NAME]` | print the sous chef's session name, from the main checkout or any station; exits 1 if none is recorded. `--set`, from the main checkout only: record it in `.claude/sous`, kept out of git through `.git/info/exclude`. `/bk:sous-chef` sets it on start; `/bk:line-cook` reads it to check in without waiting for a `[hello]` |
 | `questions` | every unanswered question (`Qn` with no `An`) in the stations' journals: what the cooks are waiting on |
-| `lessons` | lesson lines counted by distinct tickets across all journals, each marked `watch` / `DUE` / `promoted` (the sous runs it at handoff) |
+| `lessons` | lesson lines counted by distinct tickets across all journals (any depth under `docs.journal`, in trunk and every station), checked against the `docs.lessons` register, each marked `watch` / `DUE` / `promoted` (the sous runs it at handoff) |
 | `sessions [--dir D]` | the Claude Code session transcripts saved for this checkout (or `D`, e.g. a station), newest first, from `$CLAUDE_CONFIG_DIR` (else `~/.claude`). `/bk:feedback` uses it |
 | `remove` | delete every station, after showing status and asking for `delete`. Worktree mode uses `git worktree remove`, which refuses a dirty station and keeps every branch |
 
