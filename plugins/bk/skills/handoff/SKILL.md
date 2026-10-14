@@ -47,7 +47,7 @@ Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`.
    - **Lessons**: only things a future session would get wrong again. One line each, tagged
      `lesson(repo)` (this codebase, its tools, its tests) or `lesson(plugin)` (the Brigade
      itself: a gate asked the wrong person, a skill stopped for nothing, a rule that didn't
-     fit). Reuse an existing key when it's the same lesson (`grep -h 'lesson(' <docs.journal>/*.md docs/lessons.md`
+     fit). Reuse an existing key when it's the same lesson (`grep -rh 'lesson(' <docs.journal> <docs.lessons>`
      shows the keys in use) so the count works. Reading keys isn't counting: only the sous's handoff counts. No lesson is fine; don't invent one.
 5. **Tell the sous** in one line: `[status] <ID> handoff written, see journal`.
 6. **On `[go]`** (the automatic case), this runs after `/bk:clean around` and before
@@ -62,11 +62,11 @@ Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`.
    ```
    For each `DUE` row: a `repo` lesson → fire a `BKLG` ticket "promote lesson `<key>` into
    CLAUDE.md (or the config notes)" with the lesson lines as evidence, and add
-   `` | `<key>` | repo | <ticket> | `` to `docs/lessons.md` (create it with a header row if
+   `` | `<key>` | repo | <ticket> | `` to the register, `docs.lessons` (default `docs/lessons.md`; create it with a header row if
    missing; commit per `rail.commit`). A `plugin` lesson → run `/bk:feedback` with the
    lesson lines as the note: it removes every repo-specific name, path and snippet, shows the
    head chef the draft, and **files it only on their yes**. Then add the key to
-   `docs/lessons.md` either way (`filed #n` or `declined`).
+   the register either way (`filed #n` or `declined`).
 2. **Overwrite** `.claude/sous-handoff.md` (make sure `.gitignore` lists it) with only what
    lives nowhere else:
    ```markdown

@@ -12,6 +12,15 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.15.1] - 2026-10-14
+
+Lesson promotion works when journals move or the docs folder has rules.
+`kitchen.sh lessons` reads journals at any depth under `docs.journal`, so lessons from
+finished tickets still count when their journal moves (for example, inside a plan moved to
+`completed/`). The register of promoted lessons now has its own key, `docs.lessons`
+(default `docs/lessons.md`): set it if the repo doesn't allow that file.
+([#18](https://github.com/mhmzdev/claude-code-brigade/issues/18))
+
 ## [0.15.0] - 2026-10-14
 
 Restart a cook by hand without losing the sous. `kitchen open` now leaves each station a

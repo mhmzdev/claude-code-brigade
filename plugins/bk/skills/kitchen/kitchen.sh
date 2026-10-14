@@ -57,7 +57,9 @@
 #                                         is recorded). --set, from the main checkout:
 #                                         record it in .claude/sous (kept out of git)
 #   kitchen.sh lessons                    count lesson(...) lines across ticket journals
-#                                         and say which are due for promotion
+#                                         (any depth under docs.journal, so finished
+#                                         ones moved to a subfolder still count) and
+#                                         say which are due for promotion
 #   kitchen.sh questions                  every unanswered question (Qn with no An) in
 #                                         the stations' ticket journals
 #   kitchen.sh sessions [--dir D]         the Claude Code session transcripts saved for
@@ -104,7 +106,7 @@ cfg() {
 }
 
 # cfg_docs <name> → docs.<name> from the nested docs: block, with a default
-cfg_docs() {
+cfg_docs() {  # cfg_docs <key> [default] → docs.<key>, else the default, else docs/<key>
   local v=""
   [[ -f "$CONFIG" ]] && v=$(awk -v k="$1" '
     NR==1 && $0=="---" { inside=1; next }
@@ -112,7 +114,7 @@ cfg_docs() {
     inside && /^docs:/ { indocs=1; next }
     indocs && /^[^ ]/ { indocs=0 }
     indocs && $0 ~ "^  " k ":" { sub("^  " k ":[ ]*", ""); sub(/[ ]+#.*$/, ""); print; exit }' "$CONFIG")
-  printf '%s' "${v:-docs/$1}"
+  printf '%s' "${v:-${2:-docs/$1}}"
 }
 
 TRUNK="${BRIGADE_TRUNK:-$(cfg trunk)}"
@@ -847,13 +849,17 @@ cmd_sous() {
 # lessons — the mechanical half of lesson promotion. A lesson is one line in a
 # ticket journal:  - lesson(repo|plugin): <key> | <text> | <TICKET-ID>
 # Due: a repo lesson seen in >= 2 different tickets, a plugin lesson seen once,
-# and the key not yet listed in docs/lessons.md.
+# and the key not yet listed in the register (docs.lessons, default docs/lessons.md).
+# Journals are read at any depth under docs.journal: a repo whose journal lives in
+# its plans moves them to e.g. plans/completed/ when done, and those still count.
 # ---------------------------------------------------------------------------
 cmd_lessons() {
-  local journal lessons_file files=()
-  journal="$(cfg_docs journal)"; lessons_file="$ROOT/docs/lessons.md"
-  while IFS= read -r f; do files+=("$f"); done < <(
-    { ls "$ROOT/$journal"/*.md 2>/dev/null; ls "$KITCHEN"/station-*/"$journal"/*.md 2>/dev/null; } | grep -v '/INDEX\.md$')
+  local journal lessons_file dir f files=()
+  journal="$(cfg_docs journal)"; lessons_file="$ROOT/$(cfg_docs lessons docs/lessons.md)"
+  for dir in "$ROOT/$journal" "$KITCHEN"/station-*/"$journal"; do
+    [[ -d "$dir" ]] || continue
+    while IFS= read -r f; do files+=("$f"); done < <(find "$dir" -name '*.md' ! -name INDEX.md -type f 2>/dev/null)
+  done
   (( ${#files[@]} == 0 )) && { echo "No ticket journals yet."; return 0; }
   printf '%-7s %-28s %-8s %-9s %s\n' SCOPE KEY TICKETS STATUS "FIRST SEEN AS"
   grep -h -E '^- lesson\((repo|plugin)\): ' "${files[@]}" 2>/dev/null | awk -F' \\| ' -v lf="$lessons_file" '
