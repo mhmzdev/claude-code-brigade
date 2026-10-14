@@ -12,6 +12,12 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.14.1] - 2026-10-14
+
+The sous trusts a cook's `[check-in]`. A cook that checks in with no ticket, a clean
+station and a fresh session gets its brief straight away; the sous no longer asks it to
+confirm it was cleared. ([#12](https://github.com/mhmzdev/claude-code-brigade/issues/12))
+
 ## [0.14.0] - 2026-10-14
 
 A cook that's restarted or cleared can find the sous by itself. When `/bk:sous-chef`

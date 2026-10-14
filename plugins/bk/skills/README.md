@@ -339,8 +339,9 @@ each free cook on the next ready ticket (Contract 3) without asking, and tells t
 chef what it assigned and why in one line. The head chef steers by saying what comes first
 or what to hold, and still signs off every plan. With `gates.assign: head-chef`, the sous
 proposes and waits for a yes. Either way a cook only gets a ticket when it is **free**: it
-has checked in with no ticket, a clean station, and a fresh session. A cook that has just
-served is not free until its session has been cleared.
+has checked in with no ticket, a clean station, and a fresh session. That `[check-in]` is
+enough: the sous never asks the cook to confirm it was cleared. A cook that has just served
+is not free until its session has been cleared.
 
 **The chef's sign-off is what starts `/bk:implement`.** It approves the plan and authorises
 every commit made under it (after the sous's pass). No separate "approve?" question exists.

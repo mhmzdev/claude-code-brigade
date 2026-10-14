@@ -92,6 +92,10 @@ says **spent** (it has just served, or just grilled the head chef) is not free u
 been cleared and checks in again. Mid-ticket, waiting on you, dirty, or silent → not free. No
 free cook → assign nothing, and say who is busy with what.
 
+**The check-in is the proof.** It's the cook's own report from its station, not a label, and
+the cook wins about its station (rule 8). A `[check-in]` that says no ticket, clean and
+fresh means a free cook: brief it. Don't ask it to confirm it was cleared or is really fresh.
+
 **2. Which ticket is next.** From the rail board, take the **ready** tickets (Contract 3):
 the rows with `yes` under `RDY`. The board has already checked every blocker and every
 backlog item's `kind`, so don't second-guess a `no` or a `spec`. A blocker printed with `?` is no ticket on this rail; it holds its
@@ -353,8 +357,10 @@ One cook, one ticket, one shift. When a cook's PR is open and LGTM'd:
 3. Assign it when the fresh session checks in ([Assigning tickets](#assigning-tickets)),
    not before. Reusing a live session for a second ticket is never your call.
 
-Don't trust labels. A "cleared" session may be mid-ticket. When a cook says your premise
-doesn't match its station, believe the cook and re-check.
+Trust the check-in, not labels. A tab title, a session name or your handoff note can be
+stale; the cook's newest `[check-in]` is what's true now. If it says fresh, clean and no
+ticket, brief it; if it says it's mid-ticket, it is. When a cook says your premise doesn't
+match its station, believe the cook and re-check.
 
 ## Your own handoff
 
