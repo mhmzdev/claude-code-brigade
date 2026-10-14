@@ -23,7 +23,7 @@ from the main checkout; it reads the flat keys in `.claude/brigade.md`.
 | Command | Does |
 |---|---|
 | `setup [-n N]` | create N stations (clones in `stations/`, or worktrees in `../<repo>-stations/` when `kitchen_mode: worktree`), add the ignore line to whichever repo contains them (and `.dockerignore` if present), copy `copy_into_stations`, seed a small `settings.local.json`, run `install`. Existing stations are left alone, so `setup -n 4` on a 2-station kitchen adds station-3 and station-4 |
-| `open [-n N] [-m "O S"] [--terminal …] [--bare]` | open one `claude` session per station (every station, or the first N with `-n`), **already running `/bk:line-cook`**. A station where a `claude` session is already working is left alone, so after `setup -n 4` a plain `open` starts only the new cooks (`--bare` for a plain session). `-m` takes one model per station in order (O/S/H/F or full names; one value covers all). Terminal defaults to Warp if installed, else the OS's own terminal (Terminal.app on macOS; Windows Terminal, or mintty in Git Bash, on Windows and WSL; the desktop's terminal on Linux), else printed commands. tmux only when asked: `--terminal tmux`. `--no-launch` writes the Warp config or shows the native launch without opening anything |
+| `open [-n N] [-m "O S"] [--terminal …] [--bare]` | open one `claude` session per station (every station, or the first N with `-n`), **already running `/bk:line-cook`**. A station where a `claude` session is already working is left alone, so after `setup -n 4` a plain `open` starts only the new cooks (`--bare` for a plain session). `-m` takes one model per station in order (O/S/H/F or full names; one value covers all). Terminal defaults to Warp if installed, else the OS's own terminal (Terminal.app on macOS; Windows Terminal, or mintty in Git Bash, on Windows and WSL; the desktop's terminal on Linux), else printed commands. tmux only when asked: `--terminal tmux`. `--no-launch` writes the Warp config or shows the native launch without opening anything. Every station it opens gets `.claude/cook` (kept out of git): a launcher that restarts that cook with the same `CLAUDE_CONFIG_DIR`, name, model and permission mode, resuming the last session by default |
 | `sync` | reset **clean** stations to `origin/<trunk>` (worktrees: detached there). Dirty ones are skipped: a cook may be mid-ticket |
 | `status` | branch, dirty/clean, commits ahead per station, plus open PRs against trunk |
 | `files` | files in flight per station vs `origin/<trunk>` (committed and uncommitted), plans, and **unmerged migrations** flagged |
@@ -64,4 +64,6 @@ the user asks for it by name; the script's own prompt is theirs to answer.
 - The script never assigns work. Sessions start as line cooks and wait for the sous chef's `[brief]`.
 - Never run `sync` to "clean up" a dirty station: dirty is a cook's work in progress.
 - Every session must run under the same `CLAUDE_CONFIG_DIR` as the sous, or `ListAgents`
-  won't see it. `open` passes the current one through.
+  won't see it. `open` passes the current one through, and writes each station a
+  `.claude/cook` launcher that pins it: to restart a cook by hand (after `/exit`), run
+  `.claude/cook` in its station to resume, or `.claude/cook "/bk:line-cook"` for a fresh session.

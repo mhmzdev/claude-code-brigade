@@ -389,7 +389,8 @@ question goes to the sous.
 
 Sessions find each other with `ListAgents` and talk with `SendMessage` (load both with
 `ToolSearch` if they are deferred). Discovery works per Claude Code profile, so the sous
-and every cook must run under the same `CLAUDE_CONFIG_DIR`.
+and every cook must run under the same `CLAUDE_CONFIG_DIR`. `kitchen open` passes it
+through, and leaves each station a `.claude/cook` launcher that restarts its cook under it.
 
 Cooks are named `<repo>-cook-N` by `kitchen open`; the sous keeps whatever name its session
 has. So the sous records it: on start, `kitchen.sh sous --set <its ListAgents name>`. A cook
