@@ -28,7 +28,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
+      # Full history, so origin/main is there for check.sh's version-bump check.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # macOS runners put a Homebrew bash 5 first on PATH; users run the system
       # bash 3.2 (kitchen.sh's `#!/usr/bin/env bash` resolves through PATH), so pin it.

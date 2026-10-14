@@ -1,0 +1,43 @@
+# Every merge to main is a release. After check passes on main, tag the commit
+# v<version> (plugin.json) and publish a GitHub release whose notes are that
+# version's CHANGELOG.md entry. check.sh already refused any PR that didn't bump the
+# version or add the entry, so a tag that exists means this commit was released.
+name: release
+
+on:
+  workflow_run:
+    workflows: [check]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Tag and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          version=$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' plugins/bk/.claude-plugin/plugin.json | head -1)
+          tag="v$version"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "$tag already exists at $(git rev-list -n1 "$tag"); nothing to release"
+            exit 0
+          fi
+          awk -v h="## [$version]" 'index($0, h) == 1 {on=1; next} on && /^## \[/ {exit} on' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then echo "no CHANGELOG.md entry for $version" >&2; exit 1; fi
+          gh release create "$tag" --target "$SHA" --title "$tag" --notes-file notes.md

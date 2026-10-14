@@ -7,7 +7,7 @@ use it on a product. `CLAUDE.md` is a symlink to this file, so every coding agen
 same instructions.
 
 User-facing overview: [`README.md`](README.md). How each flow runs: [`PLAYBOOK.md`](PLAYBOOK.md). Every name the plugin uses:
-[`docs/the-names.md`](docs/the-names.md).
+[`docs/the-names.md`](docs/the-names.md). What changed in each version: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Contents
 
@@ -33,8 +33,10 @@ plugins/bk/                         the plugin (skills are invoked /bk:<skill>)
 │                                   sessions
 ├── agents/                         inspector (report-only), taster (the pass), runner (noisy commands)
 └── templates/                      spec, ticket, plan, checklist, journal, brigade.local
-scripts/check.sh                    THE gate: manifests, shellcheck, frontmatter, tests
+scripts/check.sh                    THE gate: manifests, shellcheck, frontmatter, tests, version
 .github/workflows/check.yml         runs the gate in CI on Linux and macOS
+.github/workflows/release.yml       tags each green merge to main v<version>, with a GitHub release
+CHANGELOG.md                        one entry per version, newest first
 tests/kitchen.test.sh               behaviour tests for kitchen.sh, both kitchen modes
 docs/the-names.md                   the Brigade names, plus Qafila as an alternate
 PLAYBOOK.md                         how each flow runs, as questions and answers; the contract wins over it
@@ -94,7 +96,10 @@ It runs, in order:
    `disable-model-invocation: true` only on `setup`; every agent is listed in
    `plugin.json`;
 4. `tests/kitchen.test.sh`: about 60 behaviour tests of `kitchen.sh` in throwaway repos, in
-   both `clone` and `worktree` mode, including a workspace repo that holds the app repo.
+   both `clone` and `worktree` mode, including a workspace repo that holds the app repo;
+5. a release check: `version` in `plugin.json` is `X.Y.Z`, it's the top entry of
+   `CHANGELOG.md` (`## [X.Y.Z] - YYYY-MM-DD`), and on a branch it's higher than
+   `origin/main`'s.
 
 The tests are sealed off from the machine: git runs with `GIT_CONFIG_GLOBAL=/dev/null`, `HOME`
 points into the temp dir, and `open` only runs with `--terminal print` or `--no-launch`, so
@@ -122,10 +127,18 @@ now disagrees.
   jobs are green and the branch is up to date with `main`. No approving review is required
   (a solo maintainer can't approve their own PR), so reading the diff before merging is on you.
   Run `scripts/check.sh` locally before opening the PR; CI skips manifest validation.
-- **Bump `version` in `plugins/bk/.claude-plugin/plugin.json`** for every release, and add a
-  line to the Status section of `README.md`.
-- **A renamed skill or plugin is breaking.** Say so in the commit and README: installs are
-  tied to the plugin name (`bk@claude-code-brigade`), and people type skill names.
+- **Every merge to `main` is a release.** In every PR, bump `version` in
+  `plugins/bk/.claude-plugin/plugin.json` and add its entry at the top of `CHANGELOG.md`:
+  `## [X.Y.Z] - YYYY-MM-DD`, then a short paragraph for the busy human (what changed for
+  them, and what they must do). Minor for a change in how a kitchen runs, patch for fixes
+  and changes that don't touch the plugin's behaviour. `scripts/check.sh` fails the PR
+  without both. If another PR lands first, bring `main` in and bump again.
+- **The tag and the GitHub release are automatic.** When `check` goes green on `main`,
+  `.github/workflows/release.yml` tags the merge `v<version>` and publishes a release whose
+  notes are its `CHANGELOG.md` entry. Never tag by hand. The README doesn't carry a version.
+- **A renamed skill or plugin is breaking.** Say so in bold in its `CHANGELOG.md` entry and
+  in the commit: installs are tied to the plugin name (`bk@claude-code-brigade`), and people
+  type skill names.
 - Commit subjects: `feat: …`, `fix(kitchen): …`, `docs(readme): …`.
 
 ## Dogfooding
