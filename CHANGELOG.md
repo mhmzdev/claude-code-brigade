@@ -12,6 +12,15 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.14.0] - 2026-10-14
+
+A cook that's restarted or cleared can find the sous by itself. When `/bk:sous-chef`
+starts, it records its session name with the new `kitchen.sh sous --set`, in
+`.claude/sous` (kept out of git). `/bk:line-cook` reads it with `kitchen.sh sous` and checks
+in straight away, as long as `ListAgents` still lists that name; otherwise it waits for the
+sous's `[hello]` as before. Restart the sous once after updating so it records its name.
+([#15](https://github.com/mhmzdev/claude-code-brigade/issues/15))
+
 ## [0.13.1] - 2026-10-14
 
 This changelog. The version history moved here from the README's Status section. Every

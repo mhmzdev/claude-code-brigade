@@ -29,8 +29,10 @@ sous briefs you for.
 
 1. Load `ListAgents` and `SendMessage` with `ToolSearch` if they're deferred. Your own name,
    if `kitchen open` started you, is `<repo>-cook-N` (you work in station-N). Find the sous: the session named
-   in the invocation, else the one running in the main checkout (the repo that owns this
-   station). Not sure which one it is? Don't guess: wait for its `[hello]`.
+   in the invocation, else the name `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" sous`
+   prints (the sous records it when it starts). Use that name only if `ListAgents` lists
+   it: a name that isn't listed is a sous that has gone. No name, or not sure? Don't
+   guess: wait for its `[hello]`.
 2. Look at your station: `pwd`, `git branch --show-current`, `git status --short`.
 3. **Already on a ticket?** (the branch name carries an id, e.g. after a `/clear`) Read that
    ticket's journal (`<docs.journal>/<ID>-*.md`) and take its **last** `## Handoff` section

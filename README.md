@@ -195,7 +195,9 @@ the repo prefix keeps two kitchens on one machine apart. Cooks start in Claude C
 `permission_mode:` in the config to change it).
 
 **The start order doesn't matter.** A cook that comes up before the sous says it's waiting;
-when the sous starts it sends `[hello]` to cooks in its stations, and they check in. Prefer
+when the sous starts it sends `[hello]` to cooks in its stations, and they check in. The
+sous also records its own session name (`kitchen.sh sous`), so a cook that's restarted or
+cleared later finds it and checks in by itself. Prefer
 plain sessions? `kitchen open --bare`, then name them to the sous (`/bk:sous-chef @one @two`);
 its brief tells each one it's a line cook.
 

@@ -127,8 +127,8 @@ Two commands, in either order:
    running `/bk:line-cook`. It only opens sessions. It assigns nothing.
 2. **`/bk:sous-chef`** in the main checkout makes that session the sous. It pulls trunk,
    reads its last handoff note, collects unanswered questions from the cooks' journals,
-   builds the board, says `[hello]` to cooks that were already waiting, and then assigns
-   work.
+   builds the board, records its session name for the cooks (`kitchen.sh sous`), says
+   `[hello]` to cooks that were already waiting, and then assigns work.
 
 So the sous is what picks tickets, not `kitchen open`. You don't need to ask it to.
 
