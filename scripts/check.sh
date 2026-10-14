@@ -7,6 +7,8 @@
 # 3. skills      frontmatter sanity: name matches folder, description present,
 #                disable-model-invocation only on setup
 # 4. behaviour   tests/kitchen.test.sh
+# 5. release     plugin.json's version is the top CHANGELOG.md entry and, on a branch,
+#                is higher than origin/main's (every merge to main is a release)
 #
 # Exit 0 = safe to push to main (which is the release).
 # =============================================================================
@@ -58,6 +60,34 @@ done
 step "4. behaviour (tests/kitchen.test.sh)"
 if out=$(bash tests/kitchen.test.sh 2>&1); then echo "   ✓ $(printf '%s\n' "$out" | tail -1 | sed 's/^# //')"
 else printf '%s\n' "$out" | grep -E '^not ok|^# passed' | sed 's/^/     /'; fail "kitchen tests"; fi
+
+step "5. release (version and CHANGELOG.md)"
+before=${#FAILED[@]}
+version_of() { sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' | head -1; }
+newer() {  # newer A B: A > B, both X.Y.Z
+  local a1 a2 a3 b1 b2 b3
+  IFS=. read -r a1 a2 a3 <<<"$1"; IFS=. read -r b1 b2 b3 <<<"$2"
+  (( a1 > b1 || (a1 == b1 && (a2 > b2 || (a2 == b2 && a3 > b3))) ))
+}
+MANIFEST=plugins/bk/.claude-plugin/plugin.json
+version=$(version_of <"$MANIFEST")
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  fail "$MANIFEST: version '$version' isn't X.Y.Z"
+else
+  top=$(grep -m1 '^## \[' CHANGELOG.md 2>/dev/null)
+  [[ "$top" =~ ^"## [$version] - "[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] \
+    || fail "CHANGELOG.md: top entry is '${top:-missing}', want '## [$version] - YYYY-MM-DD'"
+  if ! git rev-parse -q --verify origin/main >/dev/null; then
+    echo "   ! no origin/main: version bump not checked"
+  elif git merge-base --is-ancestor HEAD origin/main && git diff --quiet HEAD; then
+    :  # main itself, or a clean checkout behind it: nothing new to release
+  else
+    main_version=$(git show "origin/main:$MANIFEST" | version_of)
+    newer "$version" "$main_version" \
+      || fail "$MANIFEST: version $version must be higher than origin/main's $main_version (every merge is a release)"
+  fi
+fi
+(( ${#FAILED[@]} == before )) && echo "   ✓ v$version"
 
 echo ""
 if (( ${#FAILED[@]} == 0 )); then echo "ALL CHECKS PASSED"; else echo "FAILED: ${#FAILED[@]} check(s)"; exit 1; fi

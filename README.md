@@ -1,6 +1,7 @@
 # The Brigade
 
 [![check](https://github.com/mhmzdev/claude-code-brigade/actions/workflows/check.yml/badge.svg)](https://github.com/mhmzdev/claude-code-brigade/actions/workflows/check.yml)
+[![release](https://img.shields.io/github/v/release/mhmzdev/claude-code-brigade)](CHANGELOG.md)
 
 ![The Brigade: a sous chef bot at the pass, line-cook bots at five stations, and the human head chef overseeing](assets/hero.jpeg)
 
@@ -117,7 +118,7 @@ claude plugin update bk@claude-code-brigade
 ```
 
 Or do both from the `/plugin` menu. Then **restart every session**, the sous and each cook:
-a running session keeps the version it started with. The [Status](#status) section says
+a running session keeps the version it started with. [`CHANGELOG.md`](CHANGELOG.md) says
 what changed in each version.
 
 ## Set up a repo
@@ -327,63 +328,8 @@ You can also [open an issue](https://github.com/mhmzdev/claude-code-brigade/issu
 
 ## Status
 
-**v0.13.** A backlog item is work that still has to become tickets. Only a bug
-(`kind: bug`) is planned and built straight from the backlog; every other item goes through
-a spec first, however small. The old "small enough to build" judgement is gone. The rail
-board now says so itself: `RDY` is `yes`, `no` (a blocker is open) or `spec` (a backlog
-item waiting for its spec). It also resolves blockers itself, listing only the open ones
-and marking an id that is no ticket on the rail with `?`, which holds the ticket; before,
-the sous was told a blocker missing from the board was done. **Existing backlog items have
-no `kind:` and now read as items:** mark the real bugs `kind: bug`.
-
-**v0.12.** The sous assigns work itself: each free cook gets the next ready ticket, by
-`priority` (a new optional ticket field, shown on the rail board), then by what unblocks
-the most, then oldest first. It tells you what it assigned; `gates.assign: head-chef` makes
-it ask first. The sous can hand a grilling to a free cook: it tells you which station is
-waiting, the cook grills you there, logs the decisions in the spec, and reports back.
-Brainstorming stays between you and the sous.
-
-**v0.11.** Test accounts: logins for local, stage and production live in the gitignored
-`.claude/brigade.local.md`, so you share them once. Cooks ask the sous for an account by
-name and read it from the file; secrets never go into messages, journals or PRs, and the
-new `kitchen.sh leaks` checks for them at the pass and again before the commit and the push. A write on production needs your yes for that one action.
-
-**v0.10.** You now talk to the sous only. Cooks never ask the human: every question goes to
-the sous, which brings plans and real design forks to you with a recommendation and relays
-your answer. The plan sign-off moved from typing `/bk:implement` in each cook's terminal to
-a yes in the sous's; the sous sends `[approved]` and the cook starts. So `implement` is now
-model-invocable, and checks the sign-off itself. `kitchen.sh board` prints the whole state
-in one go and keeps `.claude/board.md` current for you to leave open.
-
-**v0.9.** The backlog is now where un-specced work waits. A `BKLG` item can be anything not
-yet grilled or specced, a whole capability included, and `/bk:file-tickets` no longer asks
-for a spec first. `/bk:pick-ticket` says whether an item is small enough to build directly
-or needs a spec; `/bk:spec` then closes the item into the spec it became (`spec: SNNN`),
-and the spec's tickets carry the work.
-
-**v0.8.** `/bk:feedback` sends feedback to the maintainers as a GitHub issue: scrubbed of
-anything from your repo, session context only if you agree, filed only on your yes. The sous's
-handoff files due plugin lessons through it. `kitchen.sh sessions` lists the saved session
-transcripts for a checkout or a station, from `$CLAUDE_CONFIG_DIR`.
-
-**v0.7.** `kitchen open` without Warp now opens the machine's own terminal (Terminal.app,
-Windows Terminal or mintty, or the Linux desktop's) instead of tmux, and prints the commands
-only when there is none. Warp is also found in `~/Applications` and on Linux. tmux is still
-there with `--terminal tmux`. To grow a kitchen, run `kitchen setup -n 4`: existing stations
-stay put, and `open` now opens every station, not just the configured count, skipping any
-station where a cook is already running.
-
-**v0.6.** Long services: ticket journals, `/bk:handoff` for cooks and the sous, lessons
-promoted by count, the `taster` and `runner` sub-agents, and cleaning in three scopes. A
-session inside a station is a cook even after `/clear`. `clean` is no longer human-only, so
-cooks run it in their loop.
-
-**v0.5.** Skills no longer ask for approval they already have; `review` is now
-`review-task`; cooks start themselves and check in in either order.
-
-**v0.3.** Tried on a real repo (a Flutter package): setup, stations, `kitchen open`, and
-the sous ↔ cook check-in all work. v0.3 adds worktree stations, tested in a nested
-workspace layout; clone mode is unchanged. A full ticket, from brief to merged PR, is the next
-thing being run. Issues and PRs welcome.
+Every merge to `main` is a release, tagged `vX.Y.Z` with a
+[GitHub release](https://github.com/mhmzdev/claude-code-brigade/releases). What changed in
+each version, newest first, is in [`CHANGELOG.md`](CHANGELOG.md). Issues and PRs welcome.
 
 MIT © Muhammad Hamza
