@@ -29,8 +29,8 @@ plugins/bk/                         the plugin (skills are invoked /bk:<skill>)
 │                                   brainstorm, grill-me, spec, file-tickets, pick-ticket,
 │                                   create-plan, implement, review-task, open-pr, clean, handoff,
 │                                   feedback
-├── skills/kitchen/kitchen.sh       the only runtime script: stations, boards, role, questions, lessons,
-│                                   sessions
+├── skills/kitchen/kitchen.sh       the only runtime script: stations, boards, role, sous, questions,
+│                                   lessons, sessions
 ├── agents/                         inspector (report-only), taster (the pass), runner (noisy commands)
 └── templates/                      spec, ticket, plan, checklist, journal, brigade.local
 scripts/check.sh                    THE gate: manifests, shellcheck, frontmatter, tests, version

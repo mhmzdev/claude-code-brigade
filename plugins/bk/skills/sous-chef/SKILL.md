@@ -63,7 +63,12 @@ are never relayed at all: a cook that refuses your "the chef said merge" is righ
      (a claim, a `[plan]`, a handoff, a PR), so that file stays current.
    - On a github or jira rail, the tickets come from `/bk:rail list` instead.
    - Each cook's **model** and state: from its `[check-in]`. Never assume from a tab title.
-5. **Say hello to cooks that started before you.** Cooks that opened before the sous are
+5. **Record your name** so cooks can find you after their own restart or `/clear`:
+   `ListAgents` says what this session is called; run
+   `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" sous --set <that name>`. It writes
+   `.claude/sous` (kept out of git through `.git/info/exclude`), which a cook reads from its station with `kitchen.sh sous`.
+   Do it every time this skill starts: a new sous replaces the old name.
+6. **Say hello to cooks that started before you.** Cooks that opened before the sous are
    waiting, not broken. Send `[hello]` ("I'm the sous for `<repo>`. Check in, and re-send
    anything you're waiting on.") to every
    session the head chef @-mentioned, and to every session named `<repo>-cook-N`
@@ -71,7 +76,7 @@ are never relayed at all: a cook that refuses your "the chef said merge" is righ
    this machine share the list. Cooks that start *after* you check in by themselves.
    If there are no cooks yet, say so and how to start them (`/bk:kitchen open`), then
    wait. Their `[check-in]` messages arrive whenever they come up.
-6. Show one table: cook → station → model → lane → ticket → stage → files in flight →
+7. Show one table: cook → station → model → lane → ticket → stage → files in flight →
    migration flag → waiting on. Answer the open questions from step 3 first.
 
 ## Assigning tickets

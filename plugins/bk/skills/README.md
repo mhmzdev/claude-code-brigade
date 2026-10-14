@@ -235,6 +235,7 @@ because only one session (the sous) hands them out. They are zero-padded and nev
 | Journal | `docs/journal/<id>-<slug>.md` | the ticket's id |
 | Promoted lessons | `docs/lessons.md` | — (one row per promoted key) |
 | Sous handoff | `.claude/sous-handoff.md`, **gitignored** | — (overwritten each handoff) |
+| Sous's session name | `.claude/sous`, kept out of git (`.git/info/exclude`) | — (written by `kitchen.sh sous --set` when the sous starts) |
 | Research | `docs/research/YYYY-MM-DD-<slug>.md` | — |
 | Brainstorm | `docs/brainstorm/YYYY-MM-DD-<slug>.md` | — |
 | Branch | `<lowercase id>-<slug>` e.g. `bklg-004-fix-login` | — |
@@ -388,6 +389,11 @@ question goes to the sous.
 Sessions find each other with `ListAgents` and talk with `SendMessage` (load both with
 `ToolSearch` if they are deferred). Discovery works per Claude Code profile, so the sous
 and every cook must run under the same `CLAUDE_CONFIG_DIR`.
+
+Cooks are named `<repo>-cook-N` by `kitchen open`; the sous keeps whatever name its session
+has. So the sous records it: on start, `kitchen.sh sous --set <its ListAgents name>`. A cook
+reads it with `kitchen.sh sous` and checks in straight away if `ListAgents` still lists that
+name; otherwise it waits for the `[hello]`.
 
 Keep messages short and typed. The first line is the kind, in brackets:
 
@@ -593,7 +599,7 @@ journal, written at handoff:
 | Skill | Lane | Does |
 |---|---|---|
 | `/bk:setup [--worktree \| --clone]` | — | set up the Brigade in a repo: config, rail folders, `CLAUDE.md` section. Refuses a workspace root |
-| `/bk:kitchen` | — | stations: setup, open, sync, status, files, rail board, `board` (all of it in one snapshot, also written to `.claude/board.md`), and `leaks` (test-account secrets copied into a checkout) |
+| `/bk:kitchen` | — | stations: setup, open, sync, status, files, rail board, `board` (all of it in one snapshot, also written to `.claude/board.md`), `sous` (the sous's session name, for cooks), and `leaks` (test-account secrets copied into a checkout) |
 | `/bk:sous-chef` | — | take the lead role for the rest of the session |
 | `/bk:line-cook` | — | take a station's worker role for the rest of the session |
 | `/bk:rail` | — | the six rail operations on any adapter |

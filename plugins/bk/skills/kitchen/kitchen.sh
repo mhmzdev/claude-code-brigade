@@ -49,6 +49,10 @@
 #   kitchen.sh remove                     delete every station (asks first)
 #   kitchen.sh role                       "cook <station> <main checkout>" when run inside
 #                                         a station, else "main <main checkout>"
+#   kitchen.sh sous [--set NAME]          print the sous chef's session name, from the
+#                                         main checkout or any station (exits 1 if none
+#                                         is recorded). --set, from the main checkout:
+#                                         record it in .claude/sous (kept out of git)
 #   kitchen.sh lessons                    count lesson(...) lines across ticket journals
 #                                         and say which are due for promotion
 #   kitchen.sh questions                  every unanswered question (Qn with no An) in
@@ -135,6 +139,8 @@ BARE=false
 NO_LAUNCH=false
 SESSIONS_DIR=""   # --dir, for sessions and leaks
 ALSO=""           # --also, one extra file for leaks
+SET_SOUS=false    # --set, for sous
+SOUS_NAME=""
 MODELS=()
 ARGV=()   # set by native_argv
 
@@ -149,6 +155,7 @@ while [[ $# -gt 0 ]]; do
     --no-launch) NO_LAUNCH=true; shift ;;
     --dir) SESSIONS_DIR="$2"; shift 2 ;;
     --also) ALSO="$2"; shift 2 ;;
+    --set) SET_SOUS=true; SOUS_NAME="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
     -m|--model) shift
       while [[ $# -gt 0 && "$1" != -* ]]; do
         for tok in ${1//,/ }; do MODELS+=("$tok"); done; shift
@@ -292,6 +299,18 @@ busy() {
     [[ -n "$cwd" ]] && [[ "$cwd" == "$st" || "$cwd" == "$st"/* ]] && return 0
   done <<< "$2"
   return 1
+}
+
+# exclude_locally <path in the main checkout>: keep a machine-local file out of git
+# through .git/info/exclude, so no tracked file (like .gitignore) changes.
+exclude_locally() {
+  local exclude
+  git -C "$ROOT" check-ignore -q "$ROOT/$1" && return 0
+  exclude="$(git -C "$ROOT" rev-parse --path-format=absolute --git-path info/exclude)"
+  mkdir -p "$(dirname "$exclude")"
+  # a file that doesn't end in a newline would fuse our line onto its last one
+  [[ -s "$exclude" && -n "$(tail -c1 "$exclude")" ]] && echo "" >> "$exclude"
+  echo "$1" >> "$exclude"
 }
 
 ensure_ignored() {  # ensure_ignored <file> <line>
@@ -689,7 +708,7 @@ cmd_rail() {
 # no tracked file changes.
 # ---------------------------------------------------------------------------
 cmd_board() {
-  local here_real out exclude text
+  local here_real text
   text="$(echo "# The board: $REPO_NAME"
     echo ""
     echo "Generated $(date '+%Y-%m-%d %H:%M') by \`kitchen.sh board\`. Rewritten each time; don't edit it."
@@ -701,15 +720,8 @@ cmd_board() {
   printf '%s\n' "$text"
   here_real="$(cd "$HERE" && pwd -P)"
   [[ "$here_real" == "$ROOT_REAL" && -d "$ROOT/.claude" ]] || return 0
-  out="$ROOT/.claude/board.md"
-  if ! git -C "$ROOT" check-ignore -q "$out"; then
-    exclude="$(git -C "$ROOT" rev-parse --path-format=absolute --git-path info/exclude)"
-    mkdir -p "$(dirname "$exclude")"
-    # a file that doesn't end in a newline would fuse our line onto its last one
-    [[ -s "$exclude" && -n "$(tail -c1 "$exclude")" ]] && echo "" >> "$exclude"
-    echo ".claude/board.md" >> "$exclude"
-  fi
-  printf '%s\n' "$text" > "$out"
+  exclude_locally .claude/board.md
+  printf '%s\n' "$text" > "$ROOT/.claude/board.md"
 }
 
 # ---------------------------------------------------------------------------
@@ -767,6 +779,34 @@ cmd_role() {
   else
     echo "main $ROOT_REAL"
   fi
+}
+
+# ---------------------------------------------------------------------------
+# sous — the sous chef's session name, so a cook can find it without waiting for
+# a [hello] (after a restart or a /clear). /bk:sous-chef records the name that
+# ListAgents gives it; a cook reads it from its station. The file can outlive the
+# session: a cook checks the name is still listed before it messages it.
+# ---------------------------------------------------------------------------
+cmd_sous() {
+  local file="$ROOT/.claude/sous" name here_real
+  if $SET_SOUS; then
+    name="$SOUS_NAME"
+    if [[ -z "$name" || "$name" == -* || "$name" =~ [[:space:]] ]]; then
+      echo "Usage: kitchen.sh sous --set <session name>  (one word, as ListAgents shows it)" >&2; return 1
+    fi
+    here_real="$(cd "$HERE" && pwd -P)"
+    if [[ "$here_real" != "$ROOT_REAL" ]]; then
+      echo "Only the sous records its name, from the main checkout ($ROOT_REAL)." >&2; return 1
+    fi
+    mkdir -p "$ROOT/.claude"
+    exclude_locally .claude/sous
+    printf '%s\n' "$name" > "$file"
+  fi
+  name="$(head -1 "$file" 2>/dev/null)"
+  if [[ -z "$name" ]]; then
+    echo "No sous chef recorded for $REPO_NAME: wait for its [hello]." >&2; return 1
+  fi
+  echo "$name"
 }
 
 # ---------------------------------------------------------------------------
@@ -876,6 +916,6 @@ cmd_remove() {
 case "$CMD" in
   setup) cmd_setup ;; open) cmd_open ;; sync) cmd_sync ;; status) cmd_status ;;
   files) cmd_files ;; rail) cmd_rail ;; board) cmd_board ;; leaks) cmd_leaks ;; remove) cmd_remove ;;
-  role) cmd_role ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
+  role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   sessions) cmd_sessions ;; *) usage ;;
 esac

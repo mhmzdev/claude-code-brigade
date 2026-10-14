@@ -237,6 +237,23 @@ out=$(cd "$S1" && "$K" board)
 ok "board from a station prints the same board" has "$out" "Q2: new column"
 ok "…but writes nothing into the main checkout or the station" bash -c '! test -e "$1/.claude/board.md" && ! test -e "$2/.claude/board.md"' _ "$C" "$S1"
 
+section "sous"
+out=$(cd "$S1" && "$K" sous 2>&1); rc=$?
+ok "sous with nothing recorded fails" test "$rc" -ne 0
+ok "…and says to wait for the [hello]" has "$out" "wait for its \[hello\]"
+out=$(cd "$S1" && "$K" sous --set app-cook-1 2>&1); rc=$?
+ok "sous --set is refused from a station" test "$rc" -ne 0 -a ! -e "$C/.claude/sous"
+ok "sous --set refuses a missing name" bash -c '! "$1" sous --set' _ "$K"
+ok "sous --set doesn't take a flag for a name" bash -c '! "$1" sous --set -x' _ "$K"
+ok "sous --set refuses a name with a space" bash -c '! "$1" sous --set "two words"' _ "$K"
+before=$(git -C "$C" status --porcelain)
+ok "sous --set from the main checkout prints the name" test "$("$K" sous --set app-f6)" = app-f6
+ok "a station reads the sous's name" test "$(cd "$S1" && "$K" sous)" = app-f6
+ok ".claude/sous stays out of git without touching a tracked file" test "$before" = "$(git -C "$C" status --porcelain)"
+"$K" sous --set app-sous-2 >/dev/null
+ok "a new sous overwrites the old name" test "$(cd "$S1" && "$K" sous)" = app-sous-2
+ok "…without a second exclude line" test "$(grep -c '^\.claude/sous$' "$C/.git/info/exclude")" = 1
+
 section "leaks"
 ok "leaks with no local file has nothing to check" has "$("$K" leaks)" "nothing to check"
 cat > "$C/.claude/brigade.local.md" <<'LOCAL'
@@ -340,6 +357,10 @@ out=$("$K" board)
 ok "board in worktree mode writes .claude/board.md and leaves the tree as it was" bash -c 'test "$1" = "$(cat "$2/.claude/board.md")" && test "$3" = "$(git -C "$2" status --porcelain)"' _ "$out" "$A" "$before"
 rm "$A/.claude/board.md"; (cd "$WS1" && "$K" board >/dev/null)
 ok "board from a worktree station writes nothing" bash -c '! test -e "$1/.claude/board.md" && ! test -e "$2/.claude/board.md"' _ "$A" "$WS1"
+before=$(git -C "$A" status --porcelain)
+"$K" sous --set app-f6 >/dev/null
+ok "a worktree station reads the sous's name from the main checkout" test "$(cd "$WS1" && "$K" sous)" = app-f6
+ok "…and .claude/sous leaves the tree as it was" test "$before" = "$(git -C "$A" status --porcelain)"
 git -C "$WS1" switch -q -c bklg-001-open origin/main; echo x > "$WS1/wip.txt"
 ok "status run from inside a station still sees every station" has "$(cd "$WS1" && "$K" status)" "station-2"
 out=$("$K" sync)
