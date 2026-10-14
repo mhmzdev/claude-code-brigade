@@ -159,6 +159,25 @@ ok "open starts each session as a line cook" has "$out" '"/bk:line-cook"'
 ok "open without CLAUDE_CONFIG_DIR prints plain claude" bash -c "! printf '%s' \"\$1\" | grep -q CLAUDE_CONFIG_DIR" _ "$out"
 out=$(CLAUDE_CONFIG_DIR=/x/profile "$K" open --terminal print)
 ok "open passes CLAUDE_CONFIG_DIR through when set" has "$out" "CLAUDE_CONFIG_DIR=/x/profile claude"
+# .claude/cook, the hand restart: a stub claude prints the profile and args it got.
+EB="$TMP/echobin"; mkdir -p "$EB"
+printf '#!/bin/sh\necho "pwd=$(pwd -P) profile=${CLAUDE_CONFIG_DIR-unset} args=$*"\n' > "$EB/claude"; chmod +x "$EB/claude"
+S2="$C/stations/station-2"
+before=$(git -C "$S2" status --porcelain)
+CLAUDE_CONFIG_DIR="/x/my profile" "$K" open --terminal print -m "o s" >/dev/null
+ok "open writes an executable .claude/cook in each station" test -x "$C/stations/station-1/.claude/cook" -a -x "$S2/.claude/cook"
+ok "…kept out of git" test "$before" = "$(git -C "$S2" status --porcelain)"
+out=$(cd /tmp && PATH="$EB:$PATH" CLAUDE_CONFIG_DIR=/wrong "$S2/.claude/cook")
+ok ".claude/cook runs in its station, from anywhere" has "$out" "pwd=$(cd "$S2" && pwd -P) "
+ok "…under open's profile, not the caller's" has "$out" "profile=/x/my profile args"
+ok "…resuming by default, with the cook's name and model" has "$out" "args=--name app-cook-2 --model sonnet --permission-mode auto --continue$"
+out=$(PATH="$EB:$PATH" "$S2/.claude/cook" "/bk:line-cook")
+ok ".claude/cook with a prompt starts fresh instead" has "$out" "--permission-mode auto /bk:line-cook$"
+"$K" open --terminal print -m "o s" >/dev/null
+out=$(PATH="$EB:$PATH" CLAUDE_CONFIG_DIR=/wrong "$S2/.claude/cook")
+ok "opened with no profile, .claude/cook drops a stray one" has "$out" "profile=unset "
+ok "a second open adds no second exclude line" test "$(grep -c '^\.claude/cook$' "$(git -C "$S2" rev-parse --path-format=absolute --git-path info/exclude)")" = 1
+
 out=$("$K" open --terminal print --bare)
 ok "open --bare starts plain sessions" bash -c "! printf '%s' \"\$1\" | grep -q 'bk:line-cook\"'" _ "$out"
 out=$(BRIGADE_OS=mac "$K" open --terminal warp --no-launch)
@@ -356,6 +375,10 @@ before=$(git -C "$A" status --porcelain)
 out=$("$K" board)
 ok "board in worktree mode writes .claude/board.md and leaves the tree as it was" bash -c 'test "$1" = "$(cat "$2/.claude/board.md")" && test "$3" = "$(git -C "$2" status --porcelain)"' _ "$out" "$A" "$before"
 rm "$A/.claude/board.md"; (cd "$WS1" && "$K" board >/dev/null)
+before=$(git -C "$WS1" status --porcelain)
+"$K" open --terminal print >/dev/null
+ok "a worktree station gets .claude/cook, kept out of git" bash -c 'test -x "$1/.claude/cook" && test "$2" = "$(git -C "$1" status --porcelain)"' _ "$WS1" "$before"
+ok "…and it runs in that worktree" has "$(PATH="$EB:$PATH" "$WS1/.claude/cook")" "pwd=$(cd "$WS1" && pwd -P) "
 ok "board from a worktree station writes nothing" bash -c '! test -e "$1/.claude/board.md" && ! test -e "$2/.claude/board.md"' _ "$A" "$WS1"
 before=$(git -C "$A" status --porcelain)
 "$K" sous --set app-f6 >/dev/null

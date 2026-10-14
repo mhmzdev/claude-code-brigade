@@ -28,7 +28,10 @@
 #                                         native launch, open nothing). Default terminal:
 #                                         Warp if installed, else the OS's own terminal
 #                                         (Terminal.app, Windows Terminal/mintty, or the
-#                                         Linux desktop's), else printed commands
+#                                         Linux desktop's), else printed commands. Each
+#                                         station it opens gets .claude/cook, which
+#                                         restarts that cook with the same profile
+#                                         (CLAUDE_CONFIG_DIR), name and model
 #   kitchen.sh sync   [-n N]              reset CLEAN stations to origin/<trunk>
 #                                         (dirty ones are skipped)
 #   kitchen.sh status                     branch / dirty / ahead per station + open PRs
@@ -209,6 +212,35 @@ claude_cmd() {  # claude_cmd <model> <station dir>
     "$(printf '%q' "$(session_name "$2")")" "$1" "$PERMISSION_MODE"
   # Start as a line cook: it checks in with the sous, or waits for the sous's [hello].
   $BARE || printf ' "/bk:line-cook"'
+}
+
+# write_launcher <station dir> <model> → <station>/.claude/cook, the way to restart
+# that cook by hand (after /exit, say, to load a new agent or MCP server) without
+# retyping anything. It pins the profile open ran under: a cook started under
+# another CLAUDE_CONFIG_DIR can't see the sous in ListAgents. Profile unset at
+# open → the launcher unsets it too, so a stray export in that terminal can't win.
+write_launcher() {
+  local st="$1" file="$1/.claude/cook" profile excl
+  if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then profile="export CLAUDE_CONFIG_DIR=$(printf '%q' "$CLAUDE_CONFIG_DIR")"
+  else profile="unset CLAUDE_CONFIG_DIR"; fi
+  mkdir -p "$st/.claude"
+  cat > "$file" <<EOF
+#!/usr/bin/env bash
+# Written by kitchen.sh open; rewritten each time. Restarts this station's cook
+# under the kitchen's Claude Code profile, so it can still reach the sous:
+#   .claude/cook                  resume the last session here (claude --continue)
+#   .claude/cook "/bk:line-cook"  start a fresh session as a line cook
+cd "\$(dirname "\$0")/.." || exit 1
+$profile
+[ \$# -eq 0 ] && set -- --continue
+exec claude --name $(printf '%q' "$(session_name "$st")") --model $(printf '%q' "$2") --permission-mode $(printf '%q' "$PERMISSION_MODE") "\$@"
+EOF
+  chmod +x "$file"
+  excl="$(git -C "$st" rev-parse --path-format=absolute --git-path info/exclude)"
+  mkdir -p "$(dirname "$excl")"
+  grep -qxF ".claude/cook" "$excl" 2>/dev/null && return 0
+  [[ -s "$excl" && -n "$(tail -c1 "$excl")" ]] && echo "" >> "$excl"
+  echo ".claude/cook" >> "$excl"
 }
 
 # os_kind → mac | linux | wsl | windows (Git Bash, MSYS, Cygwin) | other.
@@ -503,6 +535,7 @@ cmd_open() {
   (( ${#skipped[@]} > 0 )) && echo "Already running a cook, left alone: ${skipped[*]}"
   (( ${#keep[@]} == 0 )) && { echo "Every station has a cook; nothing to open."; return 0; }
   list=("${keep[@]}")
+  for i in "${!list[@]}"; do write_launcher "${list[$i]}" "${models[$i]}"; done
 
   if [[ -z "$TERMINAL" ]]; then
     if warp_installed; then TERMINAL=warp
@@ -580,6 +613,7 @@ cmd_open() {
   else
     echo "Each session starts as a line cook and checks in with the sous (or waits for it)."
   fi
+  echo "To restart a cook by hand (after /exit), run .claude/cook in its station: same profile, name and model."
 }
 
 # ---------------------------------------------------------------------------

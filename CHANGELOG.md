@@ -12,6 +12,16 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.15.0] - 2026-10-14
+
+Restart a cook by hand without losing the sous. `kitchen open` now leaves each station a
+`.claude/cook` launcher (kept out of git) with the cook's `CLAUDE_CONFIG_DIR`, name, model
+and permission mode in it. After `/exit`, run `.claude/cook` in that station to resume the
+session, or `.claude/cook "/bk:line-cook"` for a fresh one. No retyping the profile; plain
+`claude` would pick up whatever profile the terminal has, and then the cook can't see the
+sous. Stations get the launcher the next time `kitchen open` opens them.
+([#16](https://github.com/mhmzdev/claude-code-brigade/issues/16))
+
 ## [0.14.1] - 2026-10-14
 
 The sous trusts a cook's `[check-in]`. A cook that checks in with no ticket, a clean

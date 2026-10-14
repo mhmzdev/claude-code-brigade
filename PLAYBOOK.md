@@ -334,6 +334,12 @@ sign-off waits for you; the sous won't approve it for you.
 **The sous and a cook can't see each other.** Both must run under the same
 `CLAUDE_CONFIG_DIR`. `kitchen open` passes the current one through.
 
+**How do I restart one cook by hand?** For example after `/exit`, to load a new agent or
+MCP server. In its station, run `.claude/cook`: it resumes the last session there
+(`claude --continue`) with the same profile, name and model `kitchen open` used, so it
+still sees the sous. `.claude/cook "/bk:line-cook"` starts a fresh session instead. Plain
+`claude` would use whatever profile that terminal has.
+
 ## Command cheat sheet
 
 | You want to | Type, in | |
