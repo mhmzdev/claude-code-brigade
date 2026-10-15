@@ -3,10 +3,10 @@
 # scripts/check.sh — THE gate for changes to the Brigade plugin.
 #
 # 1. manifests   claude plugin validate (skipped with a warning if no claude CLI)
-# 2. script      bash -n + shellcheck on kitchen.sh (shellcheck required)
+# 2. script      bash -n + shellcheck on kitchen.sh and hooks/guard.sh (shellcheck required)
 # 3. skills      frontmatter sanity: name matches folder, description present,
 #                disable-model-invocation only on setup
-# 4. behaviour   tests/kitchen.test.sh
+# 4. behaviour   tests/kitchen.test.sh and tests/guard.test.sh
 # 5. release     plugin.json's version is the top CHANGELOG.md entry and, on a branch,
 #                is higher than origin/main's (every merge to main is a release)
 #
@@ -16,6 +16,7 @@
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 KITCHEN=plugins/bk/skills/kitchen/kitchen.sh
+GUARD=plugins/bk/hooks/guard.sh
 FAILED=()
 
 step() { echo ""; echo "== $1"; }
@@ -31,10 +32,11 @@ else
   echo "   ! claude CLI not found: manifest validation skipped"
 fi
 
-step "2. kitchen.sh"
-bash -n "$KITCHEN" && echo "   ✓ bash -n" || fail "bash -n $KITCHEN"
+step "2. kitchen.sh and hooks/guard.sh"
+bash -n "$KITCHEN" && echo "   ✓ bash -n kitchen.sh" || fail "bash -n $KITCHEN"
+bash -n "$GUARD" && echo "   ✓ bash -n guard.sh" || fail "bash -n $GUARD"
 if command -v shellcheck >/dev/null; then
-  if out=$(shellcheck -S warning "$KITCHEN" tests/kitchen.test.sh scripts/check.sh 2>&1); then echo "   ✓ shellcheck"
+  if out=$(shellcheck -S warning "$KITCHEN" "$GUARD" tests/kitchen.test.sh tests/guard.test.sh scripts/check.sh 2>&1); then echo "   ✓ shellcheck"
   else echo "$out" | sed 's/^/     /'; fail "shellcheck"; fi
 else
   fail "shellcheck not installed (brew install shellcheck)"
@@ -55,11 +57,14 @@ for f in plugins/bk/agents/*.md; do
   name=$(awk '/^---$/{n++; next} n==1 && /^name:/{print $2; exit}' "$f")
   grep -q "\"./agents/$name.md\"" plugins/bk/.claude-plugin/plugin.json || fail "$f: not listed in plugin.json agents"
 done
+python3 -c 'import json,sys; json.load(open("plugins/bk/hooks/hooks.json"))["hooks"]' 2>/dev/null || fail "plugins/bk/hooks/hooks.json: not valid JSON with a top-level \"hooks\" key"
 (( ${#FAILED[@]} == before )) && echo "   ✓ $(ls plugins/bk/skills/*/SKILL.md | wc -l | tr -d ' ') skills, $(ls plugins/bk/agents/*.md | wc -l | tr -d ' ') agents"
 
-step "4. behaviour (tests/kitchen.test.sh)"
-if out=$(bash tests/kitchen.test.sh 2>&1); then echo "   ✓ $(printf '%s\n' "$out" | tail -1 | sed 's/^# //')"
+step "4. behaviour (tests/kitchen.test.sh, tests/guard.test.sh)"
+if out=$(bash tests/kitchen.test.sh 2>&1); then echo "   ✓ kitchen: $(printf '%s\n' "$out" | tail -1 | sed 's/^# //')"
 else printf '%s\n' "$out" | grep -E '^not ok|^# passed' | sed 's/^/     /'; fail "kitchen tests"; fi
+if out=$(bash tests/guard.test.sh 2>&1); then echo "   ✓ guard: $(printf '%s\n' "$out" | tail -1 | sed 's/^# //')"
+else printf '%s\n' "$out" | grep -E '^not ok|^# passed' | sed 's/^/     /'; fail "guard tests"; fi
 
 step "5. release (version and CHANGELOG.md)"
 before=${#FAILED[@]}

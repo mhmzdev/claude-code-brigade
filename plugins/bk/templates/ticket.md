@@ -4,7 +4,7 @@ title: <one line>
 lane: B                # A | B | C
 status: backlog        # backlog | todo | in-progress | rfr | done | blocked
 cook: null             # station name once claimed
-kind: item             # BKLG only: item (becomes a spec and tickets) | bug (planned and built directly)
+kind: item             # BKLG only: item (becomes a spec and tickets) | bug | chore (both planned and built directly)
 spec: null             # lane A: the parent spec. BKLG: the spec it became
 priority: normal       # high | normal | low
 blocked_by: []         # ticket ids
@@ -20,7 +20,7 @@ created: YYYY-MM-DD
 
 ## Done when
 
-<!-- A backlog item of kind: item leaves this section out: the spec's tickets carry it. -->
+<!-- A backlog item of kind: item leaves this section out: the spec's tickets carry it. A bug and a chore keep it. -->
 
 - [ ] <observable outcome>
 - [ ] `<check>` passes

@@ -12,11 +12,18 @@ It reaches trunk with the PR, next to the plan and checklist.
 
 ## Log
 
-<!-- One line per entry. Questions are numbered; an answer reuses the number.
-- YYYY-MM-DD HH:MM · <session name> · Q1: <question> — options: a / b — recommend: a
-- YYYY-MM-DD HH:MM · <session name> · A1 (sous): <answer>
+<!-- One line per entry. Questions are numbered; an answer reuses the number. The commis
+     runs before every question: a question that reaches the sous carries its commis: line,
+     and an answer says who gave it. "(head chef)" is what the sous's handoff promotes into
+     the record, so never drop that tag.
+- YYYY-MM-DD HH:MM · <session name> · A1 (commis): <answer>, per <path:line, date>
+- YYYY-MM-DD HH:MM · <session name> · Q2: <question> — options: a / b — recommend: a — commis: nothing recorded in decisions, specs, journals
+- YYYY-MM-DD HH:MM · <session name> · A2 (sous): <answer>, because <reason>
+- YYYY-MM-DD HH:MM · <session name> · Q3: <question> — options: a / b — recommend: b — commis: nothing recorded in …
+- YYYY-MM-DD HH:MM · <session name> · A3 (head chef): <their answer>, because <their reason>
 - YYYY-MM-DD HH:MM · <session name> · decision: <what, and why> (copied into the plan)
-- YYYY-MM-DD HH:MM · <session name> · approved (sous): head chef: "<their words>"
+- YYYY-MM-DD HH:MM · <session name> · approved (sous): per gates.plan_approval.bug
+- YYYY-MM-DD HH:MM · <session name> · approved (head chef, via sous): "<their words>"
 - YYYY-MM-DD HH:MM · <session name> · walk-in: cleared to run `<cmd>` (sous)
 - YYYY-MM-DD HH:MM · <session name> · finding 2 (pass): <what> → fixed in <file>
 - YYYY-MM-DD HH:MM · <session name> · go (sous)

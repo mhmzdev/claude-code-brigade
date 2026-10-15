@@ -30,12 +30,12 @@ brainstorm → grill-me → spec → file-tickets → create-plan → implement 
 ## Principles
 
 1. **YAGNI, hard.** Solve the problem in front of you, not a future one.
-2. **Reuse what's settled.** The repo's `CLAUDE.md`, `docs/`, and any decisions log usually hold a decision that bears on the idea. Find it before inventing.
+2. **Reuse what's settled.** The repo's `CLAUDE.md` and the record (Contract 12: `docs.decisions`, `docs.conventions`, `docs.knowledge`, past specs and journals) usually hold a decision that bears on the idea. Send the commis for it before inventing.
 3. **One question at a time**, multiple choice, with your recommended answer. Then wait.
 4. **Look before you ask.** If the answer is in the repo, read it.
 5. **Ground before you opine.** No approach or recommendation about the code before Step 2 is done.
 
-This skill is a conversation with the human, usually in a **sous or solo** session (Contract 5). In a line-cook session, never start one yourself: nobody watches a cook's terminal. Send the sous `[gate] <ID> needs grilling: <the idea and why it isn't settled>`, and the sous takes it from there (it may hand a grilling to a cook, but never a brainstorm). If the human typed `/bk:brainstorm` in your station themselves, they're here: carry on, send the sous `[status] brainstorming with the head chef`, write the doc in your station **without its INDEX row** (the sous adds that), and at the end send `[rail] brainstorm ready: <absolute path>` so the sous files it in the main checkout (delete your copy on `[heard]`, which leaves the station clean). That session is then spent: it should be cleared before it takes a ticket.
+This skill is a conversation with the human, usually in a **sous or solo** session (Contract 5). In a line-cook session, never start one yourself: nobody watches a cook's terminal. Send the sous `[gate] <ID> needs grilling: <the idea and why it isn't settled>`, and the sous takes it from there (it may hand a grilling to a cook, but never a brainstorm). If the human typed `/bk:brainstorm` in your station themselves, they're here: write `.claude/grilling` in the station first (the plugin's hook refuses `AskUserQuestion` there without it, and ignores a marker idle for four hours, so `touch` it again before each round of questions; remove it at the end), carry on, send the sous `[status] brainstorming with the head chef`, write the doc in your station **without its INDEX row** (the sous adds that), and at the end send `[rail] brainstorm ready: <absolute path>` so the sous files it in the main checkout (delete your copy on `[heard]`, which leaves the station clean). That session is then spent: it should be cleared before it takes a ticket.
 
 ## Step 1 — Scope the idea
 
@@ -43,7 +43,7 @@ Classify it. The class decides whether code gets read at all.
 
 - **Generic**: process, tooling, docs, team practice. Skip Step 2.
 - **Touches the code**: a feature, a behaviour change, a contract or data change. Step 2 is mandatory.
-- **A bug, not an idea**: something that exists works wrong. Say so and recommend `/bk:file-tickets` (one backlog item, `kind: bug`). Don't brainstorm what doesn't need it.
+- **A bug, not an idea**: something that exists works wrong. Say so and recommend `/bk:file-tickets` (one backlog item, `kind: bug`). Likewise a **chore** whose outcome is already fixed (`kind: chore`). Don't brainstorm what doesn't need it.
 
 Pick the slug now: lowercase-kebab, 2–5 words. The file is `<docs.brainstorm>/YYYY-MM-DD-<slug>.md` (Contract 4). If a brainstorm with the same slug already exists, read it fully and extend it. Never overwrite a file you haven't read.
 
@@ -56,7 +56,7 @@ Pick the slug now: lowercase-kebab, 2–5 words. The file is `<docs.brainstorm>/
 
 ## Step 3 — Understand
 
-1. **Check settled decisions.** If the idea brushes a decision already made or deliberately deferred, raise that instead of re-arguing it.
+1. **Check settled decisions.** Spawn `bk:commis` (model: the config's `commis_model`, if set) with the idea's main questions, the main checkout, the stations folder and the `docs:` map. If the idea brushes a decision already made or deliberately deferred (or an open question file), raise that with its source instead of re-arguing it.
 2. **Question, one at a time.** Good ones:
    - Who feels the problem, and what's the smallest version that removes it?
    - Does it change a shape someone else consumes (an API, an event, a file format)? Who reads the old one?
@@ -105,7 +105,7 @@ Offer the next step with `AskUserQuestion`, then wait:
 
 - **Grill it** → `/bk:grill-me <doc path>`: the right next step for anything non-trivial.
 - **Spec it** → `/bk:spec`: only if the discussion already settled every fork.
-- **Plan it** → `/bk:create-plan`: only for small, low-risk work; say why skipping the spec is safe.
+- **Plan it** → `/bk:create-plan`: only when the head chef says to build this one without a spec (Contract 4). The plan notes it has none, and its sign-off is the head chef's.
 - **Pause** → leave the doc and stop.
 
 ## What not to do

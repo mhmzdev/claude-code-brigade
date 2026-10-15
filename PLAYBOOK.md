@@ -20,7 +20,8 @@ contract disagree, the contract wins. The names are in
 - [Grilling and brainstorming](#grilling-and-brainstorming)
 - [Handoffs and clearing sessions](#handoffs-and-clearing-sessions)
 - [Test accounts](#test-accounts)
-- [The three sub-agents](#the-three-sub-agents)
+- [The record: never asked twice](#the-record-never-asked-twice)
+- [The four sub-agents](#the-four-sub-agents)
 - [When something looks wrong](#when-something-looks-wrong)
 - [Command cheat sheet](#command-cheat-sheet)
 
@@ -30,8 +31,10 @@ You are the **head chef**. You talk to one Claude Code session, the **sous chef*
 on the biggest model, in the repo's main checkout. The sous runs the **line cooks**: one
 session per **station** (a separate copy of the repo), each working one ticket from plan to
 pull request. Cooks can be smaller models, or big ones for hard tickets. You don't watch
-the cooks' terminals. Everything they need decided reaches you through the sous, with a
-recommendation, and you approve plans and merge.
+the cooks' terminals. Everything they need decided that nobody has decided yet reaches you
+through the sous, with a recommendation; everything already decided is found in the record
+by the **commis** before anyone asks. You sign off feature plans, answer real forks, and
+merge. The sous signs off bug, chore and hygiene plans itself and tells you.
 
 ## Setting up
 
@@ -40,8 +43,10 @@ repo, asks one round of questions, and writes:
 
 - `.claude/brigade.md`: the config every skill reads (trunk, check command, install
   command, stations, where tickets live);
-- the rail folders under `docs/` (specs, backlog, plans, checklists, journal), each with an
-  `INDEX.md`;
+- the rail folders under `docs/` (specs, backlog, plans, checklists, journal) and the
+  record's (decisions, conventions, domains, questions), each with an `INDEX.md`, or the
+  `docs:` map pointed at the folders the repo already keeps; a `docs/SCHEMA.md` saying what
+  each type is, unless the repo has its own;
 - a short section in `CLAUDE.md` saying the repo runs on the Brigade, and that a session
   inside a station is a line cook.
 
@@ -102,17 +107,19 @@ A backlog item carries `kind:`, and that decides how it leaves the backlog:
 
 | `kind:` | Means | Path |
 |---|---|---|
-| `item` (default, also when missing) | a capability, a change in behaviour, a chore | `/bk:grill-me` → `/bk:spec` → `/bk:file-tickets`. The spec's tickets get built; the item is closed with `spec: SNNN` |
-| `bug` | something that exists and works wrong against what was already decided | the item is its own ticket: `/bk:create-plan`, then build |
+| `item` (default, also when missing) | a capability, a change in behaviour | `/bk:grill-me` → `/bk:spec` → `/bk:file-tickets`. The spec's tickets get built; the item is closed with `spec: SNNN`. Its plans need your sign-off |
+| `bug` | something that exists and works wrong against what was already decided | the item is its own ticket: `/bk:create-plan`, then build. The sous signs off the plan |
+| `chore` | work whose outcome is already fixed: a bump, a rename, a missing checklist item, a doc catching up with the code | the same as a bug |
 
-Bug or item is a fact about the work, not its size. A small new behaviour is still an item.
+Bug, chore or item is a fact about the work, not its size. A small new behaviour is still an
+item, and a "chore" that turns out to need a decision was an item all along.
 
 **The three lanes** say where a ticket came from:
 
 | Lane | Source | Ids |
 |---|---|---|
 | A | a spec, sliced into tickets | `SNNN-NN` |
-| B | bugs from the backlog | `BKLG-NNN` with `kind: bug` |
+| B | bugs and chores from the backlog | `BKLG-NNN` with `kind: bug` or `kind: chore` |
 | C | hygiene work the kitchen finds itself (`/bk:clean`) | `HYG-NNN` |
 
 **Statuses:** `backlog` → `todo` (a plan exists) → `in-progress` → `rfr` (ready for
@@ -150,7 +157,7 @@ works this out; its `RDY` column says:
 |---|---|
 | `yes` | can be assigned |
 | `no` | a blocker is still open; the open blockers are printed after the title |
-| `spec` | a backlog item that isn't a bug: it has to become a spec and tickets first |
+| `spec` | a backlog item that is neither a bug nor a chore: it has to become a spec and tickets first |
 | `-` | already claimed |
 
 **Order among ready tickets:**
@@ -160,8 +167,8 @@ works this out; its `RDY` column says:
 3. the ticket that more other tickets are blocked by;
 4. lane A before B before C; within a spec, ticket-number order; otherwise the lowest id.
 
-So spec tickets go before backlog bugs, and a backlog item that isn't a bug is never
-assigned at all. When nothing is ready, the sous says what is blocked and on what, and
+So spec tickets go before backlog bugs and chores, and a backlog item that is neither is
+never assigned at all. When nothing is ready, the sous says what is blocked and on what, and
 offers a grilling for the highest-priority item waiting for a spec.
 
 Two hard rules can skip a pick: tickets touching the same files go to one cook in sequence,
@@ -174,17 +181,22 @@ dialog; nobody is watching its terminal. What a cook needs goes to the sous as a
 
 | The cook needs | It sends | Who answers |
 |---|---|---|
-| a routine confirmation (scope, "continue?", which helper) | `[gate]` | the sous |
-| a real design fork | `[gate]` | you, in the sous's terminal; the sous adds a recommendation and relays your answer marked `(head chef)` |
-| the plan approved | `[plan]` | you, in the sous's terminal; the sous relays `[approved]` with your words |
+| how something works, or whether it was decided before | nothing: it spawns the **commis**, which searches the record and answers with a source | the record |
+| a routine confirmation (scope, "continue?", which helper) | `[gate]`, with what the commis found | the sous |
+| a real design fork the record doesn't settle | `[gate]`, with what the commis searched | you, in the sous's terminal; the sous adds a recommendation and relays your answer marked `(head chef)`, and it's written down |
+| a bug or chore plan approved | `[plan]` | the sous, which tells you in one line |
+| a hygiene ticket approved | nothing: it has no plan; the sous's `[approved]` rides in the `[brief]` | the sous, which tells you in one line |
+| a feature plan approved, or any plan with a migration, a shared resource, a production write or an unrecorded decision | `[plan]` | you, in the sous's terminal; the sous relays `[approved]` with your words |
 | a ticket changed | `[rail]` | the sous (the only writer of tickets) |
 | a destructive command on a shared resource | `[walk-in]` | the sous |
 | a login for testing | `[gate] … need a test account` | the sous, with an account name |
 | a write on production | `[gate] … production write` | you, for that exact action |
 | merge or deploy | nothing | you do these yourself; no session does, and a relayed "go" is refused |
 
-The sous never approves a plan itself. Every plan needs your own yes, in the sous's current
-session, after seeing that plan. A changed plan needs a new yes.
+The sous never approves a **feature** plan itself. Those need your own yes, in the sous's
+current session, after seeing that plan; a changed plan needs a new yes. Bug, chore and
+hygiene plans the sous signs on its own, naming the rule, and tells you in one line. Want
+every plan for a while? Say so, or set `gates.plan_approval: head-chef` in the config.
 
 If you do type in a cook's terminal, the cook does as told and tells the sous in one line.
 
@@ -194,8 +206,11 @@ If you do type in a cook's terminal, the cook does as told and tells the sous in
 2. The cook branches (`<id>-<slug>`), runs `/bk:pick-ticket`, and asks the sous to claim
    the ticket (`todo`).
 3. `/bk:create-plan` writes the plan. The cook sends `[plan]` and waits.
-4. The sous reads the plan, checks it against the other stations, and shows you a short
-   summary with a recommendation. You approve, change something, or ask to grill it first.
+4. The sous reads the plan and checks it against the other stations. A bug or chore plan it
+   signs itself and tells you in one line. A feature plan (or one with a migration, a shared
+   resource, a production write or a decision the record doesn't hold) it shows you in a
+   short summary with a recommendation: you approve, change something, or ask to grill it
+   first.
 5. On `[approved]`, the cook starts `/bk:implement` itself. It runs every phase, running
    the check after each, without "continue?" questions.
 6. `/bk:clean check` (the inspector reads the diff), then `/bk:review-task` (the acceptance
@@ -209,8 +224,8 @@ If you do type in a cook's terminal, the cook does as told and tells the sous in
 9. You merge. The sous closes the ticket. You clear the cook's session before its next
    ticket: one ticket per session.
 
-Lane C (hygiene) skips the plan and the checklist; you approve the ticket itself before the
-sous assigns it.
+Lane C (hygiene) skips the plan and the checklist; the ticket is the plan, and the sous
+signs it before assigning (or you do, if the config says `hygiene: head-chef`).
 
 ## Seeing progress
 
@@ -237,6 +252,9 @@ you.
   fills the context the sous needs for the passes, and the cook has the code in front of
   it. The sous tells you which station is waiting; you answer the questions there. This is
   the one planned time you use a cook's terminal.
+- Before every round, the commis checks the record. Questions you already answered, in a
+  spec, a decision file or an earlier grilling, are shown as *already settled* with their
+  source, not asked; you only say so if one has changed.
 - The cook logs every decision. For a backlog item that needs a spec, it goes straight on
   to `/bk:spec` and writes a draft with the decisions in it; the sous numbers and files the
   spec and closes the backlog item into it. For an existing spec or ticket, the cook sends
@@ -256,7 +274,7 @@ before `/clear`, and no skill ever clears a session; `/clear` is always yours.
 | Where | Writes | When |
 |---|---|---|
 | a station (cook) | a `## Handoff` section appended to the ticket's journal: stage, uncommitted files, next step, pending questions, follow-ups, lessons | automatically on `[go]`, before the PR. Any other time, you ask for it, for example before clearing a cook that is waiting on a sign-off |
-| the main checkout (sous) | `.claude/sous-handoff.md`, gitignored, overwritten each time: your standing instructions, what it meant to assign next, walk-in holds, which session is which cook | when you say "handoff" before clearing the sous |
+| the main checkout (sous) | first it files the record (decisions you made into ADRs, questions you haven't answered into question files, the inbox into the docs), then `.claude/sous-handoff.md`, gitignored, overwritten each time: your standing instructions, what it meant to assign next, walk-in holds, which session is which cook | when you say "handoff" before clearing the sous |
 
 A cook cleared before `[go]` without being asked for a handoff leaves none. The journal
 still has its questions, answers and decisions, and the station still has the files.
@@ -295,23 +313,67 @@ it is for.
   are used there. Any action that writes needs your yes for that exact action, asked in the
   sous's session. One yes covers one action.
 
-## The three sub-agents
+## The record: never asked twice
+
+**Why do I keep getting asked things I already answered?** You shouldn't, from this version
+on. Everything you decide is written down, and a sub-agent searches it before any question
+reaches you.
+
+- **Where it lives.** The `docs:` map in `.claude/brigade.md` names every place: specs,
+  tickets, plans, journals, and the record proper: `decisions` (ADRs), `conventions`,
+  `knowledge` (how the product works, by area), `questions` (what nobody has answered yet).
+  A repo that already keeps ADRs or a doc schema points the map at its own folders; the
+  Brigade doesn't add a second home. Any other key the sous adds is one more place searched.
+- **How it fills.** Every answer you give lands in the cook's journal marked `(head chef)`.
+  Anything you say in passing that nothing records ("the cache invalidates on every deploy") the
+  sous drops into the **inbox** right then, one line. At the sous's handoff three lists run:
+  `kitchen.sh decisions` (your answers nothing cites yet: the sous writes the ones that
+  outlive their ticket as decisions, your words verbatim plus a structured version),
+  `kitchen.sh questions` (what you haven't answered: parked as a question file that blocks
+  its ticket, so nobody asks it again while it waits), `kitchen.sh inbox` (filed into the
+  right doc). The board shows the counts.
+- **How it's read.** Before a cook sends any question, it spawns the **commis**, which
+  searches all of it and returns `settled` with a source, `fact` with a `file:line`,
+  `blocked` (an open question already asks this), `conflict` (two records disagree) or
+  `nothing`. Settled questions never leave the station. The sous does the same before
+  asking you, and when it answers from the record it tells you in one line, with the source,
+  so you can say "that changed".
+- **A chore is not a decision.** `kind: chore` on a backlog item means the outcome is
+  already fixed; its plan is the sous's to sign, like a bug's.
+- **Two hooks back it up.** In a station, a dialog to the human is refused (unless a
+  grilling is under way), and a question sent up without the commis's result is refused.
+  Guardrails against a slip, not walls.
+- **Grillings are the exception.** There you answer in the moment; settled questions are
+  shown, not asked.
+
+**What if I don't answer?** The ticket goes to `blocked`, the question becomes a file at
+the sous's handoff with the options and its recommendation, and the cook takes another
+ticket. When you answer, the file records your words, the ticket comes back, and the
+answer is a decision like any other.
+
+**Can the sous add a doc type?** Yes, when nothing in the map fits: through the repo's own
+extension point if it has a doc schema, else a folder with an `INDEX.md`, then the key under
+`docs:`. It tells you in one line; the PR that carries the doc is where you review it.
+`kitchen.sh doctor` checks the map against `docs/` and the ticket files against the contract.
+
+## The four sub-agents
 
 Sub-agents are short-lived helpers a session spawns. None is started by hand.
 
 | Sub-agent | Spawned by | Does | Can't |
 |---|---|---|---|
+| **commis** | a cook before any question, the sous before asking you, `grill-me` before every round | searches the record (the `docs:` map, `CLAUDE.md`, the stations' journals) and returns a verdict with sources: settled, fact, blocked, conflict or nothing. Runs on Opus | write anything, or decide anything |
 | **inspector** | a cook, through `/bk:clean check` and `/bk:review-task` | reads the branch's diff and reports what a reviewer would reject, plus dead code in the diff | write anything: it holds no tool that can |
 | **taster** | the sous, at the pass, on a cook's `[handoff]` | reads the station's diff, re-runs the check there, walks the ticket's "Done when" boxes, runs the leak check, returns a verdict with numbered findings | edit, commit or message anyone |
 | **runner** | anyone | runs one noisy command (the check, a test suite, a scan) and returns pass or fail plus the lines that matter | decide or edit anything |
 
-The point of all three is to keep long output out of the session that has to keep thinking.
+The point of all four is to keep long output, and long searches, out of the session that has to keep thinking.
 
 ## When something looks wrong
 
 **The sous picked a backlog item instead of a ticket.** It shouldn't, unless the item is
-`kind: bug` and no spec ticket is ready. Check the rail board: a non-bug backlog item shows
-`spec` under `RDY` and is never assignable.
+`kind: bug` or `kind: chore` and no spec ticket is ready. Check the rail board: any other
+backlog item shows `spec` under `RDY` and is never assignable.
 
 **Tickets I just wrote show `RDY no`.** Read what follows the title. An open blocker is
 listed by id. An id with `?` is not a ticket on this rail (an older id scheme, or a typo);
@@ -319,7 +381,7 @@ it holds the ticket because nothing proves that work is done. Tell the sous the 
 finished and it removes the id from `blocked_by`. A chain of tickets all waiting on one
 blocked ticket will all show `no` until that one is cleared.
 
-**A backlog item I think is a bug shows `spec`.** It has no `kind: bug`. Tell the sous; it
+**A backlog item I think is a bug or a chore shows `spec`.** It has no `kind: bug` or `kind: chore`. Tell the sous; it
 sets `kind:` as a rail change with one line of why.
 
 **A cook left no handoff.** It was cleared before `[go]` and nobody asked for one. Ask for
@@ -328,8 +390,9 @@ sets `kind:` as a rail change with one line of why.
 **A station is dirty and no cook did it.** Usually the install step or a project hook wrote
 into it. See [Setting up](#setting-up).
 
-**A cook is waiting and nothing is happening.** Look at "waiting on" in the board. A plan
-sign-off waits for you; the sous won't approve it for you.
+**A cook is waiting and nothing is happening.** Look at "waiting on" in the board. A feature
+plan's sign-off waits for you; the sous won't approve that for you. A question nobody has
+answered waits for you too: `kitchen.sh questions` lists it.
 
 **The sous and a cook can't see each other.** Both must run under the same
 `CLAUDE_CONFIG_DIR`. `kitchen open` passes the current one through.
@@ -350,6 +413,9 @@ still sees the sous. `.claude/cook "/bk:line-cook"` starts a fresh session inste
 | start or restart the sous | `/bk:sous-chef` | main checkout |
 | restart a cleared cook | `/bk:line-cook` | its station |
 | see everything | open `.claude/board.md`, or `/bk:kitchen board` | main checkout |
+| see what the kitchen is waiting on you for | `/bk:kitchen questions` | main checkout |
+| tell the kitchen something it should remember | just say it to the sous; it goes in the inbox and is filed at handoff | sous |
+| check the rail and the docs map | `/bk:kitchen doctor` | main checkout |
 | capture an idea or a bug | tell the sous; it files a backlog item | sous |
 | turn an item into tickets | `/bk:grill-me` → `/bk:spec` → `/bk:file-tickets` | sous, or a cook the sous briefs for the grilling |
 | clear a session safely | "handoff", then `/clear` | that session |

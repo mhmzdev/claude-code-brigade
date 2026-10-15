@@ -12,6 +12,56 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.16.0] - 2026-10-15
+
+The kitchen remembers what you decided, and stops asking twice. Four things change for the
+head chef:
+
+- **You sign off features, not everything.** A plan for a `kind: bug`, the new `kind: chore`
+  (work whose outcome is already fixed: a bump, a rename, a missing checklist item) or a
+  `HYG` ticket is signed off by the sous, which tells you in one line. A lane A ticket, an
+  item built without a spec, or any plan with a migration, a shared resource, a production
+  write or a decision nobody has recorded still comes to you. `gates.plan_approval` in
+  `.claude/brigade.md` can now be a map by kind; the one-word form still works, and
+  `head-chef` brings every plan back to you.
+- **The commis.** A new read-only sub-agent on Opus. Before a cook sends any question, it
+  searches the record (the config's `docs:` map, `CLAUDE.md`, the stations' journals) and
+  returns `settled` with a source, `fact`, `blocked`, `conflict` or `nothing`. Settled
+  questions never leave the station; the rest go up carrying what was searched. The sous
+  does the same before asking you, and tells you when it answered from the record. Grillings
+  show already-settled questions instead of asking them.
+- **The record.** The `docs:` map gains `decisions` (ADRs), `conventions`, `knowledge` and
+  `questions`, pointed at the folders your repo already keeps if it has them (`none` if it
+  doesn't want one); any other key you add is one more place the commis searches. Every
+  answer you give is marked `(head chef)` in a journal; at the sous's handoff
+  `kitchen.sh decisions` lists the ones nothing cites and the sous files those that outlive
+  their ticket, your words verbatim plus a structured version. A question you haven't
+  answered becomes a file in `docs.questions` that blocks its ticket, so it's asked once.
+  Things you say in passing go to a local inbox (`kitchen.sh inbox --add`, `.claude/inbox.md`,
+  never committed) and are filed at handoff. The board shows both counts.
+- **Two hooks.** The plugin now ships `hooks/hooks.json`: in a station, a dialog to the human
+  is refused unless a grilling is under way, and a `[gate]` with a numbered question is
+  refused when it carries no commis result. A station is what `kitchen.sh` calls one (a
+  `station-*` folder in the configured kitchen), so nested repos, submodules and
+  `claude --worktree` sessions are left alone, as are the main checkout and other repos.
+
+The commis runs on Opus: it is spawned before every question and every grilling round, and
+its one judgement ("a related decision is not this decision") is where a smaller model fails
+silently. Large kitchens can set `commis_model: sonnet` in the config to trade that for
+cost.
+
+Also: `kitchen.sh doctor` checks ticket files (fields, statuses, blockers, unique ids, a
+`kind` on every backlog item) as errors, and the docs map (a mapped folder without an
+`INDEX.md`, a folder under `docs/` that no key names) as warnings that don't fail it;
+`kitchen.sh questions` lists open question files too, and reads journals at any depth; `/bk:setup` maps
+the docs a repo already keeps, respects an existing doc schema, and writes a `docs/SCHEMA.md`
+where there is none. Templates for a decision, a question and the schema ship with the plugin.
+
+**What you must do:** restart every session after updating. Existing configs keep working:
+with no `plan_approval` map, bugs and hygiene go to the sous and features to you, so if you
+want every plan for a while, set `gates.plan_approval: head-chef`. Run `/bk:kitchen doctor`
+once: a backlog item with no `kind:` is now reported.
+
 ## [0.15.1] - 2026-10-14
 
 Lesson promotion works when journals move or the docs folder has rules.
