@@ -753,9 +753,10 @@ skill that spawns the commis passes that value as the `Agent` call's `model`.
 **Hooks that back this up.** The plugin ships `hooks/hooks.json`: in a station (a
 `station-*` folder in the configured kitchen, the same test `kitchen.sh` uses, so a nested
 repo or a `claude --worktree` session is left alone), `AskUserQuestion` is refused unless a
-grilling is under way (`.claude/grilling` exists in the station and is under four hours
-old: `grill-me` and `brainstorm` write it when they start there and remove it when they
-finish; `kitchen.sh setup` keeps it out of the station's git status), and a `[gate]`
+grilling is under way (`.claude/grilling` exists in the station and was touched within
+four hours: `grill-me` and `brainstorm` write it when they start there, touch it before
+each round so the cap measures idle time, and remove it when they finish; `kitchen.sh
+setup` keeps it out of the station's git status), and a `[gate]`
 carrying a numbered question is refused when it names no commis result. Both are
 guardrails against a slip, not a wall; both stay out of the way in a repo with no
 `.claude/brigade.md` and in the main checkout.

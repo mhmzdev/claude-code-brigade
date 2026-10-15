@@ -96,7 +96,7 @@ One plan phase per pass:
 
 | Situation | Who |
 |---|---|
-| a question of fact, or one the record may already answer | the **commis** first (`bk:commis`), always; only `nothing` or `conflict` goes further, with the commis line in the gate |
+| a question of fact, or one the record may already answer | the **commis** first (`bk:commis`, model: the config's `commis_model`, if set), always; only `nothing` or `conflict` goes further, with the commis line in the gate |
 | the plan is wrong or contradicts the repo | sous by `[gate]` (solo: human). Back to `/bk:create-plan`, and the changed plan needs a new sign-off |
 | a dependency the plan never mentions blocks you | sous by `[gate]` (solo: human) |
 | the same fix has failed ~3 times | sous by `[gate]` (solo: human) |

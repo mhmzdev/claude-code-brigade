@@ -35,7 +35,7 @@ brainstorm → grill-me → spec → file-tickets → create-plan → implement 
 4. **Look before you ask.** If the answer is in the repo, read it.
 5. **Ground before you opine.** No approach or recommendation about the code before Step 2 is done.
 
-This skill is a conversation with the human, usually in a **sous or solo** session (Contract 5). In a line-cook session, never start one yourself: nobody watches a cook's terminal. Send the sous `[gate] <ID> needs grilling: <the idea and why it isn't settled>`, and the sous takes it from there (it may hand a grilling to a cook, but never a brainstorm). If the human typed `/bk:brainstorm` in your station themselves, they're here: write `.claude/grilling` in the station first (the plugin's hook refuses `AskUserQuestion` there without it; remove it at the end), carry on, send the sous `[status] brainstorming with the head chef`, write the doc in your station **without its INDEX row** (the sous adds that), and at the end send `[rail] brainstorm ready: <absolute path>` so the sous files it in the main checkout (delete your copy on `[heard]`, which leaves the station clean). That session is then spent: it should be cleared before it takes a ticket.
+This skill is a conversation with the human, usually in a **sous or solo** session (Contract 5). In a line-cook session, never start one yourself: nobody watches a cook's terminal. Send the sous `[gate] <ID> needs grilling: <the idea and why it isn't settled>`, and the sous takes it from there (it may hand a grilling to a cook, but never a brainstorm). If the human typed `/bk:brainstorm` in your station themselves, they're here: write `.claude/grilling` in the station first (the plugin's hook refuses `AskUserQuestion` there without it, and ignores a marker idle for four hours, so `touch` it again before each round of questions; remove it at the end), carry on, send the sous `[status] brainstorming with the head chef`, write the doc in your station **without its INDEX row** (the sous adds that), and at the end send `[rail] brainstorm ready: <absolute path>` so the sous files it in the main checkout (delete your copy on `[heard]`, which leaves the station clean). That session is then spent: it should be cleared before it takes a ticket.
 
 ## Step 1 — Scope the idea
 
@@ -56,7 +56,7 @@ Pick the slug now: lowercase-kebab, 2–5 words. The file is `<docs.brainstorm>/
 
 ## Step 3 — Understand
 
-1. **Check settled decisions.** Spawn `bk:commis` with the idea's main questions, the main checkout, the stations folder and the `docs:` map. If the idea brushes a decision already made or deliberately deferred (or an open question file), raise that with its source instead of re-arguing it.
+1. **Check settled decisions.** Spawn `bk:commis` (model: the config's `commis_model`, if set) with the idea's main questions, the main checkout, the stations folder and the `docs:` map. If the idea brushes a decision already made or deliberately deferred (or an open question file), raise that with its source instead of re-arguing it.
 2. **Question, one at a time.** Good ones:
    - Who feels the problem, and what's the smallest version that removes it?
    - Does it change a shape someone else consumes (an API, an event, a file format)? Who reads the old one?

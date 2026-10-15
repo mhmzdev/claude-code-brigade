@@ -64,7 +64,7 @@ Present what you found in a few lines (current state with refs, design options w
 
 - **Read the code before asking.** A fact is looked up, never asked.
 - One question at a time, multiple choice, your recommendation first with one line of why.
-- **Look it up before you ask** (Contract 5): spawn `bk:commis` with the question, the ticket, the main checkout, the stations folder and the `docs:` map. `settled` with a decision as its source → take the answer, cite the source in the plan's Decisions, don't ask. `fact` → read it; a fact answers "how is it" but never "how should it be". `nothing` or `conflict` → ask, with the commis line.
+- **Look it up before you ask** (Contract 5): spawn `bk:commis` (model: the config's `commis_model`, if set) with the question, the ticket, the main checkout, the stations folder and the `docs:` map. `settled` with a decision as its source → take the answer, cite the source in the plan's Decisions, don't ask. `fact` → read it; a fact answers "how is it" but never "how should it be". `nothing` or `conflict` → ask, with the commis line.
 - **Who you ask** (Contract 5): solo, the human (`AskUserQuestion`). In a station, always the sous by `[gate]` with the commis line, never the human: say when it's a genuine design fork or a contradiction between ticket and code, and the sous answers from the record or takes that one to the head chef and relays the answer.
 - A user correction isn't accepted on faith. Verify it against the code.
 

@@ -75,7 +75,7 @@ Also read, at `origin/<trunk>`:
 | `docs/plans/<id>-*.md` | a plan exists; its `status:` says how far it got |
 | `docs/checklists/<id>-*.md` | it was built and reviewed |
 | the parent spec | the *why*, and the decisions the ticket inherits |
-| the record (Contract 12) | decisions already made about this area, and any open question file that blocks it. Spawn `bk:commis` with the ticket's title and "Done when" as the question, the main checkout, the stations folder and the `docs:` map; cite what it returns under *How it got here* |
+| the record (Contract 12) | decisions already made about this area, and any open question file that blocks it. Spawn `bk:commis` (model: the config's `commis_model`, if set) with the ticket's title and "Done when" as the question, the main checkout, the stations folder and the `docs:` map; cite what it returns under *How it got here* |
 
 `docs/research/` and `docs/brainstorm/` **don't count** as evidence. They're exploration, not commitment.
 
