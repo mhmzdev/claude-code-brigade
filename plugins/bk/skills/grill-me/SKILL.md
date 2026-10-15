@@ -1,6 +1,6 @@
 ---
 name: grill-me
-description: Question the human relentlessly about a brainstorm, spec, plan, ticket, or bare idea until you both hold one picture of it. Maps the decisions as a tree and asks, each round, every question that can be answered now, numbered, each with a recommended answer. Facts are looked up, never asked. Use when the user says "grill me", "grill this", "poke holes in this", "stress-test this", "what am I missing", or when /bk:pick-ticket reports the WHAT is still contested.
+description: Question the human relentlessly about a brainstorm, spec, plan, ticket, or bare idea until you both hold one picture of it. Maps the decisions as a tree and asks, each round, every question that can be answered now, numbered, each with a recommended answer. Facts are looked up, never asked, and decisions the record already holds are shown as settled, not asked again (the commis checks every round). Use when the user says "grill me", "grill this", "poke holes in this", "stress-test this", "what am I missing", or when /bk:pick-ticket reports the WHAT is still contested.
 argument-hint: "<path to a brainstorm/spec/plan, a ticket id, or a topic>"
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash, Agent, Skill, AskUserQuestion, SendMessage, ListAgents, ToolSearch
 ---
@@ -35,6 +35,7 @@ Always the **human**. Grilling is a design conversation, so it happens wherever 
 
 **The sous sent you a grilling `[brief]`, or the human typed `/bk:grill-me` in your station themselves?** Then the human is coming to this terminal: grill them, and ask with `AskUserQuestion` as this skill says. This is the one job where a cook asks the human directly. Four things differ from a sous session:
 
+- Write `.claude/grilling` in your station first (`mkdir -p .claude && touch .claude/grilling`): the plugin's hook refuses `AskUserQuestion` in a station without it. Remove it when the grilling ends, before the `[status]` below.
 - Send the sous `[status] grilling <ID> with the head chef` at the start.
 - You can't write the rail, and specs and tickets live in the main checkout. So **log every decision where the brief says**:
   - a backlog item that needs a spec → go straight on to `/bk:spec`. It writes `<docs.specs>/draft-<slug>.md` in your station with the decisions in its Decisions section, and sends `[rail] spec draft ready: <absolute path>`, naming the item, for the sous to number and file;
@@ -52,17 +53,22 @@ Read the input **fully** before the first round:
 - a ticket id → the rail's **read** operation (Contract 3), via `/bk:rail read <id>`;
 - a bare topic → nothing yet.
 
-Then read any earlier-stage file for the same work: the brainstorm, the spec, the plan. Read any decisions log the repo keeps, so you never re-argue a settled decision. If the artifact contradicts one, *that* becomes a question.
+Then read any earlier-stage file for the same work: the brainstorm, the spec, the plan. The record (Contract 12: `docs.decisions`, `docs.conventions`, `docs.knowledge`, `docs.questions`, past journals) holds decisions already made; the commis checks it for you every round, so you never re-argue one. If the artifact contradicts a recorded decision, *that* becomes a question.
 
 ## The method — a decision tree, in rounds
 
 Map the artifact as a **decision tree**. The root is the WHAT and WHY. Below it hang scope, the shapes other code consumes, data, access, failure modes, rollout, and how each piece will be verified.
 
-The **frontier** is every decision whose prerequisites are already settled: the questions you can ask *now* without guessing at answers you haven't heard. **Ask the whole frontier in one round.** Number each question and give your recommended answer. Then stop and wait.
+The **frontier** is every decision whose prerequisites are already settled: the questions you can ask *now* without guessing at answers you haven't heard. **Run the frontier past the commis before you ask it**: one `bk:commis` call with the whole round's questions, the artifact's path, the main checkout, the stations folder and the `docs:` map. A question it returns `settled` for, with a decision as its source, is not asked: it's shown as already settled, with the source, so the human can say "that changed". A `fact` answers the question outright: fold the fact in and drop the question. `nothing` and `conflict` are asked (a conflict is asked with both records cited). **Ask the whole remaining frontier in one round.** Number each question and give your recommended answer. Then stop and wait.
 
 Format each round exactly like this:
 
 ```
+✅ **Already settled** (say if any of these changed):
+- <title>: <the decision> — <source path>, <date>
+
+---
+
 ❓ **Q1** - **<title>**: <the question — may offer choices>
 
 ➡️ <recommended answer, and the one-line reason>
@@ -73,6 +79,10 @@ Format each round exactly like this:
 
 ➡️ <recommended answer, and the one-line reason>
 ```
+
+Leave the settled block out when there's nothing in it. A settled decision the human
+overturns becomes a decision in this grilling's summary, marked `supersedes <source>`, so
+the record is corrected when the decisions are filed.
 
 Each set of answers reshapes the tree. Settled decisions push the frontier outward. Recompute it and ask the next round. A question that depends on another question still open in *this* round belongs to a later round.
 
@@ -98,11 +108,13 @@ Push hardest where the artifact is vague:
    - plan → its decisions, and keep `open_questions:` honest (`/bk:implement` refuses a plan with an open question). A plan in a station is the cook's file: the sous sends the decisions as `[findings]` and the cook folds them in;
    - ticket → on a markdown rail, append a `## Decisions` section. That's a rail write, which the sous or a solo session may make. On a github or jira rail, add a comment.
    - no artifact → the summary is the input to the next skill.
-3. **Hand off** with `AskUserQuestion`, then wait: lane A, or a backlog item that needs a spec → `/bk:spec` (name the item, so the spec closes it); a `kind: bug` backlog item → `/bk:create-plan`; or stop.
+3. **Hand off.** Solo or sous: offer with `AskUserQuestion`, then wait: lane A, or a backlog item that needs a spec → `/bk:spec` (name the item, so the spec closes it); a `kind: bug` or `kind: chore` backlog item → `/bk:create-plan`; or stop. In a station: no dialog; remove `.claude/grilling`, do what the brief said comes next, and send the `[status] <ID> grilled: …` line from [Who you grill](#who-you-grill).
+
+The decisions a grilling produces are head-chef answers: once folded into the artifact they're in the record, and the sous's handoff promotes any that outlive the artifact into `docs.decisions` (Contract 12).
 
 ## What not to do
 
 - **Don't ask a question whose prerequisite is still open.**
-- **Don't ask what you can look up.** Grill decisions, not facts.
+- **Don't ask what you can look up.** Grill decisions, not facts, and not decisions already made: the commis runs before every round.
 - **Don't stop early.** A comfortable grilling didn't do its job. An empty frontier is the only exit.
 - **Don't start implementing**, and never cite a `file:line`, ticket or PR you didn't read in this run.

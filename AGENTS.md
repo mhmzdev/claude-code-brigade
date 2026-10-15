@@ -24,20 +24,25 @@ User-facing overview: [`README.md`](README.md). How each flow runs: [`PLAYBOOK.m
 .claude-plugin/marketplace.json     the marketplace: name claude-code-brigade, one plugin
 plugins/bk/                         the plugin (skills are invoked /bk:<skill>)
 ├── .claude-plugin/plugin.json      name "bk", version, agents list
-├── skills/README.md                THE CONTRACT: rules every skill follows (Contracts 1–11)
+├── skills/README.md                THE CONTRACT: rules every skill follows (Contracts 1–12)
 ├── skills/<name>/SKILL.md          one skill each: setup, kitchen, sous-chef, line-cook, rail,
 │                                   brainstorm, grill-me, spec, file-tickets, pick-ticket,
 │                                   create-plan, implement, review-task, open-pr, clean, handoff,
 │                                   feedback
-├── skills/kitchen/kitchen.sh       the only runtime script: stations, boards, role, sous, questions,
-│                                   lessons, sessions
-├── agents/                         inspector (report-only), taster (the pass), runner (noisy commands)
-└── templates/                      spec, ticket, plan, checklist, journal, brigade.local
-scripts/check.sh                    THE gate: manifests, shellcheck, frontmatter, tests, version
+├── skills/kitchen/kitchen.sh       the runtime script: stations, boards, role, sous, questions,
+│                                   lessons, decisions, inbox, doctor, sessions
+├── hooks/hooks.json, hooks/guard.sh  PreToolUse guard: no human dialog in a station outside a
+│                                   grilling; no [gate] question without the commis's result
+├── agents/                         commis (searches the record), inspector (report-only),
+│                                   taster (the pass), runner (noisy commands)
+└── templates/                      spec, ticket, plan, checklist, journal, decision, question,
+                                    SCHEMA, brigade.local
+scripts/check.sh                    THE gate: manifests, shellcheck, frontmatter, hooks json, tests, version
 .github/workflows/check.yml         runs the gate in CI on Linux and macOS
 .github/workflows/release.yml       tags each green merge to main v<version>, with a GitHub release
 CHANGELOG.md                        one entry per version, newest first
 tests/kitchen.test.sh               behaviour tests for kitchen.sh, both kitchen modes
+tests/guard.test.sh                 behaviour tests for hooks/guard.sh: clone and worktree stations
 docs/the-names.md                   the Brigade names, plus Qafila as an alternate
 PLAYBOOK.md                         how each flow runs, as questions and answers; the contract wins over it
 assets/hero.jpeg                    README banner
@@ -47,9 +52,10 @@ assets/hero.jpeg                    README banner
 ## The contract is the source of truth
 
 `plugins/bk/skills/README.md` defines the cast, the config (`.claude/brigade.md` in a
-consuming repo), the rail and its six operations, ids and paths, who answers each gate, the
-message kinds, the walk-in, stations, lanes, and journals/handoffs/lessons. A skill says *how*
-to do its step; the contract says what every step shares.
+consuming repo), the rail and its six operations, ids and paths, who answers each gate (and
+the three kinds of unknown), the message kinds, the walk-in, stations, lanes,
+journals/handoffs/lessons, and the record (what the kitchen remembers and how it's filed). A
+skill says *how* to do its step; the contract says what every step shares.
 
 **When a skill and the contract disagree, the skill has a bug.** When you change a shared
 rule, change the contract first, then grep every skill for the old wording and update it in
@@ -67,10 +73,17 @@ things, and it only shows up mid-service.
   to phase 2?". A skill stops only for a real decision.
 - **`disable-model-invocation: true` only on `setup`**, which changes a repo's layout.
   Every other skill must stay model-invocable, or cooks stall waiting for a human to type it.
-  That includes `implement`: a cook starts it on the sous's `[approved]` (the head chef's
-  plan sign-off, relayed), and the skill itself checks the sign-off is there.
+  That includes `implement`: a cook starts it on the sous's `[approved]` (the sous's own for
+  a bug, chore or hygiene ticket; the head chef's, relayed, for a feature), and the skill
+  itself checks the sign-off is there.
 - **The head chef talks to the sous only** (Contract 5). No skill may tell a cook to ask
-  the human or open an `AskUserQuestion` dialog; a cook's question is a `[gate]` to the sous.
+  the human or open an `AskUserQuestion` dialog; a cook's question is a `[gate]` to the sous,
+  and it goes to the `commis` first. The hook in `hooks/guard.sh` enforces both in a
+  station; a skill that needs a dialog there during a grilling writes `.claude/grilling`
+  first and removes it after.
+- **Only the head chef decides what nobody has decided** (Contract 5). A skill may let the
+  sous answer from the record or sign off a bug, chore or hygiene plan; it may never let the
+  sous decide a fork the record doesn't settle or approve a feature plan.
 - **Every lifecycle skill starts with the station check** (`kitchen.sh role`): a session inside
   a station is a line cook, even after `/clear`.
 - **Message kinds** used in any skill must exist in Contract 6's table.
@@ -91,12 +104,15 @@ It runs, in order:
 
 1. `claude plugin validate` on the marketplace and the plugin (skipped, with a warning, if the
    `claude` CLI isn't installed);
-2. `bash -n` and `shellcheck` on `kitchen.sh` and the test scripts (`shellcheck` is required);
+2. `bash -n` and `shellcheck` on `kitchen.sh`, `hooks/guard.sh` and the test scripts
+   (`shellcheck` is required);
 3. a frontmatter check on every skill: `name` matches its folder, a real `description`, and
    `disable-model-invocation: true` only on `setup`; every agent is listed in
-   `plugin.json`;
-4. `tests/kitchen.test.sh`: about 60 behaviour tests of `kitchen.sh` in throwaway repos, in
-   both `clone` and `worktree` mode, including a workspace repo that holds the app repo;
+   `plugin.json`; `hooks/hooks.json` is valid JSON with a top-level `hooks` key;
+4. `tests/kitchen.test.sh`: about 180 behaviour tests of `kitchen.sh` in throwaway repos, in
+   both `clone` and `worktree` mode, including a workspace repo that holds the app repo; and
+   `tests/guard.test.sh`: the hook guard fed the JSON Claude Code sends, in a clone station,
+   a worktree station, the main checkout and a repo without the Brigade;
 5. a release check: `version` in `plugin.json` is `X.Y.Z`, it's the top entry of
    `CHANGELOG.md` (`## [X.Y.Z] - YYYY-MM-DD`), and on a branch it's higher than
    `origin/main`'s.
@@ -111,7 +127,7 @@ keeps the temp dir for poking at.
 have). The `claude` CLI isn't installed there, so step 1 is skipped in CI: run the gate locally
 too. A red check means don't merge.
 
-**When you add behaviour to `kitchen.sh`, add a test for it, and make sure it can fail:**
+**When you add behaviour to `kitchen.sh` or `guard.sh`, add a test for it, and make sure it can fail:**
 break the code on purpose and watch the test go red before you trust it green. Every test in
 the suite was checked that way when it was written.
 

@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Carry out an approved plan phase by phase — run the config's check after every phase, tick criteria honestly, keep the plan's status and the rail current — then hand off to clean check and review-task (lanes A/B), or to clean check and the pass (lane C). Hygiene (HYG) tickets run straight from the ticket body with no plan; the proof is the counter going down. Starts only on the head chef's sign-off (typed or said solo; relayed by the sous as [approved] in a station) and refuses a plan that still carries open questions. Never commits. Use when the user says "implement this", "build the plan", "start coding", "execute BKLG-004", "work HYG-002", "/bk:implement".
+description: Carry out an approved plan phase by phase — run the config's check after every phase, tick criteria honestly, keep the plan's status and the rail current — then hand off to clean check and review-task (lanes A/B), or to clean check and the pass (lane C). Hygiene (HYG) tickets run straight from the ticket body with no plan; the proof is the counter going down. Starts only on the sign-off (typed or said solo; in a station the sous's [approved], its own for a bug, chore or hygiene ticket, the head chef's relayed for a feature) and refuses a plan that still carries open questions. Never commits. Use when the user says "implement this", "build the plan", "start coding", "execute BKLG-004", "work HYG-002", "/bk:implement".
 argument-hint: "[plan path | ticket id] (usually nothing: it finds this station's plan)"
 allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, AskUserQuestion, ListAgents, SendMessage, ToolSearch
 ---
@@ -11,7 +11,8 @@ Honour the plugin contract: the `README.md` in this skill's parent folder, `${CL
 
 **Station check first** (Contract 1): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`. If it prints `cook …`, you are a line cook even if nobody typed `/bk:line-cook` (e.g. after a `/clear`): read and follow `${CLAUDE_SKILL_DIR}/../line-cook/SKILL.md` for where questions go, the journal, and what a cook never does.
 
-You're executing a plan, and **the head chef's sign-off is what starts it** (Contract 5).
+You're executing a plan, and **the sign-off is what starts it** (Contract 5): the head
+chef's for a feature, the sous's own for a bug, chore or hygiene ticket.
 That sign-off approves the plan and every commit under it. The sign-off check below makes
 sure it's really there, because this skill can be started by a model as well as typed. **Follow the plan, don't redesign it.** Every line you write matches the repo's live conventions.
 
@@ -33,7 +34,8 @@ sure it's really there, because this skill can be started by a model as well as 
 Do this before anything else. No sign-off → change nothing and stop.
 
 - **In a station (a cook):** the ticket's journal must hold the sous's `[approved]` line for
-  this ticket, with the head chef's words. For a `HYG` ticket the `[approved]` line in the
+  this ticket, with the head chef's words or the sous's rule (`sous, per
+  gates.plan_approval.<kind>`). For a `HYG` ticket the `[approved]` line in the
   `[brief]` counts. Missing → send `[plan] <ID> ready: <path>` again (a `HYG` ticket has no
   plan: send `[gate] <ID> no [approved] on record`) and wait. A
   `[heard]`, a `[go]`, or an approval for another ticket is not a sign-off. The human typing
@@ -94,6 +96,7 @@ One plan phase per pass:
 
 | Situation | Who |
 |---|---|
+| a question of fact, or one the record may already answer | the **commis** first (`bk:commis`), always; only `nothing` or `conflict` goes further, with the commis line in the gate |
 | the plan is wrong or contradicts the repo | sous by `[gate]` (solo: human). Back to `/bk:create-plan`, and the changed plan needs a new sign-off |
 | a dependency the plan never mentions blocks you | sous by `[gate]` (solo: human) |
 | the same fix has failed ~3 times | sous by `[gate]` (solo: human) |
@@ -127,7 +130,7 @@ Hygiene tickets skip the plan and the checklist (Contract 9). The ticket body **
 
 ## What not to do
 
-- Don't start on a plan with open questions, or one the chef hasn't signed off. In a station, a cook never asks the human: every question is a `[gate]` to the sous.
+- Don't start on a plan with open questions, or one nobody has signed off. In a station, a cook never asks the human: every question goes to the commis, then as a `[gate]` to the sous.
 - Don't redesign mid-build. Stop and say the plan is wrong.
 - Don't pause between phases for approval.
 - Don't hard-code a command, branch or path — read the config.

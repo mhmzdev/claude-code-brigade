@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Set up The Brigade in the current repo, bottom to top — detect trunk, check command, install command and shared resources; ask one round of questions; write .claude/brigade.md; build the markdown rail folders in docs/; add a short "The Brigade" section to CLAUDE.md; gitignore the stations; commit on the human's go; then create the stations. Use when the user says "set up the brigade", "brigade setup", "install the brigade here", "/bk:setup".
+description: Set up The Brigade in the current repo, bottom to top — detect trunk, check command, install command, shared resources and the docs the repo already keeps; ask one round of questions; write .claude/brigade.md with its docs map; build the rail and record folders in docs/ (or map the repo's own, and respect its doc schema); add a short "The Brigade" section to CLAUDE.md; gitignore the stations; commit on the human's go; then create the stations. Use when the user says "set up the brigade", "brigade setup", "install the brigade here", "/bk:setup".
 argument-hint: "[--worktree | --clone]"
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, ToolSearch
 disable-model-invocation: true
@@ -91,6 +91,13 @@ Note for the summary:
 - **Migrations folder**, if any.
 - **Existing trackers**: a GitHub Project on the repo, Jira keys in branches or commits,
   an existing `docs/` layout for specs or plans.
+- **The docs the repo already keeps** (Contract 12), so the map points at them instead of
+  inventing a second home: ADRs (`docs/decisions/`, `docs/adr/`), conventions
+  (`docs/conventions/`, `.claude/rules/`), domain knowledge (`docs/domains/`,
+  `docs/architecture/`), open questions. And **a doc schema**: a `docs/SCHEMA.md`, a
+  docs linter in the check command, a `config.json` listing folder types. A schema decides
+  the folder names and frontmatter the Brigade's docs must use, and whether the file is
+  vendored ("do not edit" at the top): then its own extension point is where new types go.
 - **Which kitchen mode fits** (Contract 8), unless a flag already settled it. Recommend
   **`worktree`** when either is true, else **`clone`**:
   - the repo sits inside another git repo (`git -C .. rev-parse --show-toplevel` succeeds):
@@ -115,12 +122,22 @@ Ask together, skipping any the repo answered (say what you found):
 4. **Are these the shared resources and their destructive commands?**
 5. **Can the sous commit rail changes straight to trunk?** Recommend yes unless trunk is
    protected; otherwise one rail PR a day.
+6. **Who signs off which plans?** Recommend the default (`gates.plan_approval`, Contract 5):
+   the head chef for features, the sous for bugs, chores and hygiene. Offer "every plan
+   comes to me" (`plan_approval: head-chef`) for a team that wants to start tighter.
 
 ## 4. Write the config
 
 Write `.claude/brigade.md` with the shape in Contract 2, filled from steps 2–3. Keep the
 flat keys on one line each: `kitchen.sh` reads them. Put repo-specific notes in the body
 as plain sentences.
+
+**The `docs:` map** names every place the kitchen keeps something and the commis searches
+(Contract 12). Point each key at what step 2 found: an existing `docs/decisions/` is
+`decisions:`, `docs/domains/` is `knowledge:`, and so on. A store the repo doesn't keep and
+doesn't want gets `none`. If the repo has a doc schema, say in the body how the Brigade's
+docs must look there (folder names, filename pattern, required frontmatter, the docs check
+to run) and which extension point adds a type, so the sous follows it instead of guessing.
 
 Create `.claude/brigade.local.md` from `${CLAUDE_SKILL_DIR}/../../templates/brigade.local.md` (the `## Test accounts` skeleton, Contract 2; leave the accounts empty and never ask for a password here: the sous asks when a flow first needs one). If the file already exists, keep what it holds and only add the section if it's missing. Add it to `.gitignore`, together
 with `.claude/sous-handoff.md` (the sous's handoff note is machine-local, Contract 11).
@@ -160,6 +177,16 @@ table with one row per file):
 
 - always: `docs/specs/`, `docs/plans/`, `docs/checklists/`, `docs/journal/`, `docs/research/`, `docs/brainstorm/`
 - markdown or mixed-with-markdown-tickets rail: `docs/backlog/`
+- the record (Contract 12), unless the map says `none` or points at a folder that exists:
+  `docs/decisions/`, `docs/conventions/`, `docs/domains/`, `docs/questions/`
+
+In a repo **with its own doc schema**, create only what the schema allows and register the
+rest through its extension point (never edit a vendored `SCHEMA.md`); run its docs check
+before showing the result. In a repo **without one**, write `docs/SCHEMA.md` from
+`${CLAUDE_SKILL_DIR}/../../templates/SCHEMA.md`, with the folder column matching the map
+you wrote, so every doc type under `docs/` has a row saying what it is, who writes it and
+what its frontmatter carries. `kitchen.sh doctor` checks the map against `docs/`; run it
+once the folders exist and show its output.
 
 Names and ids are Contract 4, exactly. Don't create sample tickets here; step 9 offers one.
 
@@ -177,11 +204,17 @@ Append (create the file if needed). Keep it this short; the detail lives in the 
 
 This repo can run several Claude Code sessions at once. Config: `.claude/brigade.md`.
 
-- **Head Chef** (the human) talks to the sous only: signs off plans there, merges, deploys. **Sous Chef**
-  (`/bk:sous-chef`, in this checkout) assigns tickets, answers routine questions,
-  reviews every diff before commit, and is the **only session that writes the rail**.
-  **Line Cooks** (`/bk:line-cook`) work one ticket each in `<stations path>/station-N`,
-  and ask the sous, never the human (except a grilling the sous hands them).
+- **Head Chef** (the human) talks to the sous only: signs off feature plans there, decides
+  what nobody has decided yet, merges, deploys. **Sous Chef** (`/bk:sous-chef`, in this
+  checkout) assigns tickets, answers every question the record or routine settles, signs
+  off bug, chore and hygiene plans, keeps the record (`docs:` map in the config), reviews
+  every diff before commit, and is the **only session that writes the rail**. **Line Cooks**
+  (`/bk:line-cook`) work one ticket each in `<stations path>/station-N`, send the `commis`
+  sub-agent to search the record before any question, and ask the sous, never the human
+  (except a grilling the sous hands them).
+- **A decision the head chef made once is in the record** (`docs/decisions/`,
+  `docs/questions/`, the journals). Look there before asking; `kitchen.sh doctor` checks
+  the map.
 - **If your working directory is a station, you are a line cook**, even after `/clear`:
   run `/bk:line-cook` before anything else.
 - **The rail is the claim.** A ticket not in `backlog` or `blocked` belongs to someone.

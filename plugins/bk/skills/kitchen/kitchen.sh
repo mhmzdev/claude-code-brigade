@@ -57,6 +57,15 @@
 #                                         is recorded). --set, from the main checkout:
 #                                         record it in .claude/sous (kept out of git)
 #   kitchen.sh lessons                    count lesson(...) lines across ticket journals
+#   kitchen.sh decisions                  every "(head chef)" answer in a journal that no doc
+#                                         under the docs map cites and the register doesn't
+#                                         list: what the sous's handoff still has to file
+#   kitchen.sh inbox [--add "<text>"]     the inbox, .claude/inbox.md: things the head chef
+#                                         said that the record doesn't hold yet. --add
+#                                         appends one dated line; without it, list them
+#   kitchen.sh doctor                     check ticket files (fields, statuses, blockers,
+#                                         ids) and the docs map (folders exist, have an
+#                                         INDEX.md, nothing under docs/ is unmapped)
 #                                         (any depth under docs.journal, so finished
 #                                         ones moved to a subfolder still count) and
 #                                         say which are due for promotion
@@ -146,6 +155,8 @@ SESSIONS_DIR=""   # --dir, for sessions and leaks
 ALSO=""           # --also, one extra file for leaks
 SET_SOUS=false    # --set, for sous
 SOUS_NAME=""
+ADD_GIVEN=false   # --add, for inbox
+ADD_TEXT=""
 MODELS=()
 ARGV=()   # set by native_argv
 
@@ -161,6 +172,7 @@ while [[ $# -gt 0 ]]; do
     --dir) SESSIONS_DIR="$2"; shift 2 ;;
     --also) ALSO="$2"; shift 2 ;;
     --set) SET_SOUS=true; SOUS_NAME="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
+    --add) ADD_TEXT="${2:-}"; ADD_GIVEN=true; shift; [[ $# -gt 0 ]] && shift ;;
     -m|--model) shift
       while [[ $# -gt 0 && "$1" != -* ]]; do
         for tok in ${1//,/ }; do MODELS+=("$tok"); done; shift
@@ -716,7 +728,7 @@ cmd_rail() {
           rdy = (held == "" ? "yes" : "no")
           # a backlog item is built directly only when it is a bug; anything else
           # still has to become a spec and tickets (Contract 4)
-          if (id ~ /^BKLG-/ && kind != "bug") rdy = "spec"
+          if (id ~ /^BKLG-/ && kind != "bug" && kind != "chore") rdy = "spec"
         }
         printf "%-10s %-4s %-12s %-5s %-4s %-11s %s%s\n", id, lane, status, pri, rdy, cook, title, (held == "" ? "" : "  (blocked by: " held ")")
       }
@@ -752,6 +764,7 @@ cmd_board() {
     cmd_status; cmd_files
     echo ""; echo "The rail:"; cmd_rail
     echo ""; echo "Open questions:"; cmd_questions
+    echo ""; echo "Decisions to file: $(cmd_decisions | grep -c ' DUE ' || true) · Inbox: $(inbox_count) unfiled"
     echo '```')"
   printf '%s\n' "$text"
   here_real="$(cd "$HERE" && pwd -P)"
@@ -854,12 +867,9 @@ cmd_sous() {
 # its plans moves them to e.g. plans/completed/ when done, and those still count.
 # ---------------------------------------------------------------------------
 cmd_lessons() {
-  local journal lessons_file dir f files=()
-  journal="$(cfg_docs journal)"; lessons_file="$ROOT/$(cfg_docs lessons docs/lessons.md)"
-  for dir in "$ROOT/$journal" "$KITCHEN"/station-*/"$journal"; do
-    [[ -d "$dir" ]] || continue
-    while IFS= read -r f; do files+=("$f"); done < <(find "$dir" -name '*.md' ! -name INDEX.md -type f 2>/dev/null)
-  done
+  local lessons_file f files=()
+  lessons_file="$ROOT/$(cfg_docs lessons docs/lessons.md)"
+  while IFS= read -r f; do files+=("$f"); done < <(journal_files)
   (( ${#files[@]} == 0 )) && { echo "No ticket journals yet."; return 0; }
   printf '%-7s %-28s %-8s %-9s %s\n' SCOPE KEY TICKETS STATUS "FIRST SEEN AS"
   grep -h -E '^- lesson\((repo|plugin)\): ' "${files[@]}" 2>/dev/null | awk -F' \\| ' -v lf="$lessons_file" '
@@ -884,20 +894,210 @@ cmd_lessons() {
 }
 
 # ---------------------------------------------------------------------------
-# questions — what cooks are waiting on, read from their journals. A question is
-# a journal line "- <when> · <session> · Qn: …"; it's answered once an "An" line
-# follows in the same journal.
+# questions — what the kitchen is waiting on. Two sources: a cook's journal line
+# "- <when> · <session> · Qn: …" with no "An" line after it in the same journal,
+# and an open question file under docs.questions (frontmatter status: open), which
+# is where the sous parks a question the head chef hasn't answered by a handoff.
 # ---------------------------------------------------------------------------
-cmd_questions() {
-  local journal f any=false
+journal_files() {  # every journal, trunk and stations, any depth, INDEX.md excluded
+  local journal dir
   journal="$(cfg_docs journal)"
-  for f in "$KITCHEN"/station-*/"$journal"/*.md; do
-    [[ -f "$f" && "$(basename "$f")" != INDEX.md ]] || continue
-    awk -v st="$(basename "$(dirname "$(dirname "$(dirname "$f")")")")" -v fn="$(basename "$f")" '
-      /^- .* · Q[0-9]+:/ { match($0, /Q[0-9]+:/); q=substr($0, RSTART+1, RLENGTH-2); ask[q]=$0; order[++n]=q }
-      /^- .* · A[0-9]+/  { match($0, /A[0-9]+/);  a=substr($0, RSTART+1, RLENGTH-1); answered[a]=1 }
-      END { for (i=1; i<=n; i++) if (!(order[i] in answered)) { line=ask[order[i]]; sub(/^- /, "", line); printf "%-11s %-28s %s\n", st, fn, line } }' "$f"
-  done | { if read -r first; then any=true; printf '%-11s %-28s %s\n' STATION JOURNAL QUESTION; echo "$first"; cat; fi; $any || echo "No open questions."; }
+  for dir in "$ROOT/$journal" "$KITCHEN"/station-*/"$journal"; do
+    [[ -d "$dir" ]] || continue
+    find "$dir" -name '*.md' ! -name INDEX.md -type f 2>/dev/null
+  done
+}
+
+cmd_questions() {
+  local journal qdir f any=false
+  journal="$(cfg_docs journal)"; qdir="$(docs_path questions)"
+  {
+    for f in "$KITCHEN"/station-*/"$journal"/*.md; do
+      [[ -f "$f" && "$(basename "$f")" != INDEX.md ]] || continue
+      awk -v st="$(basename "$(dirname "$(dirname "$(dirname "$f")")")")" -v fn="$(basename "$f")" '
+        /^- .* · Q[0-9]+:/ { match($0, /Q[0-9]+:/); q=substr($0, RSTART+1, RLENGTH-2); ask[q]=$0; order[++n]=q }
+        /^- .* · A[0-9]+/  { match($0, /A[0-9]+/);  a=substr($0, RSTART+1, RLENGTH-1); answered[a]=1 }
+        END { for (i=1; i<=n; i++) if (!(order[i] in answered)) { line=ask[order[i]]; sub(/^- /, "", line); printf "%-11s %-28s %s\n", st, fn, line } }' "$f"
+    done
+    if [[ "$qdir" != none && -d "$ROOT/$qdir" ]]; then
+      for f in "$ROOT/$qdir"/*.md; do
+        [[ -f "$f" && "$(basename "$f")" != INDEX.md ]] || continue
+        awk -v fn="$(basename "$f")" '
+          NR==1 && $0=="---" { fm=1; next }
+          fm && $0=="---" { exit }
+          fm && /^status:/ { s=$0; sub(/^status:[ ]*/, "", s); sub(/[ ]+#.*$/, "", s); status=s }
+          fm && /^title:/ { t=$0; sub(/^title:[ ]*/, "", t); gsub(/^"|"$/, "", t); title=t }
+          fm && /^blocks:/ { b=$0; sub(/^blocks:[ ]*/, "", b); gsub(/[]["\047]/, "", b); blocks=b }
+          END { if (status == "open") printf "%-11s %-28s %s%s\n", "(record)", fn, title, (blocks == "" ? "" : "  (blocks: " blocks ")") }' "$f"
+      done
+    fi
+  } | { if read -r first; then any=true; printf '%-11s %-28s %s\n' STATION JOURNAL QUESTION; echo "$first"; cat; fi; $any || echo "No open questions."; }
+}
+
+# ---------------------------------------------------------------------------
+# decisions — the mechanical half of recording (Contract 12). A head-chef answer
+# is a journal line "- <when> · <session> · An (head chef): …" in the journal of
+# ticket <ID>. It is handled once a file under any docs map folder cites "<ID> An"
+# (a decision's source: line, say) or the register (docs.lessons) lists it as
+# kept. Everything else is DUE for the sous's handoff.
+# ---------------------------------------------------------------------------
+# docs_keys → every key of the docs map: the ones the contract names (with their
+# defaults) and any extra key the sous added to the config, each once.
+DOCS_DEFAULT_KEYS="specs backlog plans checklists journal lessons research brainstorm decisions conventions knowledge questions"
+docs_keys() {
+  local k seen=" "
+  for k in $DOCS_DEFAULT_KEYS; do echo "$k"; seen="$seen$k "; done
+  [[ -f "$CONFIG" ]] || return 0
+  while IFS= read -r k; do
+    [[ "$seen" == *" $k "* ]] && continue; seen="$seen$k "; echo "$k"
+  done < <(awk '
+    NR==1 && $0=="---" { inside=1; next }
+    inside && $0=="---" { exit }
+    inside && /^docs:/ { indocs=1; next }
+    indocs && /^[^ ]/ { indocs=0 }
+    indocs && /^  [a-z_]+:/ { k=$0; sub(/^  /, "", k); sub(/:.*/, "", k); print k }' "$CONFIG")
+}
+docs_path() {  # docs_path <key> → its path from the config, else the contract's default
+  case "$1" in
+    knowledge) cfg_docs knowledge docs/domains ;;
+    lessons) cfg_docs lessons docs/lessons.md ;;
+    *) cfg_docs "$1" ;;
+  esac
+}
+docs_dirs() {  # every place the docs map names that exists, deduped, plus CLAUDE.md
+  local key path seen=" "
+  while IFS= read -r key; do
+    path="$(docs_path "$key")"
+    [[ "$path" == none || -z "$path" ]] && continue
+    path="${path%/}"
+    [[ "$seen" == *" $path "* ]] && continue; seen="$seen$path "
+    [[ -e "$ROOT/$path" ]] && echo "$ROOT/$path"
+  done < <(docs_keys)
+  [[ -f "$ROOT/CLAUDE.md" ]] && echo "$ROOT/CLAUDE.md"
+}
+
+cmd_decisions() {
+  local register f files=() dirs=() d hits id n key status where any=false
+  register="$ROOT/$(cfg_docs lessons docs/lessons.md)"
+  while IFS= read -r f; do files+=("$f"); done < <(journal_files)
+  (( ${#files[@]} == 0 )) && { echo "No ticket journals yet."; return 0; }
+  while IFS= read -r d; do dirs+=("$d"); done < <(docs_dirs)
+  {
+    for f in "${files[@]}"; do
+      id="$(awk 'NR==1 && $0=="---" {fm=1; next} fm && $0=="---" {exit} fm && /^ticket:/ {sub(/^ticket:[ ]*/, ""); print; exit}' "$f")"
+      [[ -z "$id" ]] && id="$(basename "$f" | sed -E 's/^([A-Za-z]+-[0-9]+(-[0-9]+)?|S[0-9]+-[0-9]+).*/\1/')"
+      grep -E '^- .* · A[0-9]+ \(head chef\)' "$f" 2>/dev/null | while IFS= read -r line; do
+        n="$(printf '%s' "$line" | sed -E 's/^- .* · (A[0-9]+) \(head chef\).*/\1/')"
+        key="$id $n"
+        status=DUE; where="-"
+        if [[ -f "$register" ]] && grep -qF -- "\`$key\`" "$register"; then
+          status=kept; where="register"
+        elif (( ${#dirs[@]} > 0 )) && hits="$(grep -rlF -- "$key" "${dirs[@]}" 2>/dev/null | grep -v -F -e "$f" -e "$register" | head -1)" && [[ -n "$hits" ]]; then
+          status=filed; where="${hits#"$ROOT"/}"
+        fi
+        printf '%-14s %-6s %-36s %s\n' "$key" "$status" "$where" "$(printf '%s' "$line" | sed -E 's/^- .* · A[0-9]+ \(head chef\):? *//')"
+      done
+    done
+  } | { if read -r first; then any=true; printf '%-14s %-6s %-36s %s\n' ANSWER STATUS WHERE "HEAD CHEF SAID"; echo "$first"; cat; fi; $any || echo "No head-chef answers in any journal."; }
+}
+
+# ---------------------------------------------------------------------------
+# inbox — capture at utterance, file at handoff (Contract 12). One dated line per
+# thing the head chef said that the record doesn't hold. Local to this machine
+# (.git/info/exclude), so it survives a /clear and never reaches a PR.
+# ---------------------------------------------------------------------------
+inbox_count() { local f="$ROOT/.claude/inbox.md"; [[ -f "$f" ]] || { echo 0; return 0; }; grep -c '^- ' "$f" || true; }
+
+cmd_inbox() {
+  local file="$ROOT/.claude/inbox.md" here_real n
+  if $ADD_GIVEN; then
+    if [[ -z "$ADD_TEXT" || "$ADD_TEXT" == -* ]]; then
+      echo "Usage: kitchen.sh inbox --add \"<what the head chef said>\"" >&2; return 1
+    fi
+    here_real="$(cd "$HERE" && pwd -P)"
+    if [[ "$here_real" != "$ROOT_REAL" ]]; then
+      echo "Only the sous feeds the inbox, from the main checkout ($ROOT_REAL). A cook's gotcha is a lesson(repo) in its journal." >&2; return 1
+    fi
+    mkdir -p "$ROOT/.claude"
+    exclude_locally .claude/inbox.md
+    if [[ ! -f "$file" ]]; then
+      printf '# Inbox\n\nThings the head chef said that the record does not hold yet. Written by `kitchen.sh inbox --add`;\nfiled into the docs map at the sous'"'"'s handoff, then removed. Local to this machine.\n\n' > "$file"
+    fi
+    printf -- '- %s · %s\n' "$(date '+%Y-%m-%d %H:%M')" "$ADD_TEXT" >> "$file"
+  fi
+  n="$(inbox_count)"
+  if (( n == 0 )); then echo "Inbox empty."; return 0; fi
+  echo "Inbox: $n unfiled line(s) in .claude/inbox.md"
+  grep '^- ' "$file"
+}
+
+# ---------------------------------------------------------------------------
+# doctor — are the ticket files and the docs map well-formed? Tickets: required
+# fields, a known status, a kind on every BKLG item, unique ids, blockers that
+# exist. Map: every folder named exists (or is none) and has an INDEX.md; any
+# folder under docs/ that no key names is reported, like a doc-schema lint would.
+# Exit 1 on any problem, so a sous or a CI step can gate on it.
+# ---------------------------------------------------------------------------
+cmd_doctor() {
+  local backlog specs key path problems=0 f d sub mapped=" "
+  backlog="$(cfg_docs backlog)"; specs="$(cfg_docs specs)"
+  say() { echo "  $1"; problems=$((problems+1)); }
+  echo "Tickets:"
+  local files=()
+  for d in "$ROOT/$backlog" "$ROOT/$specs"; do
+    [[ -d "$d" ]] || continue
+    while IFS= read -r f; do files+=("$f"); done < <(find "$d" -name '*.md' ! -name INDEX.md -type f 2>/dev/null | sort)
+  done
+  if (( ${#files[@]} > 0 )); then
+    while IFS= read -r line; do say "$line"; done < <(awk '
+      function flush() {
+        if (file == "") return
+        if (!fm_seen) { print rel ": no frontmatter"; file=""; return }
+        if (id == "") print rel ": missing id"
+        else { if (id in seen) print rel ": id " id " is also " seen[id]; else seen[id]=rel }
+        if (title == "") print rel ": missing title"
+        if (lane == "") print rel ": missing lane"
+        if (status == "") print rel ": missing status"
+        else if (status !~ /^(backlog|todo|in-progress|rfr|done|blocked)$/) print rel ": unknown status \"" status "\""
+        if (id ~ /^BKLG-/ && kind == "") print rel ": BKLG item without kind (item | bug | chore)"
+        if (kind != "" && kind !~ /^(item|bug|chore)$/) print rel ": unknown kind \"" kind "\""
+        n = split(blk, b, ","); for (i = 1; i <= n; i++) if (b[i] != "") pend[++np] = rel " blocked_by " b[i]
+        file=""
+      }
+      FNR==1 { flush(); file=FILENAME; rel=substr(FILENAME, length(root)+2); id=title=lane=status=kind=blk=""; fm=0; fm_seen=0 }
+      FNR==1 && $0=="---" { fm=1; fm_seen=1; next }
+      fm && $0=="---" { fm=0; next }
+      fm { key=$0; sub(/:.*/, "", key); val=$0; sub(/^[^:]*:[ ]*/, "", val); sub(/[ ]+#.*$/, "", val); gsub(/^"|"$/, "", val)
+           if (key=="id") id=val; else if (key=="title") title=val; else if (key=="lane") lane=val; else if (key=="status") status=val
+           else if (key=="kind") kind=val; else if (key=="blocked_by") { blk=val; gsub(/[]["\047 ]/, "", blk) } }
+      END { flush(); for (i = 1; i <= np; i++) { split(pend[i], p, " blocked_by "); if (!(p[2] in seen)) print p[1] " is blocked by " p[2] ", which is no ticket here" } }
+    ' root="$ROOT" "${files[@]}")
+    (( problems == 0 )) && echo "  ${#files[@]} ticket file(s), all well-formed."
+  else
+    echo "  no ticket files under $backlog or $specs."
+  fi
+  echo "Docs map:"
+  local before=$problems
+  while IFS= read -r key; do
+    path="$(docs_path "$key")"
+    [[ "$path" == none || -z "$path" ]] && continue
+    path="${path%/}"; mapped="$mapped$path "
+    [[ "$path" == *.md ]] && continue   # a file, such as the register: created on first use
+    [[ -d "$ROOT/$path" ]] || continue   # a store this repo hasn't needed yet is fine; one that exists must be indexed
+    [[ -f "$ROOT/$path/INDEX.md" ]] || say "docs.$key: $path/ has no INDEX.md"
+  done < <(docs_keys)
+  if [[ -d "$ROOT/docs" ]]; then
+    for d in "$ROOT"/docs/*/; do
+      [[ -d "$d" ]] || continue
+      sub="${d#"$ROOT"/}"; sub="${sub%/}"
+      [[ "$mapped" == *" $sub "* ]] && continue
+      # a folder that holds a mapped folder (docs/exec-plans holding docs/exec-plans/active) is fine
+      [[ "$mapped" == *" $sub/"* ]] && continue
+      say "$sub/ is under docs/ but no docs: key names it (add one, or it stays invisible to the commis)"
+    done
+  fi
+  (( problems == before )) && echo "  every mapped folder exists with an INDEX.md; nothing under docs/ is unmapped."
+  (( problems == 0 )) || { echo "$problems problem(s)."; return 1; }
 }
 
 # ---------------------------------------------------------------------------
@@ -957,5 +1157,6 @@ case "$CMD" in
   setup) cmd_setup ;; open) cmd_open ;; sync) cmd_sync ;; status) cmd_status ;;
   files) cmd_files ;; rail) cmd_rail ;; board) cmd_board ;; leaks) cmd_leaks ;; remove) cmd_remove ;;
   role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
+  decisions) cmd_decisions ;; inbox) cmd_inbox ;; doctor) cmd_doctor ;;
   sessions) cmd_sessions ;; *) usage ;;
 esac

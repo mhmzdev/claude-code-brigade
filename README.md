@@ -7,7 +7,7 @@
 
 Run a kitchen of Claude Code sessions. One **sous chef** leads, a few **line cooks** work
 one ticket each at their own **station**, and you are the **head chef**: you approve
-plans and you merge. The sessions talk to each other with `SendMessage`. There is no
+feature plans and you merge. The sessions talk to each other with `SendMessage`. There is no
 daemon, no queue, and no database.
 
 > Inspired by Steve Yegge's *[The Shape of Things to Come](https://yegge.ai/essays/the-shape-of-things-to-come/)*
@@ -45,9 +45,10 @@ into a ticket, and puts one gate between the kitchen and the customer: **the pas
 
 | Kitchen | In the harness |
 |---|---|
-| **Head Chef** | you: sign off plans, answer real forks, merge, deploy |
-| **Sous Chef** | the lead session: assigns tickets, answers routine questions, is the only one who writes the rail, reviews every diff at the pass |
-| **Line Cook** | a worker session: one ticket, plan to PR |
+| **Head Chef** | you: decide what nobody has decided yet (features, real forks), merge, deploy |
+| **Sous Chef** | the lead session: assigns tickets, answers every question the record or routine settles, signs off bug, chore and hygiene plans, keeps the record, is the only one who writes the rail, reviews every diff at the pass |
+| **Line Cook** | a worker session: one ticket, plan to PR; sends the commis before it sends a question |
+| **Commis** | `commis`, a read-only sub-agent on Opus: searches the record (decisions, conventions, knowledge, open questions, specs, journals) before any question goes up, and returns a verdict with sources |
 | **Station** | a gitignored clone at `stations/station-N` |
 | **The Walk-in** | shared local resources (a database, a docker stack) that one cook could break for everyone |
 | **The Rail** | where tickets live: markdown in `docs/` (default), GitHub Projects, or Jira |
@@ -63,7 +64,7 @@ How each flow runs, question by question, is in [`PLAYBOOK.md`](PLAYBOOK.md).
 | Lane | Source | Path |
 |---|---|---|
 | **A — Specials** | a spec, sliced into tickets | (brainstorm or pick-ticket) → grill-me → spec → file-tickets → create-plan → implement → review-task → open-pr |
-| **B — À la carte** | bugs on the backlog (`kind: bug`). Every other backlog item becomes a spec and tickets first | pick-ticket → (grill-me) → create-plan → implement → review-task → open-pr |
+| **B — À la carte** | bugs and chores on the backlog (`kind: bug`, `kind: chore`). Every other backlog item becomes a spec and tickets first | pick-ticket → (grill-me) → create-plan → implement → review-task → open-pr |
 | **C — Clean as you go** | the kitchen finds its own mess: `/bk:clean scan` | pick-ticket → implement → open-pr |
 
 ## The rules
@@ -73,8 +74,8 @@ How each flow runs, question by question, is in [`PLAYBOOK.md`](PLAYBOOK.md).
 3. **Nobody empties the walk-in without calling it.** Ask the sous before a reset.
 4. **One migration in flight at a time.**
 5. **Two tickets on the same files go to the same cook**, in sequence.
-6. **The chef signs the recipe, the sous checks the plate.** The sous never speaks for the chef on merge or deploy.
-7. **Call for decisions, not ceremony.** Routine questions go to the sous; only real forks reach you.
+6. **The chef signs the specials, the sous checks every plate.** Feature plans need your yes; bug, chore and hygiene plans the sous signs and tells you. The sous never speaks for the chef on merge or deploy.
+7. **Call for decisions, not ceremony.** The commis searches the record first, the sous answers what it settles, and only a decision nobody has made reaches you. Once you've answered, it's in the record, and you're never asked it twice.
 8. **Trust the cook at the station.** When a cook says the sous is wrong about its station, the cook wins.
 
 ## Install
@@ -141,7 +142,9 @@ It reads the repo, asks one round of questions, and writes:
 .claude/brigade.md          # config: trunk, check command, walk-in, rail adapter
 docs/specs/001-<slug>.md    # specs; their tickets in docs/specs/001-<slug>/01-<slug>.md
 docs/backlog/BKLG-001-*.md  # backlog items, not yet specced;  HYG-001-*.md for hygiene
-docs/plans/  docs/checklists/  docs/research/  docs/brainstorm/
+docs/plans/  docs/checklists/  docs/journal/  docs/research/  docs/brainstorm/
+docs/decisions/  docs/conventions/  docs/domains/  docs/questions/   # the record (or your own folders)
+docs/SCHEMA.md              # what each doc type is, unless the repo has its own
 stations/station-1 …        # gitignored clones, one per cook
 ```
 
@@ -165,8 +168,8 @@ Each cook works in a **station**. There are two kinds, set by `kitchen_mode:` in
 | Idle station | on trunk | detached at `origin/<trunk>` (trunk is checked out in your main folder) |
 
 A workspace that holds several repos, each gitignored by the outer repo, can't be cloned
-per station. Worktrees handle it: `sastaticket-mobile-app/` keeps its stations in
-`sastaticket-mobile-app-stations/`, and setup adds that folder to the **workspace's**
+per station. Worktrees handle it: `<repo>/` keeps its stations in
+`<repo>-stations/`, and setup adds that folder to the **workspace's**
 `.gitignore`. Cooks there also load the workspace's `CLAUDE.md`.
 
 Two worktree habits: stashes are shared between stations (stash with
@@ -204,8 +207,9 @@ its brief tells each one it's a line cook.
 **You talk to one session: the sous.** Cooks never ask you anything, and you don't need to
 watch their terminals. The one exception is a grilling the sous hands to a free cook: it
 tells you which station is waiting, and you answer the questions there. Invoking a skill *is* the approval for its whole job, so no skill
-asks "does this look right?" or "go on to phase 2?". Per ticket, two things need you: a
-yes to the plan, which the sous shows you with its recommendation, and the merge. Real
+asks "does this look right?" or "go on to phase 2?". Per feature ticket, two things need
+you: a yes to the plan, which the sous shows you with its recommendation, and the merge.
+Per bug or chore, only the merge. Real
 design forks reach you through the sous too, the same way.
 
 **Test logins are set up once.** Put the accounts sessions may test with in
@@ -229,11 +233,12 @@ sous  → cook   [brief]     BKLG-001: /abs/path/to/ticket.md, constraints, the 
 cook  → sous   [rail]      claim BKLG-001 todo
                            … the cook writes the plan …
 cook  → sous   [plan]      BKLG-001 ready: /abs/path/to/plan.md
-sous  → you                the plan in a few lines, its recommendation: approve?
-you   → sous               yes                  ← the sign-off
-sous  → cook   [approved]  BKLG-001 · head chef: "yes"   → the cook starts /bk:implement
+sous  → cook   [approved]  BKLG-001: /abs/path/to/plan.md · sous, per gates.plan_approval.bug   → the cook starts /bk:implement
+sous  → you                "approved station-1's plan for BKLG-001 (bug): …"   ← one line, no question
+                           (a feature plan comes to you instead: "approve?", and your yes is relayed)
 cook  → sous   [rail]      BKLG-001 → in-progress
-cook  → sous   [gate]      BKLG-001 Q1, see journal → sous answers; cook copies it in as A1
+                           … the cook hits a question: it spawns the commis; settled → journal, no gate …
+cook  → sous   [gate]      BKLG-001 Q1, see journal. commis: nothing recorded → sous answers; cook copies it in as A1
 cook  → sous   [handoff]   ready for the pass: branch, files, check green, inspector clean
                            … the sous sends the taster; reads its verdict …
 sous  → cook   [findings]  1. file:line — why   (or)   [go]
@@ -243,9 +248,10 @@ sous  → PR                 LGTM comment
                            … YOU merge; the sous closes BKLG-001 on the rail …
 ```
 
-Only two moments need you: the yes to the plan (the sign-off) and the merge. Both, and any
-real design fork, come to you in the sous's terminal; everything routine stays between the
-sous and the cooks.
+Only two kinds of moment need you: a decision nobody has made yet (a feature plan, a real
+fork the record doesn't settle) and the merge. Both come to you in the sous's terminal.
+Everything routine stays between the sous and the cooks, everything already decided is
+found by the commis, and everything you decide is written down so it isn't asked again.
 
 ## Long services: clearing sessions
 
@@ -259,6 +265,8 @@ on. No `/compact` needed.
 | tickets and their status | the rail (`docs/specs/`, `docs/backlog/`) | the sous |
 | a ticket's plan and checklist | `docs/plans/`, `docs/checklists/` | its cook |
 | **a ticket's journal**: questions and answers, findings, decisions, handoffs, lessons | `docs/journal/<ID>-<slug>.md`, lands with the PR | its cook, only |
+| **the record**: decisions you made that outlive a ticket (ADRs), conventions, domain knowledge, open questions | `docs/decisions/`, `docs/conventions/`, `docs/domains/`, `docs/questions/` (the config's `docs:` map; a repo's own folders if it has them) | the sous, at its handoff |
+| the inbox: what you said in passing that nothing recorded yet | `.claude/inbox.md`, kept out of git | the sous, as it hears it |
 | the sous's own notes: your standing instructions, what's next | `.claude/sous-handoff.md`, gitignored | the sous |
 
 - **Cooks:** `/clear` after every PR, as always. Clearing mid-ticket is fine too: run
@@ -276,20 +284,28 @@ counts them by ticket: a repo lesson seen in two tickets becomes a ticket to pro
 `CLAUDE.md` (reviewed and merged like any change); a lesson about the Brigade itself becomes a
 drafted issue on this repo (through `/bk:feedback`), filed only on your OK.
 
+**And so is the record.** Every answer you give lands in a journal marked `(head chef)`. At the
+same handoff, `kitchen.sh decisions` lists the ones nothing cites yet and the sous files those
+that outlive their ticket as decisions, in your words plus a structured version;
+`kitchen.sh questions` lists what you haven't answered and parks it as a question file that
+blocks its ticket, so nobody asks it twice while it waits; `kitchen.sh inbox` lists what you
+said in passing and the sous files it into the right doc. Before any question reaches you,
+the `commis` has searched all of it. The kitchen asks you less every shift.
+
 ## What's in the box
 
 | Skill | Does |
 |---|---|
 | `setup` | set up a repo |
-| `kitchen` | stations: setup, open, sync, status, files in flight, the rail board |
+| `kitchen` | stations: setup, open, sync, status, files in flight, the rail board; the record's lists (`questions`, `decisions`, `inbox`) and `doctor` |
 | `sous-chef` / `line-cook` | take the lead or worker role |
 | `rail` | list, read, claim, fire, link, close: markdown, GitHub or Jira |
 | `brainstorm` · `grill-me` · `spec` · `file-tickets` | lane A, from idea to tickets. `file-tickets` also adds backlog items |
-| `pick-ticket` · `create-plan` · `implement` · `review-task` · `open-pr` | from ticket to PR. `implement` starts on your sign-off: given by you solo, relayed by the sous in a kitchen |
+| `pick-ticket` · `create-plan` · `implement` · `review-task` · `open-pr` | from ticket to PR. `implement` starts on the sign-off: yours for a feature (given solo, relayed by the sous in a kitchen), the sous's own for a bug, chore or hygiene ticket |
 | `clean` | `check` your own diff (every ticket), `around` your station at end of shift, `scan` the kitchen; hygiene drafts go to the sous |
 | `handoff` | write this session's handoff (cook: journal section; sous: local note) so it can be cleared |
 | `feedback` | send feedback about the Brigade to its maintainers as a GitHub issue; you see every word first |
-| agents: `taster` · `runner` · `inspector` | review at the pass · run noisy commands · report what a reviewer would reject |
+| agents: `commis` · `taster` · `runner` · `inspector` | search the record before any question · review at the pass · run noisy commands · report what a reviewer would reject |
 
 Every skill works **solo** too: without a sous, you are both chef and sous.
 The shared rules every skill follows are in [`plugins/bk/skills/README.md`](plugins/bk/skills/README.md).
