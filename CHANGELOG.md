@@ -41,12 +41,19 @@ head chef:
   never committed) and are filed at handoff. The board shows both counts.
 - **Two hooks.** The plugin now ships `hooks/hooks.json`: in a station, a dialog to the human
   is refused unless a grilling is under way, and a `[gate]` with a numbered question is
-  refused when it carries no commis result. Both leave the main checkout and other repos
-  alone.
+  refused when it carries no commis result. A station is what `kitchen.sh` calls one (a
+  `station-*` folder in the configured kitchen), so nested repos, submodules and
+  `claude --worktree` sessions are left alone, as are the main checkout and other repos.
+
+The commis runs on Opus: it is spawned before every question and every grilling round, and
+its one judgement ("a related decision is not this decision") is where a smaller model fails
+silently. Large kitchens can set `commis_model: sonnet` in the config to trade that for
+cost.
 
 Also: `kitchen.sh doctor` checks ticket files (fields, statuses, blockers, unique ids, a
-`kind` on every backlog item) and the docs map (every mapped folder indexed, nothing under
-`docs/` unmapped); `kitchen.sh questions` lists open question files too; `/bk:setup` maps
+`kind` on every backlog item) as errors, and the docs map (a mapped folder without an
+`INDEX.md`, a folder under `docs/` that no key names) as warnings that don't fail it;
+`kitchen.sh questions` lists open question files too, and reads journals at any depth; `/bk:setup` maps
 the docs a repo already keeps, respects an existing doc schema, and writes a `docs/SCHEMA.md`
 where there is none. Templates for a decision, a question and the schema ship with the plugin.
 

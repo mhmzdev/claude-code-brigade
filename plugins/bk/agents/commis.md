@@ -3,6 +3,9 @@ name: commis
 description: The Brigade's commis — the junior who fetches for the line. Before a cook or the sous asks anyone a question, the commis searches the record (CLAUDE.md, every folder in the config's docs map, the stations' journals) for a decision already made or a fact already written, and returns a short verdict with sources, so the head chef is never asked twice and a fact is never asked at all. Holds no tool that can write and decides nothing. Spawned by any skill that is about to send a [gate] or ask the head chef, and by grill-me before every round.
 tools: Read, Grep, Glob
 model: opus
+# opus by default: the one judgement here ("a related decision is not this decision") is
+# where a smaller model turns a near miss into a false "settled", silently. A repo sets
+# commis_model: in .claude/brigade.md and callers pass it as the Agent call's model.
 maxTurns: 30
 ---
 

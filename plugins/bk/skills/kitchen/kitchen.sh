@@ -474,6 +474,8 @@ EOF
     local excl; excl="$(git -C "$st" rev-parse --path-format=absolute --git-path info/exclude)"
     mkdir -p "$(dirname "$excl")"
     grep -qxF ".claude/settings.local.json" "$excl" 2>/dev/null || echo ".claude/settings.local.json" >> "$excl"
+    # the grilling marker (Contract 12): written by grill-me in a station, read by the hook
+    grep -qxF ".claude/grilling" "$excl" 2>/dev/null || echo ".claude/grilling" >> "$excl"
     for f in $COPY_FILES; do
       grep -qxF "$f" "$excl" 2>/dev/null || echo "$f" >> "$excl"
     done
@@ -909,16 +911,22 @@ journal_files() {  # every journal, trunk and stations, any depth, INDEX.md excl
 }
 
 cmd_questions() {
-  local journal qdir f any=false
-  journal="$(cfg_docs journal)"; qdir="$(docs_path questions)"
+  local qdir f st any=false kitchen_real
+  qdir="$(docs_path questions)"
+  kitchen_real="$(cd "$KITCHEN" 2>/dev/null && pwd -P || printf '%s' "$KITCHEN")"
   {
-    for f in "$KITCHEN"/station-*/"$journal"/*.md; do
-      [[ -f "$f" && "$(basename "$f")" != INDEX.md ]] || continue
-      awk -v st="$(basename "$(dirname "$(dirname "$(dirname "$f")")")")" -v fn="$(basename "$f")" '
+    while IFS= read -r f; do
+      # the station is the first path segment under the kitchen; a trunk journal says so
+      case "$f" in
+        "$KITCHEN"/*) st="${f#"$KITCHEN"/}"; st="${st%%/*}" ;;
+        "$kitchen_real"/*) st="${f#"$kitchen_real"/}"; st="${st%%/*}" ;;
+        *) st="(trunk)" ;;
+      esac
+      awk -v st="$st" -v fn="$(basename "$f")" '
         /^- .* · Q[0-9]+:/ { match($0, /Q[0-9]+:/); q=substr($0, RSTART+1, RLENGTH-2); ask[q]=$0; order[++n]=q }
         /^- .* · A[0-9]+/  { match($0, /A[0-9]+/);  a=substr($0, RSTART+1, RLENGTH-1); answered[a]=1 }
         END { for (i=1; i<=n; i++) if (!(order[i] in answered)) { line=ask[order[i]]; sub(/^- /, "", line); printf "%-11s %-28s %s\n", st, fn, line } }' "$f"
-    done
+    done < <(journal_files)
     if [[ "$qdir" != none && -d "$ROOT/$qdir" ]]; then
       for f in "$ROOT/$qdir"/*.md; do
         [[ -f "$f" && "$(basename "$f")" != INDEX.md ]] || continue
@@ -964,9 +972,14 @@ docs_path() {  # docs_path <key> → its path from the config, else the contract
     *) cfg_docs "$1" ;;
   esac
 }
-docs_dirs() {  # every place the docs map names that exists, deduped, plus CLAUDE.md
+# record_dirs → the places a decision can be *filed*: the record's own stores
+# (decisions, conventions, knowledge, questions, specs) and any key the sous added.
+# Not journals, plans, checklists, backlog, research or brainstorms: those mention
+# answers without recording them, and a mention must not count as filed.
+record_dirs() {
   local key path seen=" "
   while IFS= read -r key; do
+    case "$key" in journal|plans|checklists|backlog|research|brainstorm|lessons) continue ;; esac
     path="$(docs_path "$key")"
     [[ "$path" == none || -z "$path" ]] && continue
     path="${path%/}"
@@ -981,7 +994,7 @@ cmd_decisions() {
   register="$ROOT/$(cfg_docs lessons docs/lessons.md)"
   while IFS= read -r f; do files+=("$f"); done < <(journal_files)
   (( ${#files[@]} == 0 )) && { echo "No ticket journals yet."; return 0; }
-  while IFS= read -r d; do dirs+=("$d"); done < <(docs_dirs)
+  while IFS= read -r d; do dirs+=("$d"); done < <(record_dirs)
   {
     for f in "${files[@]}"; do
       id="$(awk 'NR==1 && $0=="---" {fm=1; next} fm && $0=="---" {exit} fm && /^ticket:/ {sub(/^ticket:[ ]*/, ""); print; exit}' "$f")"
@@ -992,7 +1005,7 @@ cmd_decisions() {
         status=DUE; where="-"
         if [[ -f "$register" ]] && grep -qF -- "\`$key\`" "$register"; then
           status=kept; where="register"
-        elif (( ${#dirs[@]} > 0 )) && hits="$(grep -rlF -- "$key" "${dirs[@]}" 2>/dev/null | grep -v -F -e "$f" -e "$register" | head -1)" && [[ -n "$hits" ]]; then
+        elif (( ${#dirs[@]} > 0 )) && hits="$(grep -rlE -- "${key}([^0-9]|\$)" "${dirs[@]}" 2>/dev/null | grep -v -F -e "$f" -e "$register" | head -1)" && [[ -n "$hits" ]]; then
           status=filed; where="${hits#"$ROOT"/}"
         fi
         printf '%-14s %-6s %-36s %s\n' "$key" "$status" "$where" "$(printf '%s' "$line" | sed -E 's/^- .* · A[0-9]+ \(head chef\):? *//')"
@@ -1032,22 +1045,30 @@ cmd_inbox() {
 }
 
 # ---------------------------------------------------------------------------
-# doctor — are the ticket files and the docs map well-formed? Tickets: required
-# fields, a known status, a kind on every BKLG item, unique ids, blockers that
-# exist. Map: every folder named exists (or is none) and has an INDEX.md; any
-# folder under docs/ that no key names is reported, like a doc-schema lint would.
-# Exit 1 on any problem, so a sous or a CI step can gate on it.
+# doctor — are the ticket files and the docs map well-formed? Two tiers:
+#   errors   (exit 1): a ticket with a missing or unknown field, a BKLG item with
+#            no kind, a duplicate id, a blocker that is no ticket; a mapped path
+#            that is a file where a folder should be.
+#   warnings (exit 0): a mapped folder with no INDEX.md, a folder under docs/ that
+#            no docs: key names. Real repos have docs/assets/ and an adr/ folder
+#            from another tool; those are worth a look, not a red gate.
+# Tickets are the files in docs.backlog and one level inside a spec's folder
+# (docs.specs/NNN-<slug>/NN-<slug>.md); the spec documents themselves are not
+# tickets and have their own statuses.
 # ---------------------------------------------------------------------------
 cmd_doctor() {
-  local backlog specs key path problems=0 f d sub mapped=" "
+  local backlog specs key path problems=0 warnings=0 f d sub mapped=" "
   backlog="$(cfg_docs backlog)"; specs="$(cfg_docs specs)"
   say() { echo "  $1"; problems=$((problems+1)); }
+  warn() { echo "  warn: $1"; warnings=$((warnings+1)); }
   echo "Tickets:"
   local files=()
-  for d in "$ROOT/$backlog" "$ROOT/$specs"; do
-    [[ -d "$d" ]] || continue
-    while IFS= read -r f; do files+=("$f"); done < <(find "$d" -name '*.md' ! -name INDEX.md -type f 2>/dev/null | sort)
-  done
+  if [[ "$backlog" != none && -d "$ROOT/$backlog" ]]; then
+    while IFS= read -r f; do files+=("$f"); done < <(find "$ROOT/$backlog" -name '*.md' ! -name INDEX.md -type f 2>/dev/null | sort)
+  fi
+  if [[ "$specs" != none && -d "$ROOT/$specs" ]]; then
+    while IFS= read -r f; do files+=("$f"); done < <(find "$ROOT/$specs" -mindepth 2 -maxdepth 2 -name '*.md' ! -name INDEX.md -type f 2>/dev/null | sort)
+  fi
   if (( ${#files[@]} > 0 )); then
     while IFS= read -r line; do say "$line"; done < <(awk '
       function flush() {
@@ -1077,14 +1098,15 @@ cmd_doctor() {
     echo "  no ticket files under $backlog or $specs."
   fi
   echo "Docs map:"
-  local before=$problems
+  local before=$problems before_w=$warnings
   while IFS= read -r key; do
     path="$(docs_path "$key")"
     [[ "$path" == none || -z "$path" ]] && continue
     path="${path%/}"; mapped="$mapped$path "
     [[ "$path" == *.md ]] && continue   # a file, such as the register: created on first use
-    [[ -d "$ROOT/$path" ]] || continue   # a store this repo hasn't needed yet is fine; one that exists must be indexed
-    [[ -f "$ROOT/$path/INDEX.md" ]] || say "docs.$key: $path/ has no INDEX.md"
+    [[ -f "$ROOT/$path" ]] && { say "docs.$key: $path is a file, not a folder"; continue; }
+    [[ -d "$ROOT/$path" ]] || continue   # a store this repo hasn't needed yet is fine
+    [[ -f "$ROOT/$path/INDEX.md" ]] || warn "docs.$key: $path/ has no INDEX.md (Contract 4: one row per file)"
   done < <(docs_keys)
   if [[ -d "$ROOT/docs" ]]; then
     for d in "$ROOT"/docs/*/; do
@@ -1093,10 +1115,11 @@ cmd_doctor() {
       [[ "$mapped" == *" $sub "* ]] && continue
       # a folder that holds a mapped folder (docs/exec-plans holding docs/exec-plans/active) is fine
       [[ "$mapped" == *" $sub/"* ]] && continue
-      say "$sub/ is under docs/ but no docs: key names it (add one, or it stays invisible to the commis)"
+      warn "$sub/ is under docs/ but no docs: key names it (add one, or it stays invisible to the commis)"
     done
   fi
-  (( problems == before )) && echo "  every mapped folder exists with an INDEX.md; nothing under docs/ is unmapped."
+  (( problems == before && warnings == before_w )) && echo "  every mapped folder exists with an INDEX.md; nothing under docs/ is unmapped."
+  (( warnings == 0 )) || echo "$warnings warning(s): worth a look, not a failure."
   (( problems == 0 )) || { echo "$problems problem(s)."; return 1; }
 }
 

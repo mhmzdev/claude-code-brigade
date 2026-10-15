@@ -67,6 +67,7 @@ permission_mode: auto                    # cook sessions' Claude Code permission
 kitchen: stations                        # stations dir, relative to repo root (worktree default: ../<repo>-stations)
 stations: 2                              # how many a fresh setup creates; setup -n N grows it
 migrations: none                         # path, or none
+commis_model: opus                       # the commis sub-agent's model (Contract 12); opus by default, sonnet to trade accuracy for cost
 
 # nested — read by skills
 rail:
@@ -743,12 +744,21 @@ own journal and station files. A repo whose schema names a human as the writer o
 treats the sous recording the head chef's quoted words as that human's writing; the
 config's notes say so if the repo wants it otherwise.
 
-**Hooks that back this up.** The plugin ships `hooks/hooks.json`: in a station,
-`AskUserQuestion` is refused unless a grilling is under way (`.claude/grilling` exists in
-the station: `grill-me` and `brainstorm` write it when they start there and remove it when
-they finish), and a `[gate]` carrying a numbered question is refused when it names no
-commis result. Both are guardrails against a slip, not a wall; both stay out of the way in
-a repo with no `.claude/brigade.md` and in the main checkout.
+**The commis's model.** It runs on Opus by default: its one judgement, "a related decision
+is not this decision", is where a smaller model stretches a near miss into a false
+*settled*, and that failure is silent. It is also the most-spawned sub-agent in the
+kitchen. A repo that wants the trade sets `commis_model: sonnet` in the config; every
+skill that spawns the commis passes that value as the `Agent` call's `model`.
+
+**Hooks that back this up.** The plugin ships `hooks/hooks.json`: in a station (a
+`station-*` folder in the configured kitchen, the same test `kitchen.sh` uses, so a nested
+repo or a `claude --worktree` session is left alone), `AskUserQuestion` is refused unless a
+grilling is under way (`.claude/grilling` exists in the station and is under four hours
+old: `grill-me` and `brainstorm` write it when they start there and remove it when they
+finish; `kitchen.sh setup` keeps it out of the station's git status), and a `[gate]`
+carrying a numbered question is refused when it names no commis result. Both are
+guardrails against a slip, not a wall; both stay out of the way in a repo with no
+`.claude/brigade.md` and in the main checkout.
 
 ## The skills
 

@@ -78,6 +78,7 @@ ok "stations are full clones (.git is a directory)" test -d "$C/stations/station
 ok "setup gitignores /stations/ in the repo" grep -qx "/stations/" "$C/.gitignore"
 ok "setup copies copy_into_stations files" test -f "$C/stations/station-1/.env"
 ok "setup seeds settings.local.json" test -f "$C/stations/station-1/.claude/settings.local.json"
+ok "setup keeps the grilling marker out of the station's status" grep -qx ".claude/grilling" "$C/stations/station-1/.git/info/exclude"
 ok "fresh stations are clean (seeded files excluded)" test -z "$(git -C "$C/stations/station-1" status --porcelain)"
 ok "setup prints the git clean -fdx warning" has "$out" "git clean -fdx"
 ok "setup says cooks start already running /bk:line-cook" has "$out" "cooks start already running"
@@ -372,7 +373,15 @@ printf '# Questions\n' > "$C/docs/questions/INDEX.md"
 out=$("$K" questions)
 ok "an open question file is listed as (record), with what it blocks" has "$out" "\(record\) +2026-10-01-refund-window.md +How long is the refund window\?  \(blocks: BKLG-001\)"
 ok "an answered question file isn't" bash -c '! printf "%s" "$1" | grep -q "Already answered"' _ "$out"
-ok "…and the journals' open questions still are" has "$out" "Q2: new column"
+ok "…and the journals' open questions still are" has "$out" "station-1 +BKLG-001-open.md +.*Q2: new column"
+mkdir -p "$S1/docs/journal/completed"
+printf -- '- 2026-09-29 12:00 · app-cook-1 · Q7: deeper? — recommend: yes\n' > "$S1/docs/journal/completed/BKLG-009-deep.md"
+printf -- '- 2026-09-29 12:00 · app-sous · Q1: trunk question? — recommend: yes\n' > "$C/docs/journal/BKLG-011-b.md.q"
+mv "$C/docs/journal/BKLG-011-b.md.q" "$C/docs/journal/BKLG-012-trunk.md"
+out=$("$K" questions)
+ok "a journal in a subfolder of docs.journal is read, with the right station" has "$out" "station-1 +BKLG-009-deep.md +.*Q7: deeper"
+ok "a trunk journal's open question is listed as (trunk)" has "$out" "\(trunk\) +BKLG-012-trunk.md +.*Q1: trunk question"
+rm -r "$S1/docs/journal/completed" "$C/docs/journal/BKLG-012-trunk.md"
 
 section "decisions"
 rm -f "$C/docs/lessons.md"
@@ -392,6 +401,14 @@ mkdir -p "$C/docs/decisions"
 printf -- '---\ntype: adr\ntitle: Agents see refunds\nstatus: accepted\nsource: BKLG-001 A3\n---\n' > "$C/docs/decisions/001-agents-see-refunds.md"
 out=$("$K" decisions)
 ok "an answer a decision file cites is filed, naming the file" has "$out" "BKLG-001 A3 +filed +docs/decisions/001-agents-see-refunds.md"
+printf -- '- 2026-09-30 09:05 · app-cook-2 · A12 (head chef): twelve\n' >> "$C/docs/journal/BKLG-011-b.md"
+printf -- '---\ntype: adr\nsource: BKLG-011 A12\n---\n' > "$C/docs/decisions/002-twelve.md"
+out=$("$K" decisions)
+ok "citing A12 files A12…" has "$out" "BKLG-011 A12 +filed"
+ok "…and does not file A1 by substring" has "$out" "BKLG-011 A1 +DUE"
+printf -- '# plan\nmentions BKLG-011 A1 in passing\n' > "$C/docs/plans/other.md"
+ok "a plan that merely mentions the answer doesn't count as filing it" has "$("$K" decisions)" "BKLG-011 A1 +DUE"
+rm "$C/docs/plans/other.md" "$C/docs/decisions/002-twelve.md"
 printf '| `BKLG-011 A1` | kept | — |\n' > "$C/docs/lessons.md"
 ok "an answer listed in the register is kept" has "$("$K" decisions)" "BKLG-011 A1 +kept +register"
 rm "$C/docs/lessons.md" "$C/docs/decisions/001-agents-see-refunds.md"
@@ -410,14 +427,14 @@ ok "a second line makes two" has "$("$K" inbox)" "Inbox: 2 unfiled"
 ok ".claude/inbox.md stays out of git without touching a tracked file" test "$before" = "$(git -C "$C" status --porcelain)"
 ok "…with one exclude line" test "$(grep -c '^\.claude/inbox\.md$' "$C/.git/info/exclude")" = 1
 out=$("$K" board)
-ok "the board shows the record's counts" has "$out" "Decisions to file: 2 · Inbox: 2 unfiled"
+ok "the board shows the record's counts" has "$out" "Decisions to file: 3 · Inbox: 2 unfiled"
 rm "$C/.claude/inbox.md"
 
 section "doctor"
 rm -rf "$C/docs/questions" "$C/docs/decisions"
 out=$("$K" doctor 2>&1); rc=$?
 ok "doctor fails on a ticket without kind" bash -c 'test "$1" -ne 0 && printf "%s" "$2" | grep -q "BKLG-002-done.md: BKLG item without kind"' _ "$rc" "$out"
-ok "…and on a mapped folder with no INDEX.md" has "$out" "docs.backlog: docs/backlog/ has no INDEX.md"
+ok "…and warns on a mapped folder with no INDEX.md" has "$out" "warn: docs.backlog: docs/backlog/ has no INDEX.md"
 printf -- '---\nid: BKLG-005\ntitle: Bad\nlane: B\nkind: bug\nstatus: cooking\ncook: null\nblocked_by: [BKLG-999]\n---\n' > "$C/docs/backlog/BKLG-005-bad.md"
 printf -- '---\nid: BKLG-001\ntitle: Duplicate id\nlane: B\nkind: bug\nstatus: backlog\ncook: null\n---\n' > "$C/docs/backlog/BKLG-006-dup.md"
 out=$("$K" doctor 2>&1)
@@ -428,14 +445,30 @@ rm "$C/docs/backlog/BKLG-005-bad.md" "$C/docs/backlog/BKLG-006-dup.md" "$C/docs/
 sed -i.bak 's/^status: done$/kind: chore\nstatus: done/' "$C/docs/backlog/BKLG-002-done.md" 2>/dev/null || true
 printf -- '---\nid: BKLG-002\ntitle: Done ticket\nlane: B\nkind: chore\nstatus: done\ncook: null\n---\n' > "$C/docs/backlog/BKLG-002-done.md"; rm -f "$C/docs/backlog/BKLG-002-done.md.bak"
 for d in backlog journal specs plans checklists research brainstorm decisions conventions domains questions; do mkdir -p "$C/docs/$d"; printf '# index\n' > "$C/docs/$d/INDEX.md"; done
+# a spec document from the template, with one ticket inside its folder
+mkdir -p "$C/docs/specs/001-refunds"
+printf -- '---\nid: S001\ntitle: Refunds\nstatus: approved\nbrainstorm: null\nbacklog: []\ncreated: 2026-10-01\n---\n' > "$C/docs/specs/001-refunds.md"
+printf -- '---\nid: S001-01\ntitle: Refund window\nlane: A\nstatus: backlog\ncook: null\nspec: S001\n---\n' > "$C/docs/specs/001-refunds/01-refund-window.md"
 out=$("$K" doctor 2>&1); rc=$?
-ok "doctor passes a well-formed rail and a complete map" bash -c 'test "$1" -eq 0 && printf "%s" "$2" | grep -q "all well-formed" && printf "%s" "$2" | grep -q "nothing under docs/ is unmapped"' _ "$rc" "$out"
-mkdir -p "$C/docs/runbooks"
-ok "doctor reports a folder nobody mapped" has "$("$K" doctor 2>&1)" "docs/runbooks/ is under docs/ but no docs: key names it"
+ok "doctor passes a well-formed rail and a complete map" bash -c 'test "$1" -eq 0 && printf "%s" "$2" | grep -q "3 ticket file(s), all well-formed" && printf "%s" "$2" | grep -q "nothing under docs/ is unmapped"' _ "$rc" "$out"
+ok "…a spec document is not checked as a ticket" bash -c '! printf "%s" "$1" | grep -q "001-refunds.md"' _ "$out"
+printf -- '---\nid: S001-02\ntitle: Broken\nlane: A\nstatus: nope\ncook: null\n---\n' > "$C/docs/specs/001-refunds/02-broken.md"
+ok "…but a ticket inside a spec folder is" has "$("$K" doctor 2>&1)" 'docs/specs/001-refunds/02-broken.md: unknown status "nope"'
+rm "$C/docs/specs/001-refunds/02-broken.md"
+mkdir -p "$C/docs/runbooks" "$C/docs/assets"
+out=$("$K" doctor 2>&1); rc=$?
+ok "doctor warns on a folder nobody mapped" has "$out" "warn: docs/runbooks/ is under docs/ but no docs: key names it"
+ok "…and a warning doesn't fail doctor" test "$rc" -eq 0
 awk 'NR>1 && $0=="---" && !d { print "docs:\n  runbooks: docs/runbooks"; d=1 } { print }' "$TMP/brigade.md.bak" > "$C/.claude/brigade.md"
 out=$("$K" doctor 2>&1)
 ok "a key the sous added under docs: maps it" bash -c '! printf "%s" "$1" | grep -q "runbooks/ is under"' _ "$out"
-ok "…but it still needs an INDEX.md" has "$out" "docs.runbooks: docs/runbooks/ has no INDEX.md"
+ok "…but it still warns about the missing INDEX.md" has "$out" "warn: docs.runbooks: docs/runbooks/ has no INDEX.md"
+rmdir "$C/docs/assets"
+printf 'x' > "$C/docs/notafolder"
+awk 'NR>1 && $0=="---" && !d { print "docs:\n  runbooks: docs/notafolder"; d=1 } { print }' "$TMP/brigade.md.bak" > "$C/.claude/brigade.md"
+out=$("$K" doctor 2>&1); rc=$?
+ok "a mapped path that is a file is an error" bash -c 'test "$1" -ne 0 && printf "%s" "$2" | grep -q "docs.runbooks: docs/notafolder is a file, not a folder"' _ "$rc" "$out"
+rm "$C/docs/notafolder"
 cp "$TMP/brigade.md.bak" "$C/.claude/brigade.md"; rm -r "$C/docs/runbooks"
 
 section "sessions"

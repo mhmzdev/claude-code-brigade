@@ -80,6 +80,7 @@ for anyone. So before you write a `Qn`, spawn the commis:
 
 ```
 Agent(subagent_type: "bk:commis", description: "look up <ID> Q3",
+      model: <commis_model from .claude/brigade.md, else leave unset for the agent's default>,
       prompt: "Question: <the question, with its options>.
                Ticket: <ID>, <absolute path>.
                Main checkout: <path kitchen.sh role printed>.

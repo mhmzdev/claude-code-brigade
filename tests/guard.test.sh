@@ -42,6 +42,15 @@ printf -- '---\ntrunk: main\nkitchen_mode: worktree\n---\n' > "$B/.claude/brigad
 git -C "$B" add -A; git -C "$B" commit -qm init
 git -C "$B" worktree add -q --detach "$TMP/wt/app-stations/station-1" HEAD 2>/dev/null
 WS="$TMP/wt/app-stations/station-1"
+# --- things under a Brigade checkout that are NOT stations --------------------
+mkdir -p "$A/vendor"; git init -q "$A/vendor/lib"; echo x > "$A/vendor/lib/x"; git -C "$A/vendor/lib" add -A; git -C "$A/vendor/lib" commit -qm init
+git -C "$A" worktree add -q --detach "$A/.claude/worktrees/feature" HEAD 2>/dev/null   # claude --worktree
+mkdir -p "$A/stations"; git clone -q "$A" "$A/stations/scratch" 2>/dev/null            # a clone in the kitchen, not named station-*
+mkdir -p "$TMP/elsewhere"; git clone -q "$A" "$TMP/elsewhere/station-9" 2>/dev/null     # named station-*, but not in the kitchen
+# --- a kitchen: key pointing somewhere else -----------------------------------
+K2="$TMP/k2/app"; mkdir -p "$TMP/k2"; git init -q "$K2"; mkdir -p "$K2/.claude" "$K2/benches"
+printf -- '---\ntrunk: main\nkitchen: benches\n---\n' > "$K2/.claude/brigade.md"; git -C "$K2" add -A; git -C "$K2" commit -qm init
+git clone -q "$K2" "$K2/benches/station-1" 2>/dev/null; mkdir -p "$K2/stations"; git clone -q "$K2" "$K2/stations/station-1" 2>/dev/null
 # --- a plain repo with no Brigade ---------------------------------------------
 P="$TMP/plain"; git init -q "$P"; echo x > "$P/x"; git -C "$P" add -A; git -C "$P" commit -qm init
 
@@ -68,6 +77,19 @@ ok "a [gate] with no numbered question passes (needs grilling, test account)" te
 ok "a [gate] about a test account passes" test "$(guard "$S" SendMessage '[gate] BKLG-004 need a test account: stage, builder')" = 0
 ok "any other message kind passes" test "$(guard "$S" SendMessage '[check-in] station-1 sonnet clean no ticket fresh waiting: nothing')" = 0
 ok "an unrelated tool passes" test "$(guard "$S" Edit)" = 0
+
+section "not a station: left alone"
+ok "a nested repo or submodule under the checkout" test "$(guard "$A/vendor/lib" AskUserQuestion)" = 0
+ok "Claude Code's own --worktree session" test "$(guard "$A/.claude/worktrees/feature" AskUserQuestion)" = 0
+ok "a clone in the kitchen folder not named station-*" test "$(guard "$A/stations/scratch" AskUserQuestion)" = 0
+ok "a clone named station-* outside the kitchen" test "$(guard "$TMP/elsewhere/station-9" AskUserQuestion)" = 0
+ok "with kitchen: benches, stations/station-1 is not a station" test "$(guard "$K2/stations/station-1" AskUserQuestion)" = 0
+ok "…and benches/station-1 is" test "$(guard "$K2/benches/station-1" AskUserQuestion)" = 2
+
+section "a stale grilling marker"
+mkdir -p "$S/.claude"; touch -t 202001010000 "$S/.claude/grilling"
+ok "a marker older than four hours no longer lets the dialog through" test "$(guard "$S" AskUserQuestion)" = 2
+rm "$S/.claude/grilling"
 
 section "a worktree station"
 ok "a cook's AskUserQuestion is blocked there too" test "$(guard "$WS" AskUserQuestion)" = 2

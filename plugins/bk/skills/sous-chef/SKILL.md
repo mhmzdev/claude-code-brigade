@@ -159,7 +159,8 @@ A fresh cook knows nothing. The brief is its onboarding. Send it as `[brief]` wi
 1. **Role**: it's a line cook, you're the sous; questions and handoffs come to you.
    Include verbatim: *"Never ask the human and never open an `AskUserQuestion` dialog:
    nobody watches your terminal, and the plugin's hook refuses it. Before any question,
-   spawn `bk:commis` with the question, the ticket, the main checkout, the stations folder
+   spawn `bk:commis` (model: the config's `commis_model`, if set) with the question, the
+   ticket, the main checkout, the stations folder
    and the `docs:` map: a recorded decision answers it, a fact you read, and only `nothing`
    or `conflict` comes to me as `[gate]`, with the commis line in it. Real design forks
    included: I take those to the head chef and relay the answer. The one exception is a
