@@ -147,7 +147,10 @@ want it to propose and wait for a yes instead.)
 
 **A cook is free** when its check-in says: no ticket, a clean station, and a fresh session.
 A cook that has just served a ticket or held a grilling is *spent* and is not free until
-you clear it.
+you clear it. Spent means that session's own conversation did the work: a session you've
+just cleared or opened is fresh, even in a station whose journal shows a served ticket. If
+a cook you've just cleared still checks in spent, tell the sous you cleared it, and it
+briefs the cook.
 
 **A ticket is ready** when its status is `backlog` or `blocked`, every ticket in its
 `blocked_by` is `done`, and it isn't a backlog item that still needs a spec. The rail board
@@ -290,8 +293,8 @@ inside a station. So any session in a station behaves as a cook whether or not
 `/bk:line-cook` was typed. Type `/bk:line-cook` after a `/clear` so that it checks in:
 
 - on a ticket branch with work in flight, it reads the journal's last handoff and resumes;
-- on a ticket that is already served (PR open, station clean), it goes back to trunk and
-  checks in as a fresh, free cook.
+- on a ticket that is already served (PR open or merged, station clean), it goes back to
+  trunk and checks in as a fresh, free cook.
 
 ## Test accounts
 

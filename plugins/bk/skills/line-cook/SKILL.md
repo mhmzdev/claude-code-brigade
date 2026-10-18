@@ -42,14 +42,20 @@ it found.
    as your starting point; check it against `git status` and the plan, and the station wins
    where they disagree. You're resuming, not starting over.
    **Unless that ticket is already served**: its last handoff says the PR is open
-   (`gh pr list --head <branch>` agrees) and the station is clean. Then that shift is over.
-   Go back to trunk (`git fetch origin && git switch --detach origin/<trunk>`) and check in
-   with no ticket, as a fresh session.
+   (`gh pr list --head <branch> --state all` shows it open or merged) and the station is
+   clean. Then that shift is over, and it was an earlier session's shift. Go back to trunk
+   (`git fetch origin && git switch --detach origin/<trunk>`) and check in with no ticket,
+   as **fresh**: the handoff you read is that earlier session's work, not yours.
 4. **Sous found:** send `[check-in]` with your station name, your model, branch, clean or
    dirty (and what's dirty), the ticket you're on, whether this session is **fresh** or
-   **spent** (it has already served a ticket or held a grilling, so it needs clearing), and **what you're waiting on**: an
+   **spent** (this conversation itself has served a ticket or held a grilling, so it needs
+   clearing), and **what you're waiting on**: an
    unanswered question (`Q3`), the pass, a walk-in clearance, the plan's `[approved]`, or
    nothing. That line is how a restarted sous recovers what was in flight.
+   **Fresh or spent is about your own context, never the station's.** If this skill is the
+   first thing in your conversation (a new session, or just after `/clear`), you're fresh,
+   whatever the journal, the branch or a merged PR says. A journal is a record of earlier
+   sessions; reading it doesn't make you the session that wrote it.
    **No sous yet:** that's fine; the order sessions start in doesn't matter. Say in one
    line *"No sous chef running yet. I'll check in when it says hello."* and stop. When a
    `[hello]` arrives, send the `[check-in]` then. A `[hello]` from a sous that has just
