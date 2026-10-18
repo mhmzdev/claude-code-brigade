@@ -101,6 +101,9 @@ free cook → assign nothing, and say who is busy with what.
 **The check-in is the proof.** It's the cook's own report from its station, not a label, and
 the cook wins about its station (rule 8). A `[check-in]` that says no ticket, clean and
 fresh means a free cook: brief it. Don't ask it to confirm it was cleared or is really fresh.
+One exception runs the other way: if the head chef says they've just cleared a cook and its
+check-in still says spent, the head chef wins (they did the clearing). Brief it, and tell
+the cook in the brief that it was cleared. Never ask the head chef to clear it again.
 
 **2. Which ticket is next.** From the rail board, take the **ready** tickets (Contract 3):
 the rows with `yes` under `RDY`. The board has already checked every blocker and every

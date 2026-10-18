@@ -12,6 +12,16 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.16.1] - 2026-10-18
+
+A cook you've just cleared now checks in as fresh. Before, a cleared cook in a station whose
+last ticket had shipped read that ticket's journal, took the earlier session's work as its
+own, and checked in as spent. The sous then held its brief and asked you to clear a session
+that was already clear. Now "fresh or spent" is about the session's own conversation, never
+the station's journal, and a served ticket counts whether its PR is open or merged. If a cook
+still checks in spent after you clear it, tell the sous: your word wins and it briefs the
+cook. Nothing to do but update ([#29](https://github.com/mhmzdev/claude-code-brigade/issues/29)).
+
 ## [0.16.0] - 2026-10-15
 
 The kitchen remembers what you decided, and stops asking twice. Four things change for the

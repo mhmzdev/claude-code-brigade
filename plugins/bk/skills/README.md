@@ -405,7 +405,10 @@ or what to hold. With `gates.assign: head-chef`, the sous
 proposes and waits for a yes. Either way a cook only gets a ticket when it is **free**: it
 has checked in with no ticket, a clean station, and a fresh session. That `[check-in]` is
 enough: the sous never asks the cook to confirm it was cleared. A cook that has just served
-is not free until its session has been cleared.
+is not free until its session has been cleared. Freshness is about the session's own
+context, not the station's history: a journal that says the station served a ticket is an
+earlier session's work. And when the head chef says they've just cleared a cook, that
+outranks a check-in that says spent.
 
 **The sign-off is what starts `/bk:implement`.** It approves the plan and authorises
 every commit made under it (after the sous's pass). No separate "approve?" question exists.
@@ -484,7 +487,7 @@ Keep messages short and typed. The first line is the kind, in brackets:
 |---|---|---|
 | `[hello]` | sous → cook | "I'm the sous, check in": sent at start-up to cooks that were already waiting |
 | `[brief]` | sous → cook | the ticket's absolute path, why it matters, constraints from other stations, the loop. Or a **grilling brief**: the item to grill the head chef on, and where its decisions go |
-| `[check-in]` | cook → sous | station, model, branch, dirty or clean, ticket, whether the session is **fresh or spent** (it has already served a ticket or held a grilling, so it needs clearing), and **what it's waiting on** (a question id, the plan's sign-off, the pass, a walk-in clearance, or nothing) |
+| `[check-in]` | cook → sous | station, model, branch, dirty or clean, ticket, whether the session is **fresh or spent** (spent: this conversation itself has served a ticket or held a grilling, so it needs clearing; a session just started or just cleared is fresh, whatever the station's journal or branch says), and **what it's waiting on** (a question id, the plan's sign-off, the pass, a walk-in clearance, or nothing) |
 | `[gate]` | cook → sous | the question, the options, the cook's recommendation, and the commis's result (`commis: nothing recorded in <places>`, `commis: conflict between <a> and <b>`, or `commis: blocked on <question file>`) |
 | `[rail]` | cook → sous | a rail change request: `claim BKLG-004 todo`, `BKLG-004 → rfr`. Also a file for the sous to record in the main checkout, by absolute path: a spec draft, grilling decisions, a brainstorm doc |
 | `[walk-in]` | cook → sous | "about to run `<command>` on `<resource>`, OK?" |
