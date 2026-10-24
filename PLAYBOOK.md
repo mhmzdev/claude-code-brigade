@@ -38,7 +38,8 @@ merge. The sous signs off bug, chore and hygiene plans itself and tells you.
 
 ## Setting up
 
-**How do I set it up in a repo?** Run `/bk:setup` in the repo's main checkout. It reads the
+**How do I set it up in a repo?** Run `bk setup` in the repo's main checkout (it starts a
+Claude session there already running `/bk:setup`; inside Claude Code, type that). It reads the
 repo, asks one round of questions, and writes:
 
 - `.claude/brigade.md`: the config every skill reads (trunk, check command, install
@@ -54,7 +55,8 @@ Nothing is committed until you say so. Stations are created from `origin/<trunk>
 setup must be pushed before `/bk:kitchen setup` can build them.
 
 **Do I need several stations?** No. One station works: you get the sous plus one cook.
-Add more later with `/bk:kitchen setup -n 3`; existing stations are left alone.
+Add more later with `bk stations -n 3` (or `/bk:kitchen setup -n 3`); existing stations are
+left alone.
 
 **Do I need a board like GitHub Projects or Jira?** No. The default rail is markdown: each
 ticket is a file under `docs/` with frontmatter. GitHub Projects and Jira are optional
@@ -443,8 +445,10 @@ still sees the sous. `.claude/cook "/bk:line-cook"` starts a fresh session inste
 
 | You want to | Type, in | |
 |---|---|---|
-| set the repo up | `/bk:setup` | main checkout |
-| create or add stations | `/bk:kitchen setup -n N` | main checkout |
+| set the repo up | `bk setup` (or `/bk:setup`) | main checkout |
+| create or add stations | `bk stations -n N` (or `/bk:kitchen setup -n N`) | main checkout |
+| run one skill yourself, solo | `bk run SKILL words…` (or `/bk:SKILL words…`) | main checkout |
+| tell the maintainers something | `bk feedback words…` (or `/bk:feedback`) | anywhere |
 | open the kitchen (sous and cooks, in tmux) and sit with the sous | `bk open` (or `/bk:kitchen open`) | main checkout |
 | talk to the sous | `bk attach` (or `tmux attach -t <repo>-brigade:sous`) | any terminal |
 | peek at a cook | `bk peek N` (or `tmux attach -t <repo>-brigade:station-N`), `Ctrl-b d` to leave | any terminal |
