@@ -1,7 +1,7 @@
 /* The Ledger: the Window's second page. Same palette as style.css; a page that scrolls, not a room. */
 :root{--bg:#171613;--ink:#ece6da;--muted:#9a9386;--dim:#7d776c;--line:#2e2b26;--line2:#4a4439;--card:#1f1d1a;--panel:#1b1a17;--accent:#e9a93c;--red:#e0533f;--green:#5fb47c;--blue:#6f9bd6;--mono:ui-monospace,Menlo,Consolas,monospace;
   --prep:#b8b0a2;--cook:#e9a93c;--check:#6f9bd6;--serve:#5fb47c;--kitchen:#6d675d}
-html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:13px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,sans-serif;-webkit-font-smoothing:antialiased}
+html{height:100%}body{margin:0;min-height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font:13px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,sans-serif;-webkit-font-smoothing:antialiased}
 *{box-sizing:border-box}
 a{color:var(--accent)}
 button{font:inherit;color:inherit}
@@ -29,7 +29,7 @@ kbd{font-family:var(--mono);font-size:10.5px;color:#6d675d;border:1px solid var(
 .bar{height:8px;border-radius:4px;background:var(--line);display:flex;overflow:hidden}.bar span{display:block;height:100%}
 .bar.thin{height:5px;border-radius:3px}
 
-main{flex:1;overflow-x:auto;min-height:40vh}
+main{flex:1;overflow-x:auto}
 .table{min-width:900px}
 .row,.head{display:grid;gap:16px;align-items:center;padding:12px 20px}
 .head{padding:10px 20px;font-size:10.5px;font-weight:600;letter-spacing:.1em;color:var(--dim);border-bottom:1px solid var(--line)}
@@ -58,4 +58,4 @@ main{flex:1;overflow-x:auto;min-height:40vh}
 .steps .sr .what{display:flex;flex-direction:column;min-width:0}.steps .sr .usage{font-family:var(--mono);font-size:10.5px;color:var(--dim)}.steps .bad{color:var(--red)}
 .steps .rate{font-family:var(--mono);font-size:10.5px;color:#6d675d}
 .none{padding:30px 20px;color:var(--dim)}
-#foot{padding:12px 20px 18px;border-top:1px solid var(--line);font-size:12px;color:var(--dim);display:flex;flex-wrap:wrap;gap:6px 18px}
+#foot{margin-top:auto;padding:12px 20px 18px;border-top:1px solid var(--line);font-size:12px;color:var(--dim);display:flex;flex-wrap:wrap;gap:6px 18px}

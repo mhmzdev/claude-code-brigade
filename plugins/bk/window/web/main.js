@@ -106,8 +106,13 @@ function renderSheet(s) {
 function renderBudgetSum(s) {
   const b = s.budget, el = $('#budgetsum');
   el.hidden = !b; if (!b) return;
-  const cap = b.caps?.shift_usd, spent = b.shift.cost + (b.shift.ci?.cost || 0);
-  el.innerHTML = `<span class="spent"><b>${esc(fmtUsd(spent))}</b>${cap ? `<span class="bar"><span style="width:${Math.min(100, spent / cap * 100)}%"></span></span>` : ''}</span><span>${esc(fmtTok(b.shift.total))} tok</span><span>${esc(fmtSecs(b.shift.activeSecs))} working</span><span>CI ${esc(String(b.shift.ci?.minutes || 0))} min</span><kbd>$</kbd>`;
+  // The shift: since the sous's current conversation began (the snapshot holds a week).
+  const since = b.windows?.shift || b.since || 0, now = b.computedAt || Date.now();
+  const sessions = b.sessions.filter((x) => (x.lastAt || 0) >= since), tickets = b.tickets.filter((t) => (t.servedAt || now) >= since);
+  const models = sessions.reduce((a, x) => a + x.allCost, 0), ci = tickets.reduce((a, t) => a + (t.ci?.cost || 0), 0), ciMin = tickets.reduce((a, t) => a + (t.ci?.minutes || 0), 0);
+  const total = sessions.reduce((a, x) => a + x.allTotal, 0), working = sessions.reduce((a, x) => a + x.activeSecs, 0);
+  const cap = b.caps?.shift_usd, spent = models + ci;
+  el.innerHTML = `<span class="spent"><b>${esc(fmtUsd(spent))}</b>${cap ? `<span class="bar"><span style="width:${Math.min(100, spent / cap * 100)}%"></span></span>` : ''}</span><span>${esc(fmtTok(total))} tok</span><span>${esc(fmtSecs(working))} working</span><span>CI ${esc(String(Math.round(ciMin * 10) / 10))} min</span><kbd>$</kbd>`;
 }
 // ---------- the popover on the selected figure, and the hover tip ----------
 function place(el, anchor, below) {

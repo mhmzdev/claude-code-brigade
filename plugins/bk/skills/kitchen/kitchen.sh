@@ -79,7 +79,7 @@
 #   kitchen.sh sessions [--dir D]         the Claude Code session transcripts saved for
 #                                         this checkout (or D, e.g. a station), newest
 #                                         first, from $CLAUDE_CONFIG_DIR (else ~/.claude)
-#   kitchen.sh budget [--ticket ID] [--since today|7d|all] [--ci] [--json]
+#   kitchen.sh budget [--ticket ID] [--since today|7d] [--ci] [--json]
 #                                         what the kitchen spends: tokens (input, output,
 #                                         cache read, cache write), money at Anthropic's
 #                                         list prices (a prices: block in the config
@@ -87,7 +87,7 @@
 #                                         per ticket: brief→served and each phase), and
 #                                         sub-agents, per session and per ticket, read
 #                                         from the session transcripts Claude Code keeps
-#                                         (needs node 20+). --ci asks gh for the CI
+#                                         (needs node 20+; a week back at most). --ci asks gh for the CI
 #                                         minutes of each ticket's PR branch. Served
 #                                         tickets and CI results are kept in
 #                                         .claude/budget.jsonl (out of git) so they

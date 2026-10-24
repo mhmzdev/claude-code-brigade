@@ -241,9 +241,10 @@ ok "a prices: block in brigade.md overrides the built-in table" [ "$(field "$J" 
 printf -- '---\ntrunk: main\nkitchen_mode: clone\n---\n' > "$APP/.claude/brigade.md"
 
 section "windows and roles"
-OUT="$("$K" budget --since all)"
-ok "--since all says so" has "$OUT" "^Shift \(all time\)"
-ok "budget from a station reports the whole kitchen" has "$(cd "$APP/stations/station-1" && "$K" budget --since all)" "BKLG-001 +station-1"
+OUT="$("$K" budget --since 7d)"
+ok "--since 7d says since when" has "$OUT" "^Shift \(since 20[0-9][0-9]-"
+ok "a week is as far back as it looks" has "$("$K" budget --since 30d)" "^Shift \(since .*today\)"
+ok "budget from a station reports the whole kitchen" has "$(cd "$APP/stations/station-1" && "$K" budget --since 7d)" "BKLG-001 +station-1"
 ok "without node it says what to install" has "$(PATH="$TMP/nonode" "$K" budget 2>&1)" "needs node 20"
 
 # =============================================================================

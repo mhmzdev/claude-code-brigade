@@ -19,7 +19,7 @@ tokens (input, output, cache read, cache write), money at Anthropic's list price
 table (`prices:` in `.claude/brigade.md` overrides it), time (working time per session;
 brief→served per ticket with its phases: plan, wait, build, pass, ship), every sub-agent,
 and the CI minutes of each ticket's PR branch. `kitchen.sh budget` (and `bk budget`) prints
-it; `--ticket ID`, `--since 7d|all`, `--ci`, `--json`. The Window shows it: a chip at the
+it; `--ticket ID`, `--since 7d`, `--ci`, `--json`. The Window shows it: a chip at the
 foot with the shift's spend, which opens **the Ledger** (`$`), a page of dishes and sessions
 over the shift, today or the week, each dish split into prep, cook, check and serve, with
 every step (the cook's turns per stage, every sub-agent run with the runner's verdict) and

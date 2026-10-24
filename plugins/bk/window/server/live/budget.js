@@ -290,8 +290,8 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
     for (const t of tickets) if (t.ci) { shift.ci.minutes += t.ci.minutes; shift.ci.cost += t.ci.cost; }
     shift.cost = round(shift.cost); shift.helperCost = round(shift.helperCost); shift.ci.cost = round(shift.ci.cost); shift.ci.minutes = Math.round(shift.ci.minutes * 10) / 10;
     // Per actor: the role's sessions today, and its current (latest) one.
-    const actors = {};
-    for (const s of sessions) { const a = (actors[s.role] ||= { sessions: 0, cost: 0, total: 0, secs: 0, activeSecs: 0, helpers: {}, current: null }); a.sessions++; a.cost = round(a.cost + s.allCost); a.total += s.allTotal; a.secs += s.secs; a.activeSecs += s.activeSecs; for (const [k, h] of Object.entries(s.helpers)) { const x = (a.helpers[k] ||= { runs: 0, cost: 0, total: 0, secs: 0 }); x.runs += h.runs; x.cost = round(x.cost + h.cost); x.total += h.total; x.secs += h.secs; } a.current = pub(s); }
+    const actors = {}, today = startOfToday();
+    for (const s of sessions.filter((x) => (x.lastAt || 0) >= today)) { const a = (actors[s.role] ||= { sessions: 0, cost: 0, total: 0, secs: 0, activeSecs: 0, helpers: {}, current: null }); a.sessions++; a.cost = round(a.cost + s.allCost); a.total += s.allTotal; a.secs += s.secs; a.activeSecs += s.activeSecs; for (const [k, h] of Object.entries(s.helpers)) { const x = (a.helpers[k] ||= { runs: 0, cost: 0, total: 0, secs: 0 }); x.runs += h.runs; x.cost = round(x.cost + h.cost); x.total += h.total; x.secs += h.secs; } a.current = pub(s); }
     const sousNow = all.filter((s) => s.role === 'sous').sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0))[0];
     const windows = { shift: sousNow?.startedAt || startOfToday(), today: startOfToday(), week: now() - 7 * 86400000 };
     return { asOf: PRICES_AS_OF, since, computedAt: now(), shift, sessions: sessions.map(pub), tickets, actors, unknownModels: [...unknown], windows, caps: readCaps(root) };
@@ -361,7 +361,7 @@ export function report(b, { ticket = null } = {}) {
     lines.push(`  CI        ${t.ci ? `${t.ci.minutes} min over ${t.ci.runs} runs on ${t.ci.branch} (${t.ci.public ? 'public repo, free' : fmtUsd(t.ci.cost)})` : 'not fetched (kitchen.sh budget --ci)'}`);
     return lines.join('\n');
   }
-  const sinceLabel = b.since ? `since ${new Date(b.since).toDateString() === new Date().toDateString() ? hhmm(b.since) + ' today' : new Date(b.since).toISOString().slice(0, 10)}` : 'all time';
+  const sinceLabel = `since ${new Date(b.since).toDateString() === new Date().toDateString() ? hhmm(b.since) + ' today' : new Date(b.since).toISOString().slice(0, 10)}`;
   lines.push(`Shift (${sinceLabel}): ${fmtUsd(b.shift.cost)} · ${fmtTokens(b.shift.total)} tokens (in ${fmtTokens(u.in)} · out ${fmtTokens(u.out)} · cache read ${fmtTokens(u.read)} · cache write ${fmtTokens(u.w5 + u.w1)}) · ${fmtSecs(b.shift.activeSecs)} working · CI ${b.shift.ci.minutes} min (${fmtUsd(b.shift.ci.cost)})`);
   lines.push(`Prices: Anthropic list as of ${b.asOf}${b.unknownModels.length ? `; no price for ${b.unknownModels.join(', ')} (add a prices: block to .claude/brigade.md)` : ''}.`);
   lines.push('');
@@ -378,14 +378,16 @@ export function report(b, { ticket = null } = {}) {
 }
 export function shortModel(m) { const s = String(m || '').toLowerCase(); for (const n of ['fable', 'opus', 'sonnet', 'haiku']) if (s.includes(n)) return n; return m || null; }
 
-// ---------- the CLI: node budget.js --root <repo> [--since today|7d|all] [--ticket ID] [--ci] [--json] [--journal-line] ----------
+// ---------- the CLI: node budget.js --root <repo> [--since today|7d] [--ticket ID] [--ci] [--json] [--journal-line] ----------
+// A week is as far back as the budget looks: the numbers live on this machine and the
+// transcripts are pruned anyway.
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
   const flag = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
   const { readConfig } = await import('./config.js');
   const cfg = readConfig(path.resolve(flag('--root', process.cwd())));
   const sinceArg = flag('--since', 'today');
-  const since = sinceArg === 'all' ? 0 : /^\d+d$/.test(sinceArg) ? Date.now() - Number(sinceArg.slice(0, -1)) * 86400000 : startOfToday();
+  const since = sinceArg === '7d' || sinceArg === 'week' ? Date.now() - 7 * 86400000 : startOfToday();
   const budget = createBudget({ root: cfg.root, stations: cfg.stations });
   const ticket = flag('--ticket', null);
   if (args.includes('--ci')) {

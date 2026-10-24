@@ -278,7 +278,7 @@ itself beyond the budget's local ledger; it needs node 20 or newer. `/bk:live` a
 **What is it costing me?** `bk budget` (or `/bk:kitchen budget`) prints the shift: money,
 tokens by kind, working time and CI minutes, then a row per session and a row per ticket
 with brief→served and each phase (plan, wait for the sign-off, build, pass, ship). `--ticket
-ID` is one ticket's page, `--since 7d` or `--since all` widens the window, `--ci` asks `gh`
+ID` is one ticket's page, `--since 7d` widens the window to a week, as far as it looks, `--ci` asks `gh`
 for the CI minutes of each ticket's PR branch. The Window shows the same at its foot, and
 the chip opens the Ledger: a page of dishes and sessions over the shift, today or the week,
 each dish split into prep, cook, check and serve, with every step and what a red check cost
