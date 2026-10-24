@@ -162,8 +162,9 @@ the commis at the record, and every message between them appears as a speech bub
 in the console below. The rail is down the left. Click a cook or the sous for its page:
 what it is doing, its branch, its questions, and controls that type into that session for
 you (send a line, change the model, hand off, answer a question). The chip at the foot is
-the budget: what the shift has spent in money, tokens, working time and CI minutes, with one
-sheet behind it, a row per session and per ticket. Run `bk live` again to close it. Try it without
+the budget: what the shift has spent in money, tokens, working time and CI minutes. It opens
+the Ledger, a page where every dish is split into prep, cook, check and serve, down to each
+step and what a red check cost in rework. Run `bk live` again to close it. Try it without
 a kitchen: `bk live --demo`.
 
 **What does it cost?** `bk budget` says, in the terminal: tokens (input, output, cache read,

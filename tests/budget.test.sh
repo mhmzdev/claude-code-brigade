@@ -65,7 +65,7 @@ git -C "$APP" add -A; git -C "$APP" commit -qm init
 slug() { printf '%s' "$1" | sed 's/[^A-Za-z0-9]/-/g'; }
 SOUS_DIR="$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APP" && pwd -P)")"
 COOK_DIR="$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APP/stations/station-1" && pwd -P)")"
-mkdir -p "$SOUS_DIR/sous1/subagents" "$COOK_DIR/cook1/subagents" "$COOK_DIR/cook2"
+mkdir -p "$SOUS_DIR/sous1/subagents" "$COOK_DIR/cook1/subagents" "$COOK_DIR/cook2" "$COOK_DIR/cook3/subagents"
 
 # ---------- the transcripts ----------
 # Written by node so the timestamps are today's. T0 = 09:00 local today; everything is
@@ -112,9 +112,26 @@ write(path.join(cookDir, 'cook2.jsonl'), [
   asst(-29, 'claude-sonnet-5-5', { in: 1000000, out: 0, read: 0 }, [send('sous', '[check-in] station-1 on BKLG-001, handing off before a clear')]),
 ]);
 // A third cook conversation on a ticket that is not served yet: its journal line reads brief→PR.
+// It is approved, runs the check red, fixes, runs it green: the rework is the fix and the re-run.
+const red = agent('runner', 'the check'), green = agent('runner', 'the check again');
 write(path.join(cookDir, 'cook3.jsonl'), [
   peer(20, 'app-sous', '[brief] BKLG-002 Another thing.'),
   asst(21, 'claude-haiku-5-5', { in: 0, out: 1000000, read: 0 }, [send('sous', '[plan] BKLG-002 ready: /x/docs/plans/BKLG-002.md')]),
+  peer(22, 'app-sous', '[approved] BKLG-002: /x/docs/plans/BKLG-002.md · sous'),
+  asst(23, 'claude-haiku-5-5', { in: 0, out: 200000, read: 0 }, [red]),
+  result(24, red.id, { toolUseResult: { agentId: 'r2', status: 'done' } }),
+  asst(25, 'claude-haiku-5-5', { in: 0, out: 400000, read: 0 }, [{ type: 'text', text: 'fixing' }]),
+  asst(26, 'claude-haiku-5-5', { in: 0, out: 0, read: 0 }, [green]),
+  result(27, green.id, { toolUseResult: { agentId: 'r3', status: 'done' } }),
+  asst(28, 'claude-haiku-5-5', { in: 0, out: 100000, read: 0 }, [{ type: 'text', text: 'after green' }]),
+]);
+write(path.join(cookDir, 'cook3', 'subagents', 'agent-r2.jsonl'), [
+  { type: 'user', isSidechain: true, agentId: 'r2', timestamp: at(23.1), message: { role: 'user', content: 'run' } },
+  asst(23.9, 'claude-haiku-5-5', { in: 0, out: 20000, read: 0 }, [{ type: 'text', text: 'FAIL: 2 of 48 tests failed' }]),
+]);
+write(path.join(cookDir, 'cook3', 'subagents', 'agent-r3.jsonl'), [
+  { type: 'user', isSidechain: true, agentId: 'r3', timestamp: at(26.1), message: { role: 'user', content: 'run' } },
+  asst(26.9, 'claude-haiku-5-5', { in: 0, out: 20000, read: 0 }, [{ type: 'text', text: 'pass: 48 tests' }]),
 ]);
 // The sous: one conversation, a taster for BKLG-001 at the pass.
 const taste = agent('taster', 'taste BKLG-001 in station-1');
@@ -194,8 +211,28 @@ OUT="$("$K" budget --ticket BKLG-001 --journal-line --session app-cook-1)"
 ok "one journal line, dated, for the cook to append" has "$OUT" "^- [0-9]{4}-[0-9]{2}-[0-9]{2} 09:12 · app-cook-1 · cost: \\\$4\.63 · "
 ok "it carries the tokens, the phases, the helpers and CI" has "$OUT" "tokens \(in 1\.0M, out 5k, cache read 450k, cache write 50k\) · brief→served 42m \(plan 31m, wait 2m, build 8m, pass 1m, ship 1m\) · helpers: runner 1 \(\\\$0\.05\), taster 1 \(\\\$2\.00\) · CI 3 min \(\\\$0\.10\)"
 OUT="$("$K" budget --ticket BKLG-002 --journal-line)"
-ok "a ticket not served yet reads brief→PR, with the phases known so far and no CI" has "$OUT" "^- .* · cook3 · cost: \\\$0\.50 · 1\.0M tokens .* · brief→PR [0-9]+[hm].*\(plan 1m\) · helpers: –$"
+ok "a ticket not served yet reads brief→PR, with the phases known so far and no CI" has "$OUT" "^- .* · cook3 · cost: \\\$0\.87 · 1\.7M tokens .* · brief→PR [0-9]+[hm].*\(plan 1m, wait 1m\) · helpers: runner 2 \(\\\$0\.02\)$"
 ok "an unknown ticket is an error" fails "$K" budget --ticket BKLG-999 --journal-line
+
+section "stages, steps and rework"
+T="$("$K" budget --ticket BKLG-001 --json)"
+ok "prep is brief to the sign-off: the cook's turns before [approved]" [ "$(field "$T" 'b.stages.prep.cost')" = 2.4404 ]
+ok "check holds the handoff turn and the sous's taster" [ "$(field "$T" 'b.stages.check.cost')" = 2.08 ]
+ok "the runner is a step in the stage it ran in, with its verdict" [ "$(field "$T" 'b.steps.find(s=>s.kind==="runner").stage + b.steps.find(s=>s.kind==="runner").ok')" = cooktrue ]
+ok "the cook's own turns are one step per stage" [ "$(field "$T" 'b.steps.filter(s=>s.kind==="own").map(s=>s.stage).join()')" = prep,cook,check,serve ]
+ok "a ticket with no red run has no rework" [ "$(field "$T" 'b.rework')" = null ]
+T="$("$K" budget --ticket BKLG-002 --json)"
+# after the red runner at 24: the fix turn (400k out on haiku = $0.20), the green runner (20k out = $0.01); not the 100k after green
+ok "rework is what came after the first red runner, up to the green one" [ "$(field "$T" 'b.rework.cost')" = 0.21 ]
+ok "rework counts the reds and says whether it settled" [ "$(field "$T" 'b.rework.reds + "," + b.rework.settled')" = "1,true" ]
+ok "the stage split sums to the ticket" [ "$(field "$T" 'Math.round(Object.values(b.stages).reduce((a,g)=>a+g.cost,0)*10000)/10000 === b.allCost')" = true ]
+J="$("$K" budget --json)"
+ok "the shift window starts at the sous's current conversation, today at 08:58" [ "$(field "$J" 'b.windows.shift > b.windows.today && b.windows.week < b.windows.today && new Date(b.windows.shift).getMinutes()')" = 58 ]
+ok "no budget: block means no caps" [ "$(field "$J" 'Object.keys(b.caps).length')" = 0 ]
+printf -- '---\ntrunk: main\nkitchen_mode: clone\nbudget:\n  shift_usd: 60\n  ticket_usd: 12\n---\n' > "$APP/.claude/brigade.md"
+J="$("$K" budget --json)"
+ok "a budget: block gives the Ledger its scale" [ "$(field "$J" 'b.caps.shift_usd + "/" + b.caps.ticket_usd')" = 60/12 ]
+printf -- '---\ntrunk: main\nkitchen_mode: clone\n---\n' > "$APP/.claude/brigade.md"
 
 section "prices from the config"
 printf -- '---\ntrunk: main\nkitchen_mode: clone\nprices:\n  opus: { in: 8, out: 40, read: 0.4 }\n---\n' > "$APP/.claude/brigade.md"

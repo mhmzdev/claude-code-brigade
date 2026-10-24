@@ -57,6 +57,17 @@ export function readPriceOverrides(root) {
   return out;
 }
 
+// The `budget:` block of .claude/brigade.md: `  shift_usd: 60` and `  ticket_usd: 12`, the scale the Ledger
+// draws spend against. A meter, not a limit (Contract 2).
+export function readCaps(root) {
+  const file = path.join(root, '.claude', 'brigade.md');
+  let text; try { text = fs.readFileSync(file, 'utf8'); } catch { return {}; }
+  const block = text.match(/^budget:\n((?:[ \t]+.*\n?)*)/m); if (!block) return {};
+  const out = {};
+  for (const line of block[1].split('\n')) { const m = line.match(/^[ \t]+(shift_usd|ticket_usd):\s*([\d.]+)/); if (m) out[m[1]] = Number(m[2]); }
+  return out;
+}
+
 // ---------- reading one transcript ----------
 const TICKET = /\b(S\d{3}-\d{2}|BKLG-\d{3}|HYG-\d{3})\b/i;
 const KIND = /^\s*\[([a-z-]+)\]/i;
@@ -76,7 +87,7 @@ function usageOf(msg) {
 // the partial last line, the turns seen so far). One API turn is written as several lines
 // that share message.id, each carrying the whole turn's usage, so it is counted once.
 export function scanTranscript(file, st = null) {
-  st ||= { offset: 0, rest: '', byId: new Map(), turns: [], marks: [], agents: new Map(), pendingAgents: new Map(), first: null, last: null, size: 0 };
+  st ||= { offset: 0, rest: '', byId: new Map(), turns: [], marks: [], agents: new Map(), pendingAgents: new Map(), first: null, last: null, size: 0, lastText: '' };
   let size; try { size = fs.statSync(file).size; } catch { return st; }
   if (size < st.offset) Object.assign(st, { offset: 0, rest: '', byId: new Map(), turns: [], marks: [], first: null, last: null });
   if (size === st.offset) return st;
@@ -98,6 +109,7 @@ export function scanTranscript(file, st = null) {
       if (st.byId.has(id)) { const turn = st.byId.get(id); turn.u.out = Math.max(turn.u.out, u.out); }
       else { const turn = { t, model: msg.model || null, u }; st.byId.set(id, turn); st.turns.push(turn); }
       for (const b of content) {
+        if (b.type === 'text' && b.text && b.text.trim()) st.lastText = b.text.trim().slice(0, 400);
         if (b.type !== 'tool_use') continue;
         const inp = b.input || {};
         if (b.name === 'Agent') st.pendingAgents.set(b.id, { kind: String(inp.subagent_type || 'agent').replace(/^bk:/, ''), note: `${inp.description || ''} ${inp.prompt || ''}` });
@@ -167,7 +179,7 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
       const as = scanTranscript(af, states.get(af)); states.set(af, as);
       const meta = st.agents.get(f.replace(/^agent-|\.jsonl$/g, '')) || { kind: 'agent', ticket: null };
       const s = sum(as.turns);
-      const run = { kind: meta.kind, ticket: meta.ticket, t: as.first, secs: as.first && as.last ? Math.round((as.last - as.first) / 1000) : 0, ...s };
+      const run = { kind: meta.kind, ticket: meta.ticket, t: as.first, secs: as.first && as.last ? Math.round((as.last - as.first) / 1000) : 0, note: String(meta.note || '').trim().split(/\s+do\s+/)[0].slice(0, 80), ok: meta.kind === 'runner' ? verdict(as.lastText) : null, ...s };
       agentRuns.push(run);
       const h = (helpers[meta.kind] ||= { runs: 0, cost: 0, total: 0, secs: 0 });
       h.runs++; h.cost = round(h.cost + s.cost); h.total += s.total; h.secs += run.secs;
@@ -200,7 +212,7 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
       const own = sum(turns);
       const agents = s._agents.filter((a) => a.t >= start && (!end || a.t <= end));
       Object.assign(sp, { startedAt: start, status: end ? 'served' : 'open', secs: Math.round(((end || now()) - start) / 1000),
-        tokens: own.tokens, total: own.total, cost: own.cost, _runs: agents,
+        tokens: own.tokens, total: own.total, cost: own.cost, _runs: agents, _turns: turns, model: own.model,
         phases: Object.fromEntries(PHASES.map(([name, a, b]) => [name, sp.marks[a] && sp.marks[b] ? Math.max(0, Math.round((sp.marks[b] - sp.marks[a]) / 1000)) : null])) });
       delete sp.from;
       finish(sp);
@@ -211,13 +223,41 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
   const merge = (a, b) => {
     const [x, y] = (a.startedAt || 0) <= (b.startedAt || 0) ? [a, b] : [b, a];
     const marks = { ...y.marks, ...x.marks }; if (y.marks.served) marks.served = y.marks.served;
-    const m = { ...x, marks, session: y.session, servedAt: y.servedAt || x.servedAt, status: y.servedAt || x.servedAt ? 'served' : 'open', tokens: add(zero(), x.tokens), total: x.total + y.total, cost: round(x.cost + y.cost), _runs: [...x._runs, ...y._runs] };
+    const m = { ...x, marks, session: y.session, servedAt: y.servedAt || x.servedAt, status: y.servedAt || x.servedAt ? 'served' : 'open', tokens: add(zero(), x.tokens), total: x.total + y.total, cost: round(x.cost + y.cost), _runs: [...x._runs, ...y._runs], _turns: [...x._turns, ...y._turns], model: y.model || x.model };
     add(m.tokens, y.tokens);
     m.secs = Math.round(((m.servedAt || now()) - m.startedAt) / 1000);
     m.phases = Object.fromEntries(PHASES.map(([name, p, q]) => [name, marks[p] && marks[q] ? Math.max(0, Math.round((marks[q] - marks[p]) / 1000)) : null]));
     finish(m); return m;
   };
-  const finish = (sp) => { sp.helpers = fold(sp._runs); sp.helperCost = round(sp._runs.reduce((a, r) => a + r.cost, 0)); sp.allCost = round(sp.cost + sp.helperCost); };
+  // Stages: prep (brief → the sign-off), cook (→ handoff), check (→ go), serve (→ served). A ticket
+  // without a plan (hygiene) cooks from the brief. Steps: the cook's own turns per stage, and every
+  // sub-agent run. Rework: everything after the first red runner until the next green one.
+  const STAGES = ['prep', 'cook', 'check', 'serve'];
+  const finish = (sp) => {
+    sp.helpers = fold(sp._runs); sp.helperCost = round(sp._runs.reduce((a, r) => a + r.cost, 0)); sp.allCost = round(sp.cost + sp.helperCost);
+    const mk = sp.marks || {}, prepEnd = mk.approved || mk.plan || null;
+    const bounds = [prepEnd, mk.handoff || null, mk.go || null];
+    const stageAt = (t) => { for (let i = 0; i < 3; i++) if (bounds[i] && t < bounds[i]) return STAGES[i]; return bounds[2] ? 'serve' : bounds[1] ? 'check' : (prepEnd || /^HYG-/.test(sp.id)) ? 'cook' : 'prep'; };
+    const stages = Object.fromEntries(STAGES.map((k) => [k, { cost: 0, total: 0, secs: 0, steps: 0 }]));
+    const steps = [];
+    for (const k of STAGES) {
+      const turns = sp._turns.filter((t) => stageAt(t.t) === k); if (!turns.length) continue;
+      const s = sum(turns), secs = activeSecs(turns);
+      steps.push({ t: turns[0].t, stage: k, who: sp.cook, model: s.model, kind: 'own', note: `${turns.length} turns`, cost: s.cost, total: s.total, secs, ok: null });
+    }
+    for (const r of sp._runs) steps.push({ t: r.t, stage: stageAt(r.t), who: r.kind, model: r.model, kind: r.kind, note: r.note || '', cost: r.cost, total: r.total, secs: r.secs, ok: r.ok });
+    steps.sort((a, b) => (a.t || 0) - (b.t || 0));
+    for (const st of steps) { const g = stages[st.stage]; g.cost = round(g.cost + st.cost); g.total += st.total; g.secs += st.secs; g.steps++; }
+    sp.stages = stages; sp.steps = steps;
+    const red = steps.find((s) => s.kind === 'runner' && s.ok === false);
+    if (red) {
+      const green = steps.find((s) => s.kind === 'runner' && s.ok === true && s.t > red.t);
+      const after = (t) => t > red.t && (!green || t <= green.t);
+      const turns = sp._turns.filter((t) => after(t.t)), runs = sp._runs.filter((r) => after(r.t));
+      const s = sum(turns);
+      sp.rework = { reds: steps.filter((s) => s.kind === 'runner' && s.ok === false).length, cost: round(s.cost + runs.reduce((a, r) => a + r.cost, 0)), secs: activeSecs(turns) + runs.reduce((a, r) => a + r.secs, 0), settled: !!green };
+    } else sp.rework = null;
+  };
 
   // The ledger: served tickets and CI results, one JSON line each, latest wins.
   function readLedger() {
@@ -252,10 +292,12 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
     // Per actor: the role's sessions today, and its current (latest) one.
     const actors = {};
     for (const s of sessions) { const a = (actors[s.role] ||= { sessions: 0, cost: 0, total: 0, secs: 0, activeSecs: 0, helpers: {}, current: null }); a.sessions++; a.cost = round(a.cost + s.allCost); a.total += s.allTotal; a.secs += s.secs; a.activeSecs += s.activeSecs; for (const [k, h] of Object.entries(s.helpers)) { const x = (a.helpers[k] ||= { runs: 0, cost: 0, total: 0, secs: 0 }); x.runs += h.runs; x.cost = round(x.cost + h.cost); x.total += h.total; x.secs += h.secs; } a.current = pub(s); }
-    return { asOf: PRICES_AS_OF, since, computedAt: now(), shift, sessions: sessions.map(pub), tickets, actors, unknownModels: [...unknown] };
+    const sousNow = all.filter((s) => s.role === 'sous').sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0))[0];
+    const windows = { shift: sousNow?.startedAt || startOfToday(), today: startOfToday(), week: now() - 7 * 86400000 };
+    return { asOf: PRICES_AS_OF, since, computedAt: now(), shift, sessions: sessions.map(pub), tickets, actors, unknownModels: [...unknown], windows, caps: readCaps(root) };
   }
   const pub = (s) => { const { _turns, _marks, _agents, file, ...rest } = s; return rest; };
-  const strip = (sp) => { const { marks, fromLedger, _runs, ...rest } = sp; return rest; };
+  const strip = (sp) => { const { marks, fromLedger, _runs, _turns, ...rest } = sp; return rest; };
 
   // CI minutes for one ticket's branch, through gh; written to the ledger. Returns the record or null.
   function ci(ticket, { branch = null, gh = runGh } = {}) {
@@ -282,6 +324,8 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
 }
 
 const round = (n) => Math.round(n * 10000) / 10000;
+// A runner's reply says pass or fail; the same reading as the Window's check machine.
+export const verdict = (v) => { v = String(v || ''); return /\b(fail|failed|failing|error|errors|red|not ok|✕|✗)\b/i.test(v) ? false : /\b(pass|passed|passing|ok|green|clean|✓|success)\b/i.test(v) ? true : null; };
 const parse = (s) => { try { return JSON.parse(s); } catch { return null; } };
 function runGh(args) { try { return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return ''; } }
 export function startOfToday(d = new Date()) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); }

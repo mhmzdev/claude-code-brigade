@@ -279,7 +279,10 @@ itself beyond the budget's local ledger; it needs node 20 or newer. `/bk:live` a
 tokens by kind, working time and CI minutes, then a row per session and a row per ticket
 with brief→served and each phase (plan, wait for the sign-off, build, pass, ship). `--ticket
 ID` is one ticket's page, `--since 7d` or `--since all` widens the window, `--ci` asks `gh`
-for the CI minutes of each ticket's PR branch. The Window shows the same at its foot. It is
+for the CI minutes of each ticket's PR branch. The Window shows the same at its foot, and
+the chip opens the Ledger: a page of dishes and sessions over the shift, today or the week,
+each dish split into prep, cook, check and serve, with every step and what a red check cost
+in rework; a `budget:` block in the config (`shift_usd`, `ticket_usd`) gives it a scale. It is
 read from the transcripts Claude Code keeps, priced on a dated list (`prices:` in the config
 overrides it), and it is a meter: nothing stops because of it. Each ticket's journal gets a
 cost line when its PR opens; the sous's handoff and the open Window (every ten minutes)

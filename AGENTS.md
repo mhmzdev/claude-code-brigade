@@ -45,7 +45,7 @@ plugins/bk/                         the plugin (skills are invoked /bk:<skill>)
 │                                   rail, record; live/budget.js the budget reader, which
 │                                   kitchen.sh budget runs too) and a 2.5D room in plain DOM
 │                                   and CSS 3D (web/: scene.js the room and its characters,
-│                                   main.js the HUD)
+│                                   main.js the HUD; ledger.html/js/css the Ledger page)
 ├── hooks/hooks.json, hooks/guard.sh  PreToolUse guard: no human dialog in a station outside a
 │                                   grilling; no [gate] question without the commis's result
 ├── agents/                         commis (searches the record), inspector (report-only),

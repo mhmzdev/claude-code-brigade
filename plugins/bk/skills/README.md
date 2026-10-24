@@ -99,6 +99,9 @@ clean:                                   # lane C counters; each command prints 
   umbrella: null                         # optional: a tracker id, or a markdown ticket path whose ## Snapshots gets a row per scan
 prices:                                  # the budget's price table, USD per million tokens; a key is any part of a model id
   # opus: { in: 4, out: 20, read: 0.20 } # overrides the built-in list prices (cache writes: 1.25x in, 2x for the 1-hour kind)
+budget:                                  # the scale the Ledger draws spend against; a meter, not a limit (nothing stops)
+  # shift_usd: 60                        # the shift's bar: spend of this
+  # ticket_usd: 12                       # each dish's bar
 docs:                                    # the map of everything the kitchen keeps (Contract 12)
   specs: docs/specs
   backlog: docs/backlog
@@ -126,11 +129,16 @@ not under `docs` because it never reaches git.
 **The budget.** The kitchen knows what it spends: tokens (input, output, cache read, cache
 write), money, time and CI minutes, per session and per ticket, read from the transcripts
 Claude Code keeps for every session and sub-agent. `kitchen.sh budget` prints it, the
-Window shows it (a chip at the foot, a sheet on `B`, rows on each figure's page), and nothing
-in the kitchen records it by hand. Money is tokens times the model's list price on a dated
+Window shows it (a chip at the foot that opens **the Ledger**, a page of dishes and sessions
+over the shift, today or the week, each dish split into prep, cook, check and serve with
+every step and what a red check cost in rework; and rows on each figure's page), and nothing
+in the kitchen records it by hand. A `budget:` block gives the Ledger a scale to draw spend
+against. Money is tokens times the model's list price on a dated
 built-in table; `prices:` overrides any entry. Served tickets and CI results are kept in
 `.claude/budget.jsonl` (out of git) because Claude Code deletes transcripts after its
-cleanup period. It is a meter, not a limit: nothing stops because of it.
+cleanup period. It is a meter, not a limit: nothing stops because of it. A dish's stages
+follow its messages: prep from the brief to the sign-off, cook to `[handoff]`, check to
+`[go]`, serve to `[served]`; a hygiene ticket cooks from the brief.
 
 **Where each artifact lands.** Rail artifacts (specs and tickets) are written by the sous in
 the main checkout and reach trunk straight away (`rail.commit`). Work artifacts (a ticket's

@@ -75,7 +75,7 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify(store.snapshot()));
     return;
   }
-  const rel = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
+  const rel = url.pathname === '/' ? 'index.html' : url.pathname === '/ledger' ? 'ledger.html' : url.pathname.slice(1);
   const file = path.normalize(path.join(webDir, rel));
   if (!file.startsWith(webDir)) { res.writeHead(403); res.end(); return; }
   serveFile(res, file);

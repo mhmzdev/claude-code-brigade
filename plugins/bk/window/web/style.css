@@ -240,15 +240,9 @@ kbd{font-family:var(--mono);font-size:10.5px;color:var(--dim);font-weight:400}
 /* the bottom bar */
 #hud-bottom{position:absolute;left:10px;right:10px;bottom:10px;z-index:30;display:flex;gap:10px;align-items:center;pointer-events:none}
 #railsum,#budgetsum{height:42px;gap:14px;padding:0 14px;border-radius:10px;cursor:pointer;font-size:11.5px;color:var(--muted)}
-#budgetsum b{color:#e2c15a;font-weight:500}#budgetsum span{color:var(--muted)}#budgetsum:hover{border-color:var(--line2)}
-.budget{flex:1;min-height:0;overflow:auto;padding:0 14px 10px;display:grid;grid-template-columns:minmax(300px,2fr) minmax(360px,3fr);gap:14px}
-.budget h3{margin:6px 0 4px;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-.budget table{width:100%;border-collapse:collapse;font-size:12px}
-.budget th{font-family:var(--mono);font-size:10.5px;font-weight:500;color:var(--dim);text-align:left;padding:3px 6px;border-bottom:1px solid #2e2b26;letter-spacing:.04em}
-.budget td{font-family:var(--mono);font-size:11.5px;padding:4px 6px;border-bottom:1px solid #26241f;white-space:nowrap;color:#d9d2c4}
-.budget td.n{text-align:right}.budget th.n{text-align:right}.budget td.usd{color:#e2c15a}.budget td.dim{color:#7d776c}
-.budget .foot{grid-column:1/-1;font-size:11px;color:var(--dim)}
-.budget .none{font-family:var(--mono);font-size:11px;color:#7d776c;padding:6px}
+#budgetsum{text-decoration:none}#budgetsum b{color:#e2c15a;font-weight:500}#budgetsum span{color:var(--muted)}#budgetsum:hover{border-color:var(--line2);color:var(--ink)}
+#budgetsum .spent{display:flex;flex-direction:column;gap:3px}#budgetsum .bar{display:block;width:100%;height:3px;border-radius:2px;background:#3a362f;overflow:hidden}#budgetsum .bar span{display:block;height:100%;background:#e2c15a}
+#budgetsum kbd{border:1px solid var(--line);border-radius:3px;padding:0 3px;font-size:10px;color:var(--dim)}
 #railsum:hover{border-color:var(--line2)}
 #railsum b{color:var(--ink);font-weight:500}#railsum b.doing{color:var(--accent2)}
 #chatform{pointer-events:auto;flex:1;max-width:720px;margin:0 auto;display:flex;gap:6px;align-items:center;height:42px;padding:3px 3px 3px 4px;border-radius:10px;background:rgba(27,26,23,.94);border:1px solid var(--line2);box-shadow:0 8px 24px rgba(0,0,0,.35)}
