@@ -95,7 +95,7 @@ export async function runDemo(store, { stations = 2 } = {}) {
       store.helperStart({ id: `r1-${i}`, kind: 'runner', from: 'station-1', note: 'npm run check' });
       store.setActor('station-1', { activity: 'running' });
       await sleep(2500);
-      store.helperEnd(`r1-${i}`, 'pass');
+      store.helperEnd(`r1-${i}`, Math.random() < .25 ? 'FAIL: 2 of 48 tests failed' : 'pass: 48 tests');
       store.setActor('station-1', { activity: 'editing' });
     }
     // The head chef answers (demo: after a while).
@@ -190,7 +190,7 @@ async function backgroundCook(store, id, grow) {
     await jitter(9000);
     store.helperStart({ id: `bg-r-${id}-${k}`, kind: 'runner', from: id, note: 'npm run check' }); store.setActor(id, { activity: 'running' });
     await jitter(3500);
-    store.helperEnd(`bg-r-${id}-${k}`, 'check: pass'); store.setActor(id, { activity: 'editing' });
+    store.helperEnd(`bg-r-${id}-${k}`, Math.random() < .2 ? 'check: FAIL, lint errors' : 'check: pass'); store.setActor(id, { activity: 'editing' });
     await jitter(5000);
     store.upsertStation(id, { ahead: 1 + (k % 3) });
     store.message({ from: id, to: 'sous', kind: '[handoff]', text: 'ready for the pass' }); store.setActor(id, { activity: 'waiting' });

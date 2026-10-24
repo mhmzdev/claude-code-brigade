@@ -12,6 +12,20 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.22.0] - 2026-10-24
+
+**The Window's floor, and a check you can read.** The room is now a corner of a bigger
+kitchen seen from one fixed angle (no more turning or zooming), with two real walls and the
+sign on the back one. The check is a dish machine: an in-feed tray shows which cooks are
+queued, the door spins and steams while a run is in, a readout says whose run and for how
+long, the out-feed shows the last result with a tick or a cross in that cook's colour, the
+strip on top shows the last ten results, and a beacon over it sums it up. All of it comes
+from the `runner` sub-agent: every run it makes is a result (pass or fail read from its
+reply, timed from spawn to return), kept for the shift. Click the machine for the runner's
+page. More than four stations now sit in rows of three.
+
+What you must do: nothing. `bk live` opens the new room.
+
 ## [0.21.0] - 2026-10-24
 
 **The Window in 2.5D.** The room is now a tilted floor you can turn by dragging (within a

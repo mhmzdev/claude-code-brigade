@@ -15,6 +15,7 @@ export function createState(kitchen) {
     rail: { backlog: [], todo: [], 'in-progress': [], rfr: [], done: [] },
     log: [],                            // last messages between sessions
     record: { total: 0, kinds: {} },    // what the kitchen remembers: pages per docs kind
+    check: { history: [], runs: 0, failed: 0, last: null },   // the runner's results this shift: { ok, secs, who, note, at }
     updatedAt: Date.now(),
   };
   const listeners = new Set();
@@ -95,6 +96,14 @@ export function createState(kitchen) {
       const i = state.helpers.findIndex((h) => h.id === id);
       if (i < 0) return;
       const [h] = state.helpers.splice(i, 1);
+      // A runner's reply is a check result: pass or fail read from its words, else unknown.
+      if (h.kind === 'runner') {
+        const v = String(verdict || ''), ok = /\b(fail|failed|failing|error|errors|red|not ok|✕|✗)\b/i.test(v) ? false : /\b(pass|passed|passing|ok|green|clean|✓|success)\b/i.test(v) ? true : null;
+        const r = { ok, secs: Math.max(1, Math.round((Date.now() - h.since) / 1000)), who: h.from, note: h.note, at: Date.now() };
+        const c = state.check; c.history.push(r); if (c.history.length > 10) c.history.splice(0, c.history.length - 10);
+        c.runs++; if (ok === false) c.failed++; c.last = r;
+        emit('check', r);
+      }
       emit('helper:end', { ...h, verdict });
       touch();
     },

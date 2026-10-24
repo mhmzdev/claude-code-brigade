@@ -106,7 +106,7 @@ function renderPop(s) {
   p.hidden = hidden; if (hidden) return;
   const a = actorOf(s, focus), st = stationOf(s, focus), line = isLine(focus);
   const meta = line ? [st?.ticket, a?.model, st?.branch, st ? null : a?.session].filter(Boolean).join(' · ') : isHelper(focus) ? `${HELPER[focus].role} · reports to the sous` : (s.headChef.pending.length ? `${s.headChef.pending.length} waiting on you` : 'nothing waiting on you');
-  const note = f.said || (focus === 'headchef' ? ABOUT.head : isHelper(focus) ? HELPER[focus].about : '');
+  const note = f.said || (focus === 'headchef' ? ABOUT.head : focus === 'runner' ? scene.checkNote() : isHelper(focus) ? HELPER[focus].about : '');
   p.innerHTML = `<div class="top"><span class="dot" style="background:var(--${statusOf(a) === 'busy' ? 'busy' : statusOf(a) === 'waiting' ? 'wait' : a ? 'idle' : 'muted'})"></span><b>${esc(nameOf(focus))}</b>${a ? `<span class="pill" data-s="${esc(statusOf(a))}">${esc(a.activity)}</span>` : ''}<span class="sp"></span><button type="button" class="link" data-act="close">Esc</button></div>
     <div class="meta">${esc(meta)}</div>${note ? `<p>${esc(note)}</p>` : ''}
     <div class="acts">${line ? `<button type="button" class="go" data-act="message">Message<kbd>/</kbd></button><button type="button" class="gold" data-act="handoff">Handoff</button>` : ''}${focus === 'headchef' && s.headChef.pending.length ? `<button type="button" class="go" data-act="gate">Answer<kbd>G</kbd></button>` : ''}<button type="button" data-act="details">Details<kbd>i</kbd></button></div><div class="note" hidden></div>`;
@@ -136,6 +136,7 @@ function renderInspector(s) {
   const id = focus, a = actorOf(s, id), st = stationOf(s, id), f = scene.figure(id);
   let facts;
   if (id === 'headchef') facts = [['talks to', 'the sous only'], ['waiting', s.headChef.pending.length ? `${s.headChef.pending.length} question(s)` : 'nothing']];
+  else if (id === 'runner') { const ck = s.check || {}, running = (s.helpers || []).filter((h) => h.kind === 'runner'); facts = [['role', HELPER.runner.role], ['reports', 'the sous'], ['in the machine', running[0] ? `${running[0].from} · ${running[0].note || 'the check'}` : 'nobody'], ['next', running.slice(1).map((h) => h.from).join(', ') || 'nobody'], ['last', ck.last ? `${ck.last.ok === false ? 'fail' : ck.last.ok ? 'pass' : 'done'} in ${ck.last.secs}s · ${ck.last.who}` : null], ['this shift', `${ck.runs || 0} runs · ${ck.failed || 0} red`]]; }
   else if (isHelper(id)) facts = [['role', HELPER[id].role], ['reports', 'the sous']];
   else if (id === 'sous') facts = [['session', a.session || 'not running'], ['model', a.model], ['where', 'the main checkout'], ['pid', a.pid], ['attach', a.tmux ? `tmux attach -t ${a.tmux}` : null]];
   else facts = [['session', a.session || 'not running'], ['model', a.model], ['ticket', st.ticket], ['station', st.path || st.id], ['branch', st.branch || 'detached at trunk'], ['tree', st.dirty ? 'dirty' : 'clean'], ['ahead', st.ahead ? `+${st.ahead} commits` : null], ['pid', a.pid], ['peek', a.tmux ? `tmux attach -t ${a.tmux}` : null]];
@@ -271,7 +272,7 @@ es.addEventListener('snapshot', (e) => {
   for (const id of Object.keys(ui.answered)) if (!state.headChef.pending.find((q) => q.id === id)) delete ui.answered[id];
   scene.applySnapshot(state); render(state);
 });
-for (const t of ['message', 'bubble', 'helper:start', 'helper:end', 'ask', 'answered', 'ticket']) {
+for (const t of ['message', 'bubble', 'helper:start', 'helper:end', 'ask', 'answered', 'ticket', 'check']) {
   es.addEventListener(t, (e) => { scene.onEvent({ type: t, ...JSON.parse(e.data) }); if (t === 'bubble' || t === 'message') renderPop(state); });
 }
 const fpsSamples = [];
