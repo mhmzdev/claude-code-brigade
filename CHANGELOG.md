@@ -12,6 +12,13 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.19.2] - 2026-10-24
+
+**A shorter README, built around the commands.** Install, set up, run, the Window (with a
+screenshot of it), pause and resume, how work flows, troubleshooting: each a short section
+with the command first. The long version of every flow stays in `PLAYBOOK.md`. Nothing in
+the plugin changed.
+
 ## [0.19.1] - 2026-10-24
 
 **Install `bk` by its full name: `brew install mhmzdev/brigade/bk`.** Homebrew's own
