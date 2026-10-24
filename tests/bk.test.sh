@@ -37,7 +37,7 @@ trap cleanup EXIT
 
 NB="$TMP/bin"; mkdir -p "$NB"
 for t in git bash sh awk sed grep head tail cat mkdir rm cp mv ls ps kill readlink chmod sleep printf uname dirname basename sort uniq wc tr find date mktemp cut env touch xargs tee stat id lsof nohup seq ln diff paste rev python3; do p=$(command -v "$t" 2>/dev/null) && ln -sf "$p" "$NB/$t"; done
-printf '#!/bin/sh\necho "claude $*"\n' > "$NB/claude"; chmod +x "$NB/claude"
+printf '#!/bin/sh\necho "claude $* (profile=${CLAUDE_CONFIG_DIR-unset})"\n' > "$NB/claude"; chmod +x "$NB/claude"
 ST="$TMP/tmux-state"; mkdir -p "$ST"; : > "$ST/log"
 cat > "$NB/tmux" <<EOF
 #!/bin/sh
@@ -120,6 +120,22 @@ ok "--profile with a path is taken as is" has "$("$BK" status --profile "$HOME/.
 ok "an unknown profile is refused, naming the known ones" has "$("$BK" open --profile nope --no-attach 2>&1)" "no profile 'nope'.*default.*system.*work"
 ok "a recorded profile that is gone is dropped, not used" bash -c 'echo /gone > "$1/.claude/bk-profile"; "$2" status 2>&1 | grep -q "is gone"' _ "$C" "$BK"
 printf '%s\n' "$HOME/.claude-work" > "$C/.claude/bk-profile"
+
+# =============================================================================
+section "run: one session already running a skill"
+# =============================================================================
+out=$("$BK" run grill-me poke holes in this 2>&1)
+ok "run starts claude here with the bundled plugin and the skill as its prompt" has "$out" "claude --plugin-dir $REPO/plugins/bk /bk:grill-me poke holes in this"
+ok "…under the kitchen's profile" has "$out" "profile=$HOME/.claude-work"
+ok "…and says so first" has "$out" "Profile: work · /bk:grill-me poke holes in this"
+ok "run with no words sends the bare skill" has "$("$BK" run brainstorm 2>&1)" "/bk:brainstorm \(profile"
+ok "run with an unknown skill lists the real ones" has "$("$BK" run nope 2>&1)" "no skill 'nope'.*grill-me.*sous-chef"
+ok "run with no skill prints the usage" has "$("$BK" run 2>&1)" "bk run SKILL"
+ok "bk setup is the repo setup skill" has "$("$BK" setup 2>&1)" "/bk:setup \(profile"
+ok "bk feedback carries the words" has "$("$BK" feedback the sous asked me twice 2>&1)" "/bk:feedback the sous asked me twice"
+ok "bk stations creates the stations (kitchen.sh setup)" has "$("$BK" stations -n 2 2>&1)" "station"
+mv "$NB/claude" "$TMP/claude.bak"; out=$("$BK" run spec 2>&1); mv "$TMP/claude.bak" "$NB/claude"
+ok "run without claude says what to install" has "$out" "claude isn't installed"
 
 # =============================================================================
 section "attach and peek"

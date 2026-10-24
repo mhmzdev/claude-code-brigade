@@ -24,7 +24,9 @@ User-facing overview: [`README.md`](README.md). How each flow runs: [`PLAYBOOK.m
 .claude-plugin/marketplace.json     the marketplace: name claude-code-brigade, one plugin
 bin/bk                              the bk command: open (start + attach), attach, peek, stop (a
                                     pause: handoff, save ids, exit) with resume on the next open,
-                                    status, live, profiles; everything else goes to kitchen.sh.
+                                    status, live, run SKILL (a session here already running the
+                                    skill; setup and feedback are shortcuts), stations, profiles;
+                                    everything else goes to kitchen.sh.
                                     Finds the plugin as ../plugins/bk from its own real path, so
                                     it runs from a checkout and from Homebrew's libexec alike
 Formula/bk.rb                       the Homebrew formula template (tap mhmzdev/homebrew-brigade);

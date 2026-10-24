@@ -22,7 +22,14 @@
 #             session's id, types /exit, closes the tmux session and the Window
 #   bk status           profile, tmux session, Window, then kitchen.sh status
 #   bk live [stop|status] [--port P]   the Window in your browser (toggles)
-#   bk setup [-n N]     create the stations (first set the repo up: /bk:setup in claude)
+#   bk run SKILL [words…]
+#             a Claude Code session here, loading the bundled plugin, under the kitchen's
+#             profile, already running /bk:SKILL words…  (any skill, solo: grill-me, spec,
+#             pick-ticket, …). You are in that session; /exit ends it
+#   bk setup            set this repo up for the Brigade (= bk run setup; asks its questions)
+#   bk stations [-n N]  create the stations, N of them (kitchen.sh setup; needs the setup
+#                       committed and pushed)
+#   bk feedback [words…]  tell the Brigade's maintainers something (= bk run feedback …)
 #   bk <any kitchen.sh subcommand>     board, rail, questions, doctor, sync, …
 #   bk version | help
 #
@@ -190,6 +197,18 @@ type_into() { tmux send-keys -t "$1" -l "$2" && tmux send-keys -t "$1" Enter; } 
 now_ms() { date +%s000; }
 
 # =============================================================================
+skills() { local d; for d in "$PLUGIN"/skills/*/; do printf '%s ' "$(basename "$d")"; done; }
+cmd_run() {  # cmd_run <skill> [words…]: one Claude session here, already running the skill
+  local skill="${1:-}" words
+  [[ -n "$skill" ]] || die "bk run SKILL [words…]   (skills: $(skills))"
+  [[ -f "$PLUGIN/skills/$skill/SKILL.md" ]] || die "no skill '$skill' (skills: $(skills))"
+  shift; words="$*"
+  need_claude
+  resolve_profile ask
+  say "Profile: $(profile_label "$CLAUDE_CONFIG_DIR") · /bk:$skill${words:+ $words}"
+  exec claude --plugin-dir "$PLUGIN" "/bk:$skill${words:+ $words}"
+}
+
 cmd_open() {
   local fresh=false attach=true pass=() s
   for s in "${ARGS[@]+"${ARGS[@]}"}"; do
@@ -325,6 +344,9 @@ case "$CMD" in
   stop) cmd_stop ;;
   status) cmd_status ;;
   live) resolve_profile need; exec "$KITCHEN" live "${ARGS[@]+"${ARGS[@]}"}" ;;
-  setup) need_claude; resolve_profile soft; exec "$KITCHEN" setup "${ARGS[@]+"${ARGS[@]}"}" ;;
+  run) cmd_run "${ARGS[@]+"${ARGS[@]}"}" ;;
+  setup) cmd_run setup "${ARGS[@]+"${ARGS[@]}"}" ;;
+  feedback) cmd_run feedback "${ARGS[@]+"${ARGS[@]}"}" ;;
+  stations) need_claude; resolve_profile soft; exec "$KITCHEN" setup "${ARGS[@]+"${ARGS[@]}"}" ;;
   *) resolve_profile soft; exec "$KITCHEN" "$CMD" "${ARGS[@]+"${ARGS[@]}"}" ;;
 esac

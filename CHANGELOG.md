@@ -12,6 +12,19 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.20.0] - 2026-10-24
+
+**Every skill has a `bk` door.** `bk run SKILL [words…]` starts a Claude Code session in the
+current repo, loading the bundled plugin under the kitchen's profile, already running
+`/bk:SKILL words…`: `bk run grill-me the invite flow`, `bk run pick-ticket BKLG-004`. Two
+shortcuts: **`bk setup` now sets the repo up** (it is `bk run setup`), and `bk feedback
+[words…]` files feedback (`bk run feedback …`). **Breaking:** creating the stations moved
+from `bk setup` to **`bk stations [-n N]`**, so that `bk setup` and `/bk:setup` mean the
+same thing. The README is written around `bk` now; every Claude-only route sits in a
+collapsed "Inside Claude Code" block, and the Install section says how to update.
+
+What you must do: if you typed `bk setup -n N` for stations, type `bk stations -n N`.
+
 ## [0.19.2] - 2026-10-24
 
 **A shorter README, built around the commands.** Install, set up, run, the Window (with a

@@ -22,6 +22,7 @@ each other over `SendMessage`. No daemon, no queue, no database.
 - [Run a service](#run-a-service)
 - [The Window](#the-window)
 - [Pause and resume](#pause-and-resume)
+- [Run one skill yourself](#run-one-skill-yourself)
 - [How work flows](#how-work-flows)
 - [What's in the box](#whats-in-the-box)
 - [Troubleshooting](#troubleshooting)
@@ -39,16 +40,21 @@ That gives you the `bk` command, with tmux and node behind it. You need
 name: Homebrew's own `bk` is an unrelated EPUB reader. macOS and Linux; on Windows use WSL.
 
 Every session `bk` starts loads the plugin that came with it, so there is no marketplace
-step. Update with:
+step and nothing to keep in step.
+
+**Update**
 
 ```bash
-brew upgrade mhmzdev/brigade/bk
+brew update && brew upgrade mhmzdev/brigade/bk
+bk stop && bk open          # a running session keeps the version it started with
 ```
 
-<details>
-<summary>Plugin only, without <code>bk</code></summary>
+[`CHANGELOG.md`](CHANGELOG.md) says what changed in each version.
 
-In Claude Code:
+<details>
+<summary>Inside Claude Code, without <code>bk</code></summary>
+
+The plugin alone, from the marketplace:
 
 ```
 /plugin marketplace add mhmzdev/claude-code-brigade
@@ -68,31 +74,36 @@ Or for your whole team, in `.claude/settings.json`:
 }
 ```
 
-You then open the kitchen with `/bk:kitchen open` from a Claude session and attach with
-`tmux attach -t <repo>-brigade:sous`. Update with `/plugin marketplace update claude-code-brigade`
-and `claude plugin update bk@claude-code-brigade`, then restart every session.
+Every `bk` command below has a skill behind it, `/bk:<skill>`, shown in the same kind of
+block. Update with `/plugin marketplace update claude-code-brigade` and
+`claude plugin update bk@claude-code-brigade`, then restart every session.
 </details>
 
 ## Set up a repo
 
-Once per repo, at its root, inside Claude Code:
-
-```
-/bk:setup               # detects the station kind and recommends it
-/bk:setup --worktree    # or choose: worktrees next to the repo (big repos, workspaces)
-/bk:setup --clone       #            clones inside the repo (the simple default)
-```
-
-It asks one round of questions and writes the config (`.claude/brigade.md`), the ticket
-folders under `docs/` and a short section in `CLAUDE.md`. Nothing is committed until you
-say so. Commit and push it, then create the stations:
+Once per repo, at its root:
 
 ```bash
-bk setup -n 3           # three stations, three cooks
+bk setup                    # asks one round of questions; nothing is committed until you say so
+git add -A && git commit -m "chore: set up The Brigade" && git push
+bk stations -n 3            # three stations, three cooks
 ```
 
-Stations are gitignored (`stations/`) or live next to the repo (`../<repo>-stations/`).
-Never run `git clean -fdx` in a repo with clones inside it.
+`bk setup` writes the config (`.claude/brigade.md`), the ticket folders under `docs/` and a
+short section in `CLAUDE.md`. It detects whether stations should be clones inside the repo
+(`stations/`, gitignored) or worktrees next to it (`../<repo>-stations/`, for big repos and
+workspaces), and says which; `bk setup --worktree` or `--clone` picks for it. Stations are
+created from the pushed trunk, which is why the push comes first. Never run
+`git clean -fdx` in a repo with clones inside it.
+
+<details>
+<summary>Inside Claude Code</summary>
+
+```
+/bk:setup                   # or /bk:setup --worktree, /bk:setup --clone
+/bk:kitchen setup -n 3
+```
+</details>
 
 ## Run a service
 
@@ -128,6 +139,15 @@ Several Claude Code logins on one machine (`~/.claude`, `~/.claude-work`)? `bk o
 picks one the first time and records it in `.claude/bk-profile`, out of git. Every later
 `bk` command uses the same one, so a kitchen never mixes two accounts.
 
+<details>
+<summary>Inside Claude Code</summary>
+
+`/bk:kitchen open` starts the same tmux session and prints the attach line:
+`tmux attach -t <repo>-brigade:sous` for the sous, `…:station-2` for a cook. `/bk:kitchen board`
+and `/bk:kitchen questions` are the boards. Sessions started this way load the marketplace
+plugin, and all of them must run under the same `CLAUDE_CONFIG_DIR`.
+</details>
+
 ## The Window
 
 ```bash
@@ -143,6 +163,12 @@ in the console below. The rail is down the left. Click a cook or the sous for it
 what it is doing, its branch, its questions, and controls that type into that session for
 you (send a line, change the model, hand off, answer a question). Run `bk live` again to
 close it. Try it without a kitchen: `bk live --demo`.
+
+<details>
+<summary>Inside Claude Code</summary>
+
+`/bk:live` opens it, `/bk:live` again closes it, `/bk:live --demo` for the demo.
+</details>
 
 ## Pause and resume
 
@@ -161,6 +187,24 @@ A single session that has grown too long is cleared, not paused: say "handoff", 
 disk: tickets on the rail, plans and checklists, each ticket's journal, the record of
 decisions, and the sous's own note.
 
+## Run one skill yourself
+
+```bash
+bk run grill-me the invite flow      # a session here, already running /bk:grill-me …
+bk run pick-ticket BKLG-004
+bk run spec
+```
+
+Any skill, solo, without a kitchen: you are both chef and sous, and you answer every gate.
+The session loads the bundled plugin and runs under the kitchen's profile; `/exit` ends it.
+`bk setup` and `bk feedback` are the same thing with the skill name filled in.
+
+<details>
+<summary>Inside Claude Code</summary>
+
+Type the skill: `/bk:grill-me the invite flow`, `/bk:pick-ticket BKLG-004`, `/bk:spec`.
+</details>
+
 ## How work flows
 
 Three lanes, one loop:
@@ -169,7 +213,7 @@ Three lanes, one loop:
 |---|---|---|
 | **A, Specials** | an idea, grilled into a spec, sliced into tickets | brainstorm → grill-me → spec → file-tickets → create-plan → implement → review-task → open-pr |
 | **B, À la carte** | a bug or chore on the backlog | pick-ticket → create-plan → implement → review-task → open-pr |
-| **C, Clean as you go** | mess the kitchen finds itself (`/bk:clean scan`) | pick-ticket → implement → open-pr |
+| **C, Clean as you go** | mess the kitchen finds itself (`bk run clean scan`) | pick-ticket → implement → open-pr |
 
 The rules the kitchen runs on:
 
@@ -188,7 +232,7 @@ question, is in [`PLAYBOOK.md`](PLAYBOOK.md).
 
 | | |
 |---|---|
-| `bk` | `open`, `attach`, `peek`, `stop`, `status`, `live`, profiles, and every `kitchen.sh` word (`board`, `rail`, `questions`, `doctor`, `sync`, …) |
+| `bk` | `setup`, `stations`, `open`, `attach`, `peek`, `stop`, `status`, `live`, `run`, `feedback`, profiles, and every `kitchen.sh` word (`board`, `rail`, `questions`, `doctor`, `sync`, …) |
 | `setup` · `kitchen` | set up a repo; manage stations and print the boards |
 | `sous-chef` · `line-cook` | the lead and worker roles |
 | `brainstorm` · `grill-me` · `spec` · `file-tickets` | from idea to tickets |
@@ -198,14 +242,13 @@ question, is in [`PLAYBOOK.md`](PLAYBOOK.md).
 | `handoff` · `feedback` · `live` | hand a session off; file an issue here; the Window |
 | agents `commis` · `taster` · `runner` · `inspector` | search the record · review at the pass · run noisy commands · flag what a reviewer would reject |
 
-Every skill works solo too: without a sous, you are both chef and sous. The rules every
-skill follows are in [`plugins/bk/skills/README.md`](plugins/bk/skills/README.md).
+The rules every skill follows are in [`plugins/bk/skills/README.md`](plugins/bk/skills/README.md).
 
 ## Troubleshooting
 
 | You see | Why | Do |
 |---|---|---|
-| `bk open`: "No stations yet" | the setup isn't pushed, or `bk setup` hasn't run | commit and push the setup, then `bk setup -n N` |
+| `bk open`: "No stations yet" | the setup isn't pushed, or `bk stations` hasn't run | commit and push the setup, then `bk stations -n N` |
 | `bk: several Claude Code profiles on this machine and none recorded` | more than one `~/.claude*` folder and this repo hasn't picked one | `bk open --profile NAME` once (`default` is `~/.claude`) |
 | `bk version` prints `init error: No such file or directory` | a bare `brew install bk` installed Homebrew's `bk`, an EPUB reader | `brew uninstall bk && brew install mhmzdev/brigade/bk` |
 | `bk stop` says a session is still busy after the timeout | its handoff didn't finish | it was saved and stopped anyway; `bk open` resumes it. `bk stop --timeout 1200` waits longer |
@@ -214,13 +257,19 @@ skill follows are in [`plugins/bk/skills/README.md`](plugins/bk/skills/README.md
 
 ## Feedback
 
-```
-/bk:feedback the sous asked me a routine question instead of answering it
+```bash
+bk feedback the sous asked me a routine question instead of answering it
 ```
 
 It drafts a GitHub issue for this repo with your plugin version and setup, scrubbed of your
 repo's names, paths and secrets, and files nothing until you have read it and said yes. Or
 [open an issue](https://github.com/mhmzdev/claude-code-brigade/issues/new?template=feedback.yml) by hand.
+
+<details>
+<summary>Inside Claude Code</summary>
+
+`/bk:feedback the sous asked me a routine question instead of answering it`
+</details>
 
 ## Honest limits
 
