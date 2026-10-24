@@ -168,7 +168,7 @@ now disagrees.
   notes are its `CHANGELOG.md` entry. Never tag by hand. The README doesn't carry a version.
 - **So is the Homebrew tap.** The same workflow downloads the tag's tarball, writes its
   sha256 into `Formula/bk.rb` and pushes the result to `mhmzdev/homebrew-brigade`, which is
-  what `brew install mhmzdev/brigade/bk` reads. The formula in this repo is the template:
+  what `brew install mhmzdev/brigade/bk` reads (always the full name: homebrew-core has an unrelated `bk`). The formula in this repo is the template:
   bump its `url` with the version (the gate checks it) and never edit the tap's copy by hand.
   The push needs the `TAP_TOKEN` secret (a fine-grained token with contents: write on the tap).
 - **A renamed skill or plugin is breaking.** Say so in bold in its `CHANGELOG.md` entry and

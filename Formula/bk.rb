@@ -6,13 +6,16 @@
 class Bk < Formula
   desc "Brigade kitchen: run several Claude Code sessions like a professional kitchen"
   homepage "https://github.com/mhmzdev/claude-code-brigade"
-  url "https://github.com/mhmzdev/claude-code-brigade/archive/refs/tags/v0.19.0.tar.gz"
+  url "https://github.com/mhmzdev/claude-code-brigade/archive/refs/tags/v0.19.1.tar.gz"
   sha256 "0000000000000000000000000000000000000000000000000000000000000000" # filled in by the release workflow
   license "MIT"
   head "https://github.com/mhmzdev/claude-code-brigade.git", branch: "main"
 
   depends_on "node"
   depends_on "tmux"
+
+  # homebrew-core's bk is an EPUB reader; both put a `bk` on the PATH.
+  conflicts_with "bk", because: "both install a `bk` binary"
 
   def install
     # The plugin folder is the kitchen; bin/bk finds it as ../plugins/bk from its own real path.
@@ -24,6 +27,8 @@ class Bk < Formula
     <<~EOS
       bk starts Claude Code sessions, so Claude Code must be installed and logged in:
         https://claude.com/claude-code
+      Upgrade with the full name, brew upgrade mhmzdev/brigade/bk: a bare `bk` is
+      Homebrew's own formula of that name, an EPUB reader.
 
       In a repo set up for the Brigade (/bk:setup inside claude):
         bk open     start the kitchen and sit with the sous
