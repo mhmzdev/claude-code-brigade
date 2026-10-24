@@ -128,15 +128,27 @@ somebody's claim.
 
 ## Starting a shift
 
-One command: **`/bk:kitchen open`** in the main checkout. It starts the whole kitchen in a
-tmux session named `<repo>-brigade`: a `sous` window already running `/bk:sous-chef`, and one
-window per station already running `/bk:line-cook`. Nothing opens on your screen. It prints
-the line to attach to the sous.
+One command: **`bk open`** in the main checkout (or `/bk:kitchen open` from a Claude session,
+if you installed the plugin alone). It starts the whole kitchen in a tmux session named
+`<repo>-brigade`: a `sous` window already running `/bk:sous-chef`, and one window per station
+already running `/bk:line-cook`. Nothing opens on your screen. `bk open` then attaches you to
+the sous; `kitchen open` prints the line to attach.
 
-**Where do I type?** Attach to the sous: `tmux attach -t <repo>-brigade:sous`. That is the one
-session you talk to. `Ctrl-b d` detaches and leaves everything running; `Ctrl-b w` lists the
-windows, so you can peek at a cook. `/bk:live` shows the whole kitchen in your browser, and
-its controls type into these sessions for you.
+**Where do I type?** With the sous: `bk attach` (or `tmux attach -t <repo>-brigade:sous`). That
+is the one session you talk to. `Ctrl-b d` detaches and leaves everything running; `bk peek 2`
+(or `Ctrl-b w` inside tmux) shows a cook. `bk live` (or `/bk:live`) shows the whole kitchen in
+your browser, and its controls type into these sessions for you.
+
+**Which Claude account?** If you keep several Claude Code profiles (`~/.claude`,
+`~/.claude-work`, …), `bk open --profile work` picks one the first time, or it asks; the
+choice is recorded in `.claude/bk-profile` (kept out of git) and every later `bk` command
+uses it. A `CLAUDE_CONFIG_DIR` already exported in your shell wins over the recorded one.
+
+**Stopping for the day: `bk stop`.** It is a pause. It types `/bk:handoff` into the sous and
+every cook, waits until each has finished and gone idle (ten minutes at most, then it says
+who is still busy and goes on), saves each session's id, types `/exit`, and closes the tmux
+session and the Window. It commits nothing. The next `bk open` resumes every session where
+it stopped; `bk open --fresh` starts new ones.
 
 **Do I run `/bk:sous-chef` myself?** Not when tmux opened the kitchen: the sous starts with it,
 pulls trunk, reads its last handoff note, collects unanswered questions from the cooks'
@@ -297,6 +309,12 @@ before `/clear`, and no skill ever clears a session; `/clear` is always yours.
 A cook cleared before `[go]` without being asked for a handoff leaves none. The journal
 still has its questions, answers and decisions, and the station still has the files.
 
+**And the whole kitchen at once?** `bk stop`. It asks every session for its handoff the same
+way (it types `/bk:handoff` into each), waits for them, saves each session's id and exits
+them. `bk open` later resumes the very same sessions, context and all, so this is a pause
+rather than a clear; clear a session when its context is the problem, stop the kitchen when
+you are leaving.
+
 **What do I type after clearing the sous?** `/bk:sous-chef`. Nothing else. It reads the
 handoff note first, then checks it against the rail, the stations and the journals, and
 reality wins over the note. Its `[hello]` asks every cook to re-send whatever it was
@@ -427,13 +445,15 @@ still sees the sous. `.claude/cook "/bk:line-cook"` starts a fresh session inste
 |---|---|---|
 | set the repo up | `/bk:setup` | main checkout |
 | create or add stations | `/bk:kitchen setup -n N` | main checkout |
-| open the kitchen (sous and cooks, in tmux) | `/bk:kitchen open` | main checkout |
-| talk to the sous | `tmux attach -t <repo>-brigade:sous` | any terminal |
-| peek at a cook | `tmux attach -t <repo>-brigade:station-N`, `Ctrl-b d` to leave | any terminal |
+| open the kitchen (sous and cooks, in tmux) and sit with the sous | `bk open` (or `/bk:kitchen open`) | main checkout |
+| talk to the sous | `bk attach` (or `tmux attach -t <repo>-brigade:sous`) | any terminal |
+| peek at a cook | `bk peek N` (or `tmux attach -t <repo>-brigade:station-N`), `Ctrl-b d` to leave | any terminal |
+| pause the whole kitchen, resumable | `bk stop`, later `bk open` | any terminal |
+| pick the Claude account a kitchen runs under | `bk open --profile NAME` (recorded in `.claude/bk-profile`) | main checkout |
 | start or restart the sous | `/bk:sous-chef` | main checkout |
 | restart a cleared cook | `/bk:line-cook` | its station |
 | see everything | open `.claude/board.md`, or `/bk:kitchen board` | main checkout |
-| watch the kitchen in a browser | `/bk:live` (again to close) | main checkout or a station |
+| watch the kitchen in a browser | `bk live` or `/bk:live` (again to close) | main checkout or a station |
 | see what the kitchen is waiting on you for | `/bk:kitchen questions` | main checkout |
 | tell the kitchen something it should remember | just say it to the sous; it goes in the inbox and is filed at handoff | sous |
 | check the rail and the docs map | `/bk:kitchen doctor` | main checkout |

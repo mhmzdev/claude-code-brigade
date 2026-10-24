@@ -22,6 +22,13 @@ User-facing overview: [`README.md`](README.md). How each flow runs: [`PLAYBOOK.m
 
 ```
 .claude-plugin/marketplace.json     the marketplace: name claude-code-brigade, one plugin
+bin/bk                              the bk command: open (start + attach), attach, peek, stop (a
+                                    pause: handoff, save ids, exit) with resume on the next open,
+                                    status, live, profiles; everything else goes to kitchen.sh.
+                                    Finds the plugin as ../plugins/bk from its own real path, so
+                                    it runs from a checkout and from Homebrew's libexec alike
+Formula/bk.rb                       the Homebrew formula template (tap mhmzdev/homebrew-brigade);
+                                    release.yml fills in the sha256 and pushes it to the tap
 plugins/bk/                         the plugin (skills are invoked /bk:<skill>)
 ├── .claude-plugin/plugin.json      name "bk", version, agents list
 ├── skills/README.md                THE CONTRACT: rules every skill follows (Contracts 1–12)
@@ -42,10 +49,12 @@ plugins/bk/                         the plugin (skills are invoked /bk:<skill>)
                                     SCHEMA, brigade.local
 scripts/check.sh                    THE gate: manifests, shellcheck, frontmatter, hooks json, tests, version
 .github/workflows/check.yml         runs the gate in CI on Linux and macOS
-.github/workflows/release.yml       tags each green merge to main v<version>, with a GitHub release
+.github/workflows/release.yml       tags each green merge to main v<version>, with a GitHub release,
+                                    then pushes the rendered formula to the tap (needs TAP_TOKEN)
 CHANGELOG.md                        one entry per version, newest first
 tests/kitchen.test.sh               behaviour tests for kitchen.sh, both kitchen modes
 tests/guard.test.sh                 behaviour tests for hooks/guard.sh: clone and worktree stations
+tests/bk.test.sh                    behaviour tests for bin/bk: stub tmux and claude, a fake registry
 docs/the-names.md                   the Brigade names, plus Qafila as an alternate
 PLAYBOOK.md                         how each flow runs, as questions and answers; the contract wins over it
 assets/hero.jpeg                    README banner
@@ -107,18 +116,20 @@ It runs, in order:
 
 1. `claude plugin validate` on the marketplace and the plugin (skipped, with a warning, if the
    `claude` CLI isn't installed);
-2. `bash -n` and `shellcheck` on `kitchen.sh`, `hooks/guard.sh` and the test scripts
-   (`shellcheck` is required);
+2. `bash -n` and `shellcheck` on `kitchen.sh`, `hooks/guard.sh`, `bin/bk` and the test
+   scripts (`shellcheck` is required);
 3. a frontmatter check on every skill: `name` matches its folder, a real `description`, and
    `disable-model-invocation: true` only on `setup`; every agent is listed in
    `plugin.json`; `hooks/hooks.json` is valid JSON with a top-level `hooks` key;
 4. `tests/kitchen.test.sh`: about 180 behaviour tests of `kitchen.sh` in throwaway repos, in
    both `clone` and `worktree` mode, including a workspace repo that holds the app repo; and
    `tests/guard.test.sh`: the hook guard fed the JSON Claude Code sends, in a clone station,
-   a worktree station, the main checkout and a repo without the Brigade;
+   a worktree station, the main checkout and a repo without the Brigade; and
+   `tests/bk.test.sh`: `bin/bk` against a stub `tmux` that logs its calls and a fake session
+   registry, covering profiles, attach and peek, the pause and the resume;
 5. a release check: `version` in `plugin.json` is `X.Y.Z`, it's the top entry of
-   `CHANGELOG.md` (`## [X.Y.Z] - YYYY-MM-DD`), and on a branch it's higher than
-   `origin/main`'s.
+   `CHANGELOG.md` (`## [X.Y.Z] - YYYY-MM-DD`), `Formula/bk.rb` downloads that tag, and on a
+   branch it's higher than `origin/main`'s.
 
 The tests are sealed off from the machine: git runs with `GIT_CONFIG_GLOBAL=/dev/null`, `HOME`
 points into the temp dir, and `open` only runs with `--terminal print` or `--no-launch`, so
@@ -130,7 +141,7 @@ keeps the temp dir for poking at.
 have). The `claude` CLI isn't installed there, so step 1 is skipped in CI: run the gate locally
 too. A red check means don't merge.
 
-**When you add behaviour to `kitchen.sh` or `guard.sh`, add a test for it, and make sure it can fail:**
+**When you add behaviour to `kitchen.sh`, `guard.sh` or `bin/bk`, add a test for it, and make sure it can fail:**
 break the code on purpose and watch the test go red before you trust it green. Every test in
 the suite was checked that way when it was written.
 
@@ -155,6 +166,11 @@ now disagrees.
 - **The tag and the GitHub release are automatic.** When `check` goes green on `main`,
   `.github/workflows/release.yml` tags the merge `v<version>` and publishes a release whose
   notes are its `CHANGELOG.md` entry. Never tag by hand. The README doesn't carry a version.
+- **So is the Homebrew tap.** The same workflow downloads the tag's tarball, writes its
+  sha256 into `Formula/bk.rb` and pushes the result to `mhmzdev/homebrew-brigade`, which is
+  what `brew install mhmzdev/brigade/bk` reads. The formula in this repo is the template:
+  bump its `url` with the version (the gate checks it) and never edit the tap's copy by hand.
+  The push needs the `TAP_TOKEN` secret (a fine-grained token with contents: write on the tap).
 - **A renamed skill or plugin is breaking.** Say so in bold in its `CHANGELOG.md` entry and
   in the commit: installs are tied to the plugin name (`bk@claude-code-brigade`), and people
   type skill names.
@@ -166,4 +182,7 @@ You can install the Brigade in this repo and use it to work on itself. Remember 
 **the plugin you run is not the plugin you edit**: sessions run the installed copy cached
 from `main`, never the files in this checkout or a station. To try an edit before
 releasing, start a separate session with the local copy (`claude --plugin-dir ./plugins/bk`)
-against a throwaway repo, not in the kitchen you're working in.
+against a throwaway repo, not in the kitchen you're working in. `bin/bk` run from this
+checkout is the exception: every session it starts loads *this checkout's* `plugins/bk`
+(that is what `--plugin-dir` is for), so `./bin/bk open` in a throwaway repo tries your edit
+as a whole kitchen. The Homebrew `bk` loads the plugin installed next to it, never this one.

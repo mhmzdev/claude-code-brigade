@@ -22,6 +22,8 @@ daemon, no queue, and no database.
 - [The three lanes](#the-three-lanes)
 - [The rules](#the-rules)
 - [Install](#install)
+  - [Homebrew: the `bk` command](#homebrew-the-bk-command)
+  - [The plugin alone](#the-plugin-alone)
   - [Update](#update)
 - [Set up a repo](#set-up-a-repo)
 - [Stations: clones or worktrees](#stations-clones-or-worktrees)
@@ -80,7 +82,33 @@ How each flow runs, question by question, is in [`PLAYBOOK.md`](PLAYBOOK.md).
 
 ## Install
 
-Skills are invoked as `/bk:<skill>`, where `bk` is short for *brigade kitchen*.
+Skills are invoked as `/bk:<skill>`, where `bk` is short for *brigade kitchen*. There are two
+ways in: the `bk` command from Homebrew, which brings the plugin with it and runs the kitchen
+for you, or the plugin alone from Claude Code's marketplace.
+
+### Homebrew: the `bk` command
+
+```bash
+brew tap mhmzdev/brigade
+brew install bk
+```
+
+That installs `bk`, tmux and node. You need Claude Code installed and logged in. Every session
+`bk` starts loads the plugin installed next to it, so there is no marketplace step and nothing
+to update twice; `brew upgrade bk` is the update. Then, in a repo (see [Set up a repo](#set-up-a-repo)):
+
+```
+bk open      start the kitchen in tmux and sit with the sous; Ctrl-b d leaves it running
+bk attach    back to the sous           bk peek 2    look at cook 2
+bk stop      pause: every session hands off, is saved, and exits; bk open resumes them
+bk live      the Window in your browser  bk status    what is up
+```
+
+Several Claude Code logins on one machine (`~/.claude`, `~/.claude-work`)? `bk open
+--profile work` picks one; the choice is recorded in `.claude/bk-profile` (out of git) and
+every later command uses it, so one kitchen never mixes two accounts. `bk help` has the rest.
+
+### The plugin alone
 
 In Claude Code:
 
@@ -109,7 +137,10 @@ WSL): `kitchen open` installs it with Homebrew on a Mac, or names the package on
 
 ### Update
 
-New versions land on `main`. Fetch the latest marketplace, then update the plugin:
+With Homebrew: `brew upgrade bk`, then restart every session (`bk stop`, then `bk open`).
+
+With the marketplace: new versions land on `main`. Fetch the latest marketplace, then update
+the plugin:
 
 ```
 /plugin marketplace update claude-code-brigade
@@ -185,12 +216,14 @@ sessions run unattended, and you attach to the one you want to see. tmux is the 
 Brigade uses, not the one you type `claude` into by hand. On a Mac without tmux, `kitchen
 open` installs it with Homebrew; on Linux it tells you the one `apt`/`dnf`/`pacman` line.
 
-1. From any terminal in the main checkout: `/bk:kitchen open` (or `kitchen.sh open`). It
-   starts the sous **already running `/bk:sous-chef`** and each station **already running
-   `/bk:line-cook`**; the cooks find the sous and check in. It prints the attach line.
-2. Talk to the sous: `tmux attach -t <repo>-brigade:sous`. Peek at a cook when you like:
-   `tmux attach -t <repo>-brigade:station-2` (detach with `Ctrl-b d`). Or watch the whole
-   kitchen in your browser with `/bk:live`.
+1. From any terminal in the main checkout: `bk open` (with the Homebrew install), or
+   `/bk:kitchen open` in a Claude session. It starts the sous **already running
+   `/bk:sous-chef`** and each station **already running `/bk:line-cook`**; the cooks find
+   the sous and check in. `bk open` then attaches you to the sous; `kitchen open` prints the
+   attach line.
+2. Talk to the sous: `bk attach` (or `tmux attach -t <repo>-brigade:sous`). Peek at a cook
+   when you like: `bk peek 2` (or `tmux attach -t <repo>-brigade:station-2`); detach with
+   `Ctrl-b d`. Or watch the whole kitchen in your browser with `bk live` / `/bk:live`.
 3. The sous puts each free cook on the next ready ticket and tells you what it assigned:
    `priority: high` first, then whatever unblocks the most, then spec tickets before
    backlog bugs before hygiene, oldest first. Steer it by
@@ -206,6 +239,13 @@ there. It's the name in the terminal title, in `/resume`, and in the sous's sess
 the repo prefix keeps two kitchens on one machine apart. Cooks start in Claude Code's
 `auto` permission mode, since nobody watches their terminals between gates (set
 `permission_mode:` in the config to change it).
+
+**Stopping for the day.** `bk stop` pauses the kitchen: it types `/bk:handoff` into the
+sous and every cook, waits until each has written its handoff and gone idle (ten minutes at
+most, then it says who is still busy and goes on), saves each session's id, exits them, and
+closes the tmux session and the Window. Nothing is committed by it. The next `bk open`
+resumes every session where it stopped, under the same profile; `bk open --fresh` starts
+new sessions instead and drops the saved ids.
 
 **Prefer windows you can see?** `kitchen open --terminal warp` (or `native`) opens one
 terminal per station the old way, and you run `/bk:sous-chef` yourself. The Window's controls
@@ -321,6 +361,7 @@ the `commis` has searched all of it. The kitchen asks you less every shift.
 | `feedback` | send feedback about the Brigade to its maintainers as a GitHub issue; you see every word first |
 | `live` | the Window: watch the kitchen in your browser on localhost, click a cook or the sous for its page and controls; run it again to close it (needs node 20+) |
 | agents: `commis` · `taster` · `runner` · `inspector` | search the record before any question · review at the pass · run noisy commands · report what a reviewer would reject |
+| the `bk` command (Homebrew) | `open`, `attach`, `peek`, `stop` (a pause with resume), `status`, `live`, profiles, and every `kitchen.sh` word; the sessions it starts load the plugin installed with it |
 
 Every skill works **solo** too: without a sous, you are both chef and sous.
 The shared rules every skill follows are in [`plugins/bk/skills/README.md`](plugins/bk/skills/README.md).
@@ -331,7 +372,9 @@ The shared rules every skill follows are in [`plugins/bk/skills/README.md`](plug
 |---|---|---|
 | `kitchen open`: "No stations yet" | stations haven't been created, usually because the setup isn't pushed | commit + push the setup, then `/bk:kitchen setup` (or just run `/bk:kitchen open` and say yes) |
 | a station is **dirty right after setup** | the install step, or an edit that reached into `stations/`, changed tracked files | `git -C stations/station-N diff`, fix the cause in the main checkout, then `git -C stations/station-N checkout -- .` |
-| the sous can't find a cook (or the reverse) | sessions only see each other under the same Claude Code profile | start every session with the same `CLAUDE_CONFIG_DIR` (`kitchen open` passes yours through). To restart a cook by hand, run `.claude/cook` in its station rather than plain `claude`: it keeps the profile |
+| the sous can't find a cook (or the reverse) | sessions only see each other under the same Claude Code profile | start every session with the same `CLAUDE_CONFIG_DIR` (`kitchen open` passes yours through; `bk open` records the profile and reuses it). To restart a cook by hand, run `.claude/cook` in its station rather than plain `claude`: it keeps the profile |
+| `bk: several Claude Code profiles on this machine and none recorded` | you have more than one `~/.claude*` folder and this repo hasn't picked one | `bk open --profile NAME` once (`default` is `~/.claude`); it is recorded in `.claude/bk-profile` |
+| `bk stop` says a session is still busy after the timeout | its handoff didn't finish (a long tool call, or a dialog waiting in that window) | it was saved and stopped anyway; `bk open` resumes it and you can ask it to hand off again. `bk stop --timeout 1200` waits longer |
 | "1 plugin failed to update" after upgrading from 0.1 | 0.2 renamed the plugin `brigade` → `bk` | `/plugin uninstall brigade@claude-code-brigade`, `/plugin install bk@claude-code-brigade`, and drop any `brigade@…` line from `.claude/settings*.json` |
 
 ## Feedback
