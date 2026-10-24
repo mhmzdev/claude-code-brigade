@@ -74,13 +74,20 @@
 #   kitchen.sh sessions [--dir D]         the Claude Code session transcripts saved for
 #                                         this checkout (or D, e.g. a station), newest
 #                                         first, from $CLAUDE_CONFIG_DIR (else ~/.claude)
+#   kitchen.sh live [stop|status] [--port P] [--demo [-n N]] [--no-launch]
+#                                         the Window: a live view of this kitchen on
+#                                         localhost (needs node 20+). With no word it
+#                                         toggles: opens it (and your browser) if closed,
+#                                         closes it if open. --demo runs a scripted
+#                                         service with N stations instead of the live
+#                                         kitchen. Pid and log in .claude/, out of git
 #
 # Env overrides:
 #   BRIGADE_TRUNK, BRIGADE_KITCHEN_MODE, BRIGADE_KITCHEN, BRIGADE_STATIONS, BRIGADE_MODEL (default sonnet),
 #   BRIGADE_PERMISSION_MODE (default: auto — cooks run unattended, so a mode that
 #   stops on every permission would stall them), BRIGADE_TERMINAL
 #
-# Requires: git, claude. Optional: gh (status), Warp or tmux (open).
+# Requires: git, claude. Optional: gh (status), Warp or tmux (open), node 20+ (live).
 # BRIGADE_OS (mac|linux|wsl|windows) overrides OS detection; the tests use it.
 # =============================================================================
 
@@ -158,6 +165,9 @@ SOUS_NAME=""
 ADD_GIVEN=false   # --add, for inbox
 ADD_TEXT=""
 MODELS=()
+LIVE_WORD=""    # stop | status, for live
+LIVE_PORT="${BRIGADE_WINDOW_PORT:-4747}"
+DEMO=false        # --demo, for live
 ARGV=()   # set by native_argv
 
 usage() { awk 'NR>2 { if (/^# =+$/) exit; sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"; exit 1; }
@@ -169,6 +179,9 @@ while [[ $# -gt 0 ]]; do
     --terminal) TERMINAL="$2"; shift 2 ;;
     --bare) BARE=true; shift ;;
     --no-launch) NO_LAUNCH=true; shift ;;
+    --port) LIVE_PORT="$2"; shift 2 ;;
+    --demo) DEMO=true; shift ;;
+    stop|status) LIVE_WORD="$1"; shift ;;
     --dir) SESSIONS_DIR="$2"; shift 2 ;;
     --also) ALSO="$2"; shift 2 ;;
     --set) SET_SOUS=true; SOUS_NAME="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
@@ -1146,6 +1159,60 @@ cmd_sessions() {
 }
 
 # ---------------------------------------------------------------------------
+# live — the Window. One node process (plugins/bk/window/server) serving the kitchen on
+# localhost; pid and port in .claude/window.pid, output in .claude/window.log, both kept
+# out of git. `live` toggles, `live stop` closes, `live status` only looks.
+# ---------------------------------------------------------------------------
+open_url() {
+  case "$(os_kind)" in
+    mac) open "$1" >/dev/null 2>&1 ;;
+    linux) command -v xdg-open >/dev/null 2>&1 && xdg-open "$1" >/dev/null 2>&1 ;;
+    wsl) cmd.exe /c start "$1" >/dev/null 2>&1 ;;
+    windows) start "$1" >/dev/null 2>&1 ;;
+  esac
+  return 0
+}
+
+cmd_live() {
+  local pidfile="$ROOT/.claude/window.pid" logfile="$ROOT/.claude/window.log" dir pid port url
+  dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../window" 2>/dev/null && pwd -P)"
+  pid=""; port=""; [[ -f "$pidfile" ]] && read -r pid port < "$pidfile"
+  if [[ -n "$pid" ]] && ! kill -0 "$pid" 2>/dev/null; then rm -f "$pidfile"; pid=""; fi   # a stale pid file
+  url="http://localhost:${port:-$LIVE_PORT}"
+  case "$LIVE_WORD" in
+    status)
+      if [[ -n "$pid" ]]; then echo "The Window is open: $url (pid $pid)"; else echo "The Window is closed."; fi
+      return 0 ;;
+    stop)
+      [[ -n "$pid" ]] || { echo "The Window is closed."; return 0; } ;;
+  esac
+  if [[ -n "$pid" ]]; then
+    kill "$pid" 2>/dev/null; rm -f "$pidfile"
+    echo "The Window is closed (was $url)."
+    return 0
+  fi
+  [[ -f "$dir/server/index.js" ]] || { echo "The Window isn't in this plugin install ($dir)." >&2; return 1; }
+  command -v node >/dev/null 2>&1 || { echo "The Window needs node 20 or newer on your PATH (brew install node, or nodejs.org)." >&2; return 1; }
+  mkdir -p "$ROOT/.claude"
+  exclude_locally .claude/window.pid; exclude_locally .claude/window.log
+  local args=(--root "$ROOT" --port "$LIVE_PORT")
+  $DEMO && args+=(--demo --stations "$N")
+  nohup node "$dir/server/index.js" "${args[@]}" > "$logfile" 2>&1 &
+  pid=$!
+  printf '%s %s\n' "$pid" "$LIVE_PORT" > "$pidfile"
+  sleep 1
+  if ! kill -0 "$pid" 2>/dev/null; then
+    rm -f "$pidfile"
+    echo "The Window didn't start. Its log, $logfile:" >&2; tail -5 "$logfile" >&2
+    return 1
+  fi
+  url="http://localhost:$LIVE_PORT"
+  if $DEMO; then echo "The Window is open on a demo service: $url"; else echo "The Window is open: $url"; fi
+  echo "  run again to close it; log: $logfile"
+  $NO_LAUNCH || open_url "$url"
+}
+
+# ---------------------------------------------------------------------------
 # remove
 # ---------------------------------------------------------------------------
 
@@ -1181,5 +1248,5 @@ case "$CMD" in
   files) cmd_files ;; rail) cmd_rail ;; board) cmd_board ;; leaks) cmd_leaks ;; remove) cmd_remove ;;
   role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   decisions) cmd_decisions ;; inbox) cmd_inbox ;; doctor) cmd_doctor ;;
-  sessions) cmd_sessions ;; *) usage ;;
+  sessions) cmd_sessions ;; live) cmd_live ;; *) usage ;;
 esac

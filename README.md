@@ -305,6 +305,7 @@ the `commis` has searched all of it. The kitchen asks you less every shift.
 | `clean` | `check` your own diff (every ticket), `around` your station at end of shift, `scan` the kitchen; hygiene drafts go to the sous |
 | `handoff` | write this session's handoff (cook: journal section; sous: local note) so it can be cleared |
 | `feedback` | send feedback about the Brigade to its maintainers as a GitHub issue; you see every word first |
+| `live` | the Window: watch the kitchen in your browser on localhost, click a cook or the sous for its page and controls; run it again to close it (needs node 20+) |
 | agents: `commis` · `taster` · `runner` · `inspector` | search the record before any question · review at the pass · run noisy commands · report what a reviewer would reject |
 
 Every skill works **solo** too: without a sous, you are both chef and sous.

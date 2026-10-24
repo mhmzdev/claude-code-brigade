@@ -12,6 +12,27 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.17.0] - 2026-10-24
+
+**The Window: watch the kitchen in your browser.** `/bk:live` opens a live view of the
+service on localhost: the sous at the pass, each cook at its station with what it is doing
+(reading, editing, running the check, waiting on a gate), the commis running to the record
+before a question goes up, tickets flying between sessions, plates going out at a `[served]`,
+and the head chef at the window. The right-hand panel holds what needs you (open questions,
+with their options clickable), the line, the rail, and the message log; click a cook or the
+sous for its own page: session, model, ticket, branch, and the controls. The record on the
+wall grows a book per page written under the config's `docs` map, so a kitchen that
+remembers more looks like it. Run `/bk:live` again to close it; `/bk:live --demo -n 6` shows
+a scripted service with six stations.
+
+What you must know: it needs **node 20 or newer** on your PATH, nothing else (its one library
+is vendored). It reads what the kitchen already writes and changes nothing by itself. The
+controls (change model, send a line, handoff, `/clear`) type into a session's terminal only
+when that session runs in tmux (`/bk:kitchen open --terminal tmux`); in Warp or Terminal.app
+the panel shows you the command to paste. The sous's "end of shift" button stays dim until
+its handoff is written, and a cook's until its ticket is served. The Jira and GitHub rails
+show an empty rail card in this version; the markdown rail shows the board.
+
 ## [0.16.1] - 2026-10-18
 
 A cook you've just cleared now checks in as fresh. Before, a cleared cook in a station whose

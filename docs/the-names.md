@@ -33,6 +33,7 @@ here and from the plugin contract. Renaming stays a one-line change.
 | **"Heard!"** | the line's call and response | `SendMessage` |
 | **86'd** | "we're out" | `blocked` |
 | **End of shift** | the cook goes home | `/clear`: one ticket per session |
+| **The Window** | the hatch between the kitchen and the dining room, where the chef watches the line | `/bk:live`: the live view of the kitchen in a browser |
 
 | Lane | Kitchen name | Source |
 |---|---|---|
