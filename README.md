@@ -89,13 +89,14 @@ for you, or the plugin alone from Claude Code's marketplace.
 ### Homebrew: the `bk` command
 
 ```bash
-brew tap mhmzdev/brigade
-brew install bk
+brew install mhmzdev/brigade/bk
 ```
 
-That installs `bk`, tmux and node. You need Claude Code installed and logged in. Every session
-`bk` starts loads the plugin installed next to it, so there is no marketplace step and nothing
-to update twice; `brew upgrade bk` is the update. Then, in a repo (see [Set up a repo](#set-up-a-repo)):
+Use the full name: Homebrew's own `bk` is an unrelated EPUB reader, and a bare
+`brew install bk` gives you that one. The command installs `bk`, tmux and node. You need
+Claude Code installed and logged in. Every session `bk` starts loads the plugin installed next
+to it, so there is no marketplace step and nothing to update twice; `brew upgrade
+mhmzdev/brigade/bk` is the update. Then, in a repo (see [Set up a repo](#set-up-a-repo)):
 
 ```
 bk open      start the kitchen in tmux and sit with the sous; Ctrl-b d leaves it running
@@ -137,7 +138,7 @@ WSL): `kitchen open` installs it with Homebrew on a Mac, or names the package on
 
 ### Update
 
-With Homebrew: `brew upgrade bk`, then restart every session (`bk stop`, then `bk open`).
+With Homebrew: `brew upgrade mhmzdev/brigade/bk`, then restart every session (`bk stop`, then `bk open`).
 
 With the marketplace: new versions land on `main`. Fetch the latest marketplace, then update
 the plugin:
@@ -374,6 +375,7 @@ The shared rules every skill follows are in [`plugins/bk/skills/README.md`](plug
 | a station is **dirty right after setup** | the install step, or an edit that reached into `stations/`, changed tracked files | `git -C stations/station-N diff`, fix the cause in the main checkout, then `git -C stations/station-N checkout -- .` |
 | the sous can't find a cook (or the reverse) | sessions only see each other under the same Claude Code profile | start every session with the same `CLAUDE_CONFIG_DIR` (`kitchen open` passes yours through; `bk open` records the profile and reuses it). To restart a cook by hand, run `.claude/cook` in its station rather than plain `claude`: it keeps the profile |
 | `bk: several Claude Code profiles on this machine and none recorded` | you have more than one `~/.claude*` folder and this repo hasn't picked one | `bk open --profile NAME` once (`default` is `~/.claude`); it is recorded in `.claude/bk-profile` |
+| `bk version` prints `init error: No such file or directory` | a bare `brew install bk` installed Homebrew's `bk`, an EPUB reader | `brew uninstall bk && brew install mhmzdev/brigade/bk` |
 | `bk stop` says a session is still busy after the timeout | its handoff didn't finish (a long tool call, or a dialog waiting in that window) | it was saved and stopped anyway; `bk open` resumes it and you can ask it to hand off again. `bk stop --timeout 1200` waits longer |
 | "1 plugin failed to update" after upgrading from 0.1 | 0.2 renamed the plugin `brigade` → `bk` | `/plugin uninstall brigade@claude-code-brigade`, `/plugin install bk@claude-code-brigade`, and drop any `brigade@…` line from `.claude/settings*.json` |
 

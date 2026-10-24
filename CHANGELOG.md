@@ -12,6 +12,17 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.19.1] - 2026-10-24
+
+**Install `bk` by its full name: `brew install mhmzdev/brigade/bk`.** Homebrew's own
+formula called `bk` is an unrelated EPUB reader, and a bare `brew install bk` installs that
+one, after which `bk version` prints `init error: No such file or directory`. The README,
+the formula's caveats and the troubleshooting table now say the full name, and the formula
+declares the conflict so Homebrew explains it instead of linking over it.
+
+What you must do, if you installed with the short name: `brew uninstall bk && brew install
+mhmzdev/brigade/bk`. Upgrades are `brew upgrade mhmzdev/brigade/bk`.
+
 ## [0.19.0] - 2026-10-24
 
 **`bk`, the Brigade's command on your machine.** `brew tap mhmzdev/brigade && brew install bk`
