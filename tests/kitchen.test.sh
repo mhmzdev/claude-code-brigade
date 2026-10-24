@@ -341,7 +341,8 @@ if command -v node >/dev/null 2>&1; then
   ok "…and prints its URL" has "$out" "http://localhost:47471"
   read -r wpid wport < "$C/.claude/window.pid"
   ok "…and records a live pid and the port" bash -c 'kill -0 "$1" && test "$2" = 47471' _ "$wpid" "$wport"
-  sleep 1
+  # a cold runner can take a few seconds to bind the port: wait for it, up to 15s
+  for _ in $(seq 1 30); do curl -sf "http://localhost:47471/api/state" >/dev/null 2>&1 && break; sleep 0.5; done
   ok "…and it serves the kitchen's state" bash -c 'curl -sf "http://localhost:47471/api/state" | grep -q "\"stations\""'
   ok "live status says open" has "$("$K" live status)" "open: http://localhost:47471"
   ok ".claude/window.pid and .log stay out of git" test "$before" = "$(git -C "$C" status --porcelain)"

@@ -12,6 +12,11 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.20.1] - 2026-10-24
+
+The Window's start-up test waits for the port instead of guessing one second, which failed
+once on a cold CI runner. Nothing in the plugin changed.
+
 ## [0.20.0] - 2026-10-24
 
 **Every skill has a `bk` door.** `bk run SKILL [words…]` starts a Claude Code session in the
