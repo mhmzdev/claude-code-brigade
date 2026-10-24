@@ -12,6 +12,34 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.19.0] - 2026-10-24
+
+**`bk`, the Brigade's command on your machine.** `brew tap mhmzdev/brigade && brew install bk`
+puts `bk` on your PATH, with tmux and node behind it (macOS and Linux; Windows through WSL).
+In a repo set up for the Brigade: `bk open` starts the kitchen in tmux and sits you with the
+sous; `Ctrl-b d` leaves it running; `bk attach` goes back to the sous; `bk peek 2` shows cook
+2; `bk live` opens the Window; `bk status` says what is up; any other word (`board`, `rail`,
+`questions`, `doctor`, …) goes to `kitchen.sh`. **`bk stop` is a pause, not an end:** it types
+`/bk:handoff` into the sous and every cook, waits until each has finished (ten minutes at
+most, then it says who is still busy and goes on), saves every session's id, exits them and
+closes the tmux session and the Window. The next `bk open` resumes each session where it
+stopped; `bk open --fresh` starts new ones instead. Every session `bk` starts loads the plugin
+installed next to it (`claude --plugin-dir`), so there is no marketplace step and nothing to
+keep in step; `brew upgrade bk` is the update. With several Claude Code logins on one machine
+(`~/.claude`, `~/.claude-work`, …), `bk open --profile work` picks one, and the choice is
+recorded in `.claude/bk-profile` (kept out of git) so every later command, and the resume
+after a stop, uses the same account; with several profiles and nothing recorded, `bk open`
+asks once.
+
+Also: when the `sous` window is still there but the sous has left it (an `/exit` by hand),
+opening the kitchen again starts the sous in that window instead of leaving an empty shell.
+
+What you must do: nothing. The marketplace plugin keeps working as before for sessions you
+open by hand, and `/bk:kitchen open` still works. To use `bk`, install it with Homebrew and
+run `bk open` where you ran `/bk:kitchen open`. For maintainers: the tap is
+`mhmzdev/homebrew-brigade`; the release workflow pushes `Formula/bk.rb` there with the
+tarball's checksum on each release and needs a `TAP_TOKEN` secret with write access to it.
+
 ## [0.18.0] - 2026-10-24
 
 **The kitchen runs in tmux.** `/bk:kitchen open` now starts everything in one tmux session,

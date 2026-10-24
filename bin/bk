@@ -1,0 +1,330 @@
+#!/usr/bin/env bash
+# =============================================================================
+# bk — the Brigade on the machine: start the kitchen, sit with the sous, pause it, resume it.
+#
+# The plugin (plugins/bk, next to this script or in Homebrew's libexec) is the kitchen:
+# contract, skills, agents, hook. This command is the harness around it. Every session it
+# starts loads that bundled plugin (claude --plugin-dir), so there is no marketplace step
+# and nothing to update twice.
+#
+# Usage:
+#   bk open   [--profile NAME] [--fresh] [--no-attach] [kitchen open flags]
+#             start the kitchen in tmux (kitchen.sh open: a sous window already running
+#             /bk:sous-chef, one window per station already running /bk:line-cook), then
+#             attach you to the sous. Ctrl-b d leaves everything running. After `bk stop`
+#             it resumes every session where it was; --fresh starts new ones instead.
+#   bk attach           sit with the sous (the one session you talk to)
+#   bk peek N|sous      look at cook N's window (or the sous's); Ctrl-b d to leave
+#   bk stop  [--timeout S]
+#             pause the kitchen so `bk open` can carry on from the same spot: types
+#             /bk:handoff into the sous and every cook, waits until each is idle (S
+#             seconds, default 600, then says who is still busy and goes on), saves each
+#             session's id, types /exit, closes the tmux session and the Window
+#   bk status           profile, tmux session, Window, then kitchen.sh status
+#   bk live [stop|status] [--port P]   the Window in your browser (toggles)
+#   bk setup [-n N]     create the stations (first set the repo up: /bk:setup in claude)
+#   bk <any kitchen.sh subcommand>     board, rail, questions, doctor, sync, …
+#   bk version | help
+#
+# Profiles (several Claude Code logins on one machine, ~/.claude, ~/.claude-work, …):
+#   --profile NAME picks ~/.claude-NAME (`default` is ~/.claude; a path works too). Without
+#   it: CLAUDE_CONFIG_DIR already in the shell, else the one this repo recorded in
+#   .claude/bk-profile, else the only ~/.claude* dir there is; with several and nothing
+#   recorded, `bk open` asks once. `bk open` records the choice in .claude/bk-profile (kept
+#   out of git) and every later command reads it, so one kitchen never mixes two accounts.
+#
+# Env: BK_PLUGIN_DIR (use another plugin folder), BRIGADE_* as kitchen.sh documents.
+# Needs: claude (https://claude.com/claude-code), tmux, git; node 20+ for the Window.
+# =============================================================================
+
+set -uo pipefail
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'bk: %s\n' "$*" >&2; exit 1; }
+usage() { awk 'NR>2 { if (/^# =+$/) exit; sub(/^# ?/, ""); print }' "$SELF_REAL"; }
+
+# --- where the plugin is: next to this script (a checkout, or Homebrew's libexec/bin/bk)
+SELF_REAL="${BASH_SOURCE[0]}"
+while [[ -L "$SELF_REAL" ]]; do
+  link="$(readlink "$SELF_REAL")"
+  case "$link" in /*) SELF_REAL="$link" ;; *) SELF_REAL="$(dirname "$SELF_REAL")/$link" ;; esac
+done
+BK_HOME="$(cd "$(dirname "$SELF_REAL")/.." && pwd -P)"
+PLUGIN="${BK_PLUGIN_DIR:-$BK_HOME/plugins/bk}"
+KITCHEN="$PLUGIN/skills/kitchen/kitchen.sh"
+[[ -f "$KITCHEN" ]] || die "no plugin at $PLUGIN (expected plugins/bk next to bin/; set BK_PLUGIN_DIR to point at one)"
+VERSION="$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' "$PLUGIN/.claude-plugin/plugin.json" 2>/dev/null | head -1)"
+
+# --- arguments: --profile anywhere, then the command, then its own arguments
+PROFILE_OPT=""; CMD=""; ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --profile) [[ $# -ge 2 ]] || die "--profile needs a name"; PROFILE_OPT="$2"; shift 2 ;;
+    --profile=*) PROFILE_OPT="${1#--profile=}"; shift ;;
+    *) if [[ -z "$CMD" ]]; then CMD="$1"; else ARGS+=("$1"); fi; shift ;;
+  esac
+done
+CMD="${CMD:-help}"
+
+case "$CMD" in
+  help|-h|--help) usage; exit 0 ;;
+  version|-V|--version) say "bk $VERSION (plugin at $PLUGIN)"; exit 0 ;;
+esac
+
+# --- tools. tmux may sit in Homebrew's folder without being on this shell's PATH yet;
+# BRIGADE_TMUX_DIRS="" (the tests) keeps the machine's tmux out.
+for d in ${BRIGADE_TMUX_DIRS-/opt/homebrew/bin /usr/local/bin /home/linuxbrew/.linuxbrew/bin}; do
+  [[ -x "$d/tmux" ]] && [[ ":$PATH:" != *":$d:"* ]] && PATH="$PATH:$d"
+done
+need_tmux() { command -v tmux >/dev/null 2>&1 || die "tmux isn't installed (brew install tmux; on Linux apt/dnf/pacman install tmux)"; }
+need_claude() { command -v claude >/dev/null 2>&1 || die "claude isn't installed. bk starts Claude Code sessions: install it first (https://claude.com/claude-code, or: npm install -g @anthropic-ai/claude-code), then run bk again"; }
+
+# --- the repo: the main checkout, from here or from inside a station
+role="$("$KITCHEN" role 2>&1)" || die "$role"
+ROOT="$(printf '%s' "$role" | sed -E 's/^main //; s/^cook [^ ]+ //')"
+REPO_NAME="$(basename "$ROOT")"
+SESS="${REPO_NAME}-brigade"
+
+# --- profiles
+profile_dirs() { local d; for d in "$HOME/.claude" "$HOME"/.claude-*; do [[ -d "$d" ]] && printf '%s\n' "$d"; done; return 0; }
+profile_label() {  # the short name of a config dir, for messages
+  case "$1" in "$HOME/.claude") printf default ;; "$HOME"/.claude-*) printf '%s' "${1#"$HOME"/.claude-}" ;; *) printf '%s' "$1" ;; esac
+}
+profile_dir_of() {  # a --profile value → its directory
+  case "$1" in
+    default) printf '%s' "$HOME/.claude" ;;
+    /*) printf '%s' "$1" ;;
+    "~"/*) printf '%s' "$HOME/${1#"~"/}" ;;
+    *) printf '%s' "$HOME/.claude-$1" ;;
+  esac
+}
+exclude_locally() {  # exclude_locally <checkout> <relative path>: out of git through .git/info/exclude
+  local excl
+  git -C "$1" check-ignore -q "$1/$2" 2>/dev/null && return 0
+  excl="$(git -C "$1" rev-parse --path-format=absolute --git-path info/exclude)"
+  mkdir -p "$(dirname "$excl")"
+  [[ -s "$excl" && -n "$(tail -c1 "$excl")" ]] && echo "" >> "$excl"
+  echo "$2" >> "$excl"
+}
+# resolve_profile ask|need|soft → exports CLAUDE_CONFIG_DIR and sets PROFILE_FROM. With several
+# profiles and nothing recorded: `ask` asks at a terminal, `need` refuses (the command reads the
+# registry, so a guess would be wrong), `soft` goes without one (the command doesn't care).
+resolve_profile() {
+  local recorded dirs=() d n answer
+  if [[ -n "$PROFILE_OPT" ]]; then
+    d="$(profile_dir_of "$PROFILE_OPT")"
+    [[ -d "$d" ]] || die "no profile '$PROFILE_OPT': $d doesn't exist (profiles: $(profile_dirs | while read -r x; do profile_label "$x"; printf ' '; done))"
+    export CLAUDE_CONFIG_DIR="$d"; PROFILE_FROM="--profile"; return 0
+  fi
+  if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then PROFILE_FROM="the shell (CLAUDE_CONFIG_DIR)"; return 0; fi
+  recorded="$(head -1 "$ROOT/.claude/bk-profile" 2>/dev/null | tr -d '[:space:]')"
+  if [[ -n "$recorded" ]]; then
+    if [[ -d "$recorded" ]]; then export CLAUDE_CONFIG_DIR="$recorded"; PROFILE_FROM=".claude/bk-profile"; return 0; fi
+    say "The recorded profile $recorded is gone; picking again." >&2
+  fi
+  while IFS= read -r d; do [[ -n "$d" ]] && dirs+=("$d"); done < <(profile_dirs)
+  if (( ${#dirs[@]} <= 1 )); then
+    export CLAUDE_CONFIG_DIR="${dirs[0]:-$HOME/.claude}"; PROFILE_FROM="the only profile"; return 0
+  fi
+  if [[ "$1" == soft ]]; then PROFILE_FROM="none recorded (bk open records one)"; return 0; fi
+  if [[ "$1" == ask && -t 0 && -t 1 ]]; then
+    say "Several Claude Code profiles on this machine. Which one runs this kitchen? (recorded in .claude/bk-profile; change it with --profile)"
+    n=0; for d in "${dirs[@]}"; do n=$((n+1)); say "  $n) $(profile_label "$d")   $d"; done
+    while :; do
+      printf 'Profile [1-%s]: ' "$n"; read -r answer
+      [[ "$answer" =~ ^[0-9]+$ ]] && (( answer >= 1 && answer <= n )) && break
+    done
+    export CLAUDE_CONFIG_DIR="${dirs[$((answer-1))]}"; PROFILE_FROM="your answer"; return 0
+  fi
+  say "bk: several Claude Code profiles on this machine and none recorded for $REPO_NAME:" >&2
+  for d in "${dirs[@]}"; do say "  --profile $(profile_label "$d")   ($d)" >&2; done
+  die "pick one with --profile NAME (bk open records it)"
+}
+record_profile() {
+  mkdir -p "$ROOT/.claude"
+  exclude_locally "$ROOT" .claude/bk-profile
+  printf '%s\n' "$CLAUDE_CONFIG_DIR" > "$ROOT/.claude/bk-profile"
+}
+
+# --- tmux helpers
+kitchen_up() { tmux has-session -t "$SESS" 2>/dev/null; }
+attach_to() {  # attach_to <window>
+  need_tmux
+  kitchen_up || die "the kitchen isn't open (no tmux session '$SESS'): bk open"
+  tmux list-windows -t "$SESS" -F '#W' 2>/dev/null | grep -qx "$1" || die "no window '$1' in '$SESS' (windows: $(tmux list-windows -t "$SESS" -F '#W' | tr '\n' ' '))"
+  if [[ -n "${TMUX:-}" ]]; then exec tmux switch-client -t "$SESS:$1"; fi
+  exec tmux attach-session -t "$SESS:$1"
+}
+
+# --- the session registry: Claude Code writes <config dir>/sessions/<pid>.json per live session
+json_field() { sed -n "s/.*\"$2\":\"\\([^\"]*\\)\".*/\\1/p" "$1" | head -1; }      # string field
+json_num()   { sed -n "s/.*\"$2\":\\([0-9][0-9]*\\).*/\\1/p" "$1" | head -1; }     # number field
+alive() { kill -0 "$1" 2>/dev/null; }
+# pane_of <pid> <"pid id window" lines> → the pane whose shell is an ancestor of pid (or pid itself)
+pane_of() {
+  local cur="$1" line ppid
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    while IFS= read -r line; do
+      [[ "${line%% *}" == "$cur" ]] && { printf '%s' "${line#* }"; return 0; }
+    done <<< "$2"
+    ppid="$(ps -o ppid= -p "$cur" 2>/dev/null | tr -d ' ')"
+    [[ -n "$ppid" && "$ppid" != 0 && "$ppid" != 1 ]] || return 1
+    cur="$ppid"
+  done
+  return 1
+}
+# kitchen_sessions → one line per Claude session running in this kitchen's tmux session:
+#   <registry file>|<pid>|<pane id>|<window>|<cwd>
+kitchen_sessions() {
+  local panes f pid where
+  panes="$(tmux list-panes -s -t "$SESS" -F '#{pane_pid} #{pane_id} #{window_name}' 2>/dev/null)"
+  [[ -n "$panes" ]] || return 0
+  for f in "$CLAUDE_CONFIG_DIR"/sessions/*.json; do
+    [[ -f "$f" ]] || continue
+    pid="$(json_num "$f" pid)"; [[ -n "$pid" ]] && alive "$pid" || continue
+    where="$(pane_of "$pid" "$panes")" || continue
+    printf '%s|%s|%s|%s|%s\n' "$f" "$pid" "${where%% *}" "${where#* }" "$(json_field "$f" cwd)"
+  done
+}
+type_into() { tmux send-keys -t "$1" -l "$2" && tmux send-keys -t "$1" Enter; }   # the way the Window types
+now_ms() { date +%s000; }
+
+# =============================================================================
+cmd_open() {
+  local fresh=false attach=true pass=() s
+  for s in "${ARGS[@]+"${ARGS[@]}"}"; do
+    case "$s" in --fresh) fresh=true ;; --no-attach) attach=false ;; *) pass+=("$s") ;; esac
+  done
+  need_claude; need_tmux
+  resolve_profile ask
+  record_profile
+  say "Profile: $(profile_label "$CLAUDE_CONFIG_DIR") ($CLAUDE_CONFIG_DIR, from $PROFILE_FROM)"
+  if $fresh; then
+    rm -f "$ROOT/.claude/sous-session"
+    for s in $(git -C "$ROOT" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p') "$ROOT"/stations/station-*; do
+      [[ -d "$s" ]] && rm -f "$s/.claude/cook-session"
+    done
+  elif [[ -s "$ROOT/.claude/sous-session" ]]; then
+    say "Resuming the paused kitchen (bk open --fresh starts new sessions instead)."
+  fi
+  BRIGADE_VIA_BK=1 BRIGADE_CLAUDE_ARGS="--plugin-dir $(printf '%q' "$PLUGIN")${BRIGADE_CLAUDE_ARGS:+ $BRIGADE_CLAUDE_ARGS}" \
+    "$KITCHEN" open --terminal tmux "${pass[@]+"${pass[@]}"}" || exit $?
+  $attach || return 0
+  kitchen_up || return 0
+  if [[ -t 0 && -t 1 ]]; then attach_to sous; else say "Not a terminal: not attaching. bk attach when you are in one."; fi
+}
+
+cmd_peek() {
+  local w="${ARGS[0]:-}"
+  [[ -n "$w" ]] || die "bk peek N | sous | station-N"
+  case "$w" in sous) ;; station-*) ;; *[!0-9]*) die "bk peek N | sous | station-N" ;; *) w="station-$w" ;; esac
+  attach_to "$w"
+}
+
+# idle_since <registry file> <ms>: the session is idle and said so after that moment
+# (older registries without a status time count as idle on the word alone).
+idle_since() {
+  local st ts; st="$(json_field "$1" status)"; ts="$(json_num "$1" statusUpdatedAt)"; ts="${ts:-$(json_num "$1" updatedAt)}"
+  [[ "$st" == idle ]] && { [[ -z "$ts" ]] || [[ "$ts" -ge "$2" ]]; }
+}
+
+cmd_stop() {
+  local timeout=600 rows=() row f pid pane win cwd sid t0 waited streak pending label ids=()
+  while [[ ${#ARGS[@]} -gt 0 ]]; do
+    case "${ARGS[0]}" in
+      --timeout) timeout="${ARGS[1]:-}"; [[ "$timeout" =~ ^[0-9]+$ ]] || die "--timeout needs seconds"; ARGS=("${ARGS[@]:2}") ;;
+      *) die "unknown argument for stop: ${ARGS[0]}" ;;
+    esac
+  done
+  need_tmux
+  if ! kitchen_up; then
+    say "The kitchen isn't open (no tmux session '$SESS'); nothing to stop."
+    "$KITCHEN" live stop >/dev/null 2>&1; return 0
+  fi
+  resolve_profile need
+  while IFS= read -r row; do [[ -n "$row" ]] && rows+=("$row"); done < <(kitchen_sessions)
+  still_busy() {  # " win win" for the sessions not yet idle since t0; a session that has exited is done
+    local out=""
+    for row in "${rows[@]}"; do
+      IFS='|' read -r f pid pane win cwd <<< "$row"
+      alive "$pid" || continue
+      idle_since "$f" "$t0" || out="$out $win"
+    done
+    printf '%s' "$out"
+  }
+
+  if (( ${#rows[@]} == 0 )); then
+    say "No Claude session is running in '$SESS' (profile $(profile_label "$CLAUDE_CONFIG_DIR")); closing the tmux session."
+  else
+    # 1. handoff: every session writes where it is (the sous its note, each cook its journal)
+    t0="$(now_ms)"; label=""
+    for row in "${rows[@]}"; do
+      IFS='|' read -r f pid pane win cwd <<< "$row"
+      type_into "$pane" "/bk:handoff"; label="$label $win"
+    done
+    say "Handoff typed into:$label"
+    # 2. wait until every one is idle again (seen twice, 2s apart, so a queued turn can't slip through)
+    say "Waiting for each session to finish its handoff (up to ${timeout}s; Ctrl-c leaves everything running)…"
+    waited=0; streak=0
+    while :; do
+      pending="$(still_busy)"
+      if [[ -z "$pending" ]]; then streak=$((streak+1)); (( streak >= 2 )) && break
+      else streak=0; fi
+      if (( waited >= timeout )); then
+        say "Still busy after ${timeout}s:$pending. Their handoff may be incomplete; stopping anyway (the journals and the sous note hold the rest)."
+        break
+      fi
+      (( waited > 0 && waited % 30 == 0 )) && say "  waiting on:$pending"
+      sleep 2; waited=$((waited+2))
+    done
+    # 3. remember each session, so bk open resumes it; the files stay out of git
+    for row in "${rows[@]}"; do
+      IFS='|' read -r f pid pane win cwd <<< "$row"
+      sid="$(json_field "$f" sessionId)"; [[ -n "$sid" ]] || continue
+      if [[ "$(cd "$cwd" 2>/dev/null && pwd -P)" == "$(cd "$ROOT" && pwd -P)" ]]; then
+        mkdir -p "$ROOT/.claude"; exclude_locally "$ROOT" .claude/sous-session
+        printf '%s\n' "$sid" > "$ROOT/.claude/sous-session"; ids+=("sous")
+      elif [[ -d "$cwd" ]]; then
+        mkdir -p "$cwd/.claude"; exclude_locally "$cwd" .claude/cook-session
+        printf '%s\n' "$sid" > "$cwd/.claude/cook-session"; ids+=("$win")
+      fi
+    done
+    # 4. out, then close the room
+    for row in "${rows[@]}"; do IFS='|' read -r f pid pane win cwd <<< "$row"; alive "$pid" && type_into "$pane" "/exit"; done
+    waited=0
+    while (( waited < 20 )); do
+      pending=""
+      for row in "${rows[@]}"; do IFS='|' read -r f pid pane win cwd <<< "$row"; alive "$pid" && pending="$pending $win"; done
+      [[ -z "$pending" ]] && break
+      sleep 1; waited=$((waited+1))
+    done
+    [[ -n "$pending" ]] && say "Not out after 20s:$pending (closing the tmux session ends them)."
+  fi
+  tmux kill-session -t "$SESS" 2>/dev/null
+  "$KITCHEN" live stop 2>/dev/null | grep -v '^The Window is closed\.$' || true
+  if (( ${#ids[@]} > 0 )); then say "Paused: ${ids[*]} saved. bk open picks each one up where it stopped."
+  else say "Stopped '$SESS'."; fi
+}
+
+cmd_status() {
+  resolve_profile soft
+  if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then say "Profile:  $(profile_label "$CLAUDE_CONFIG_DIR") ($CLAUDE_CONFIG_DIR, from $PROFILE_FROM)"
+  else say "Profile:  $PROFILE_FROM"; fi
+  if command -v tmux >/dev/null 2>&1 && kitchen_up; then
+    say "Kitchen:  open in tmux '$SESS', windows: $(tmux list-windows -t "$SESS" -F '#W' | tr '\n' ' ')"
+  elif [[ -s "$ROOT/.claude/sous-session" ]]; then say "Kitchen:  paused (bk open resumes it)"
+  else say "Kitchen:  closed (bk open)"; fi
+  say "Window:   $("$KITCHEN" live status 2>&1 | sed 's/^The Window is //')"
+  "$KITCHEN" status
+}
+
+case "$CMD" in
+  open) cmd_open ;;
+  attach) attach_to sous ;;
+  peek) cmd_peek ;;
+  stop) cmd_stop ;;
+  status) cmd_status ;;
+  live) resolve_profile need; exec "$KITCHEN" live "${ARGS[@]+"${ARGS[@]}"}" ;;
+  setup) need_claude; resolve_profile soft; exec "$KITCHEN" setup "${ARGS[@]+"${ARGS[@]}"}" ;;
+  *) resolve_profile soft; exec "$KITCHEN" "$CMD" "${ARGS[@]+"${ARGS[@]}"}" ;;
+esac

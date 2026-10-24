@@ -90,7 +90,14 @@
 # Env overrides:
 #   BRIGADE_TRUNK, BRIGADE_KITCHEN_MODE, BRIGADE_KITCHEN, BRIGADE_STATIONS, BRIGADE_MODEL (default sonnet),
 #   BRIGADE_PERMISSION_MODE (default: auto — cooks run unattended, so a mode that
-#   stops on every permission would stall them), BRIGADE_TERMINAL
+#   stops on every permission would stall them), BRIGADE_TERMINAL,
+#   BRIGADE_CLAUDE_ARGS (extra flags for every claude session open starts, baked into
+#   .claude/cook too; the bk command sets it to --plugin-dir <its bundled plugin>)
+#
+# Pause and resume (what `bk stop` leaves behind): when .claude/sous-session in the main
+# checkout, or .claude/cook-session in a station, holds a Claude Code session id, open
+# starts that session with `claude --resume <id>` instead of a fresh one, then removes
+# the file. Both files are kept out of git.
 #
 # Requires: git, claude. Optional: tmux (open; installed by Homebrew on a Mac), gh (status), node 20+ (live).
 # BRIGADE_OS (mac|linux|wsl|windows) overrides OS detection; the tests use it.
@@ -238,20 +245,37 @@ session_name() { printf '%s-cook-%s' "$REPO_NAME" "$(basename "$1" | sed 's/^sta
 # (someone running several Claude profiles). Sessions only see each other
 # within one profile, so cooks must inherit the sous's. Unset → plain `claude`.
 
+# saved_session <checkout> → the session id a pause (bk stop) left there, if any:
+# .claude/sous-session in the main checkout, .claude/cook-session in a station.
+saved_session() {
+  local f="$1/.claude/cook-session"
+  [[ "$(cd "$1" && pwd -P)" == "$ROOT_REAL" ]] && f="$1/.claude/sous-session"
+  head -1 "$f" 2>/dev/null | tr -d '[:space:]'
+}
+# resume_flag <checkout> → " --resume <id>" when a paused session is saved there.
+resume_flag() {
+  local id; id="$(saved_session "$1")"
+  [[ -n "$id" ]] && printf ' --resume %s' "$(printf '%q' "$id")"
+  return 0
+}
+extra_args() { [[ -n "${BRIGADE_CLAUDE_ARGS:-}" ]] && printf ' %s' "$BRIGADE_CLAUDE_ARGS"; return 0; }
+
 claude_cmd() {  # claude_cmd <model> <station dir>
   local prefix=""
   [[ -n "${CLAUDE_CONFIG_DIR:-}" ]] && prefix="CLAUDE_CONFIG_DIR=$(printf '%q' "$CLAUDE_CONFIG_DIR") "
-  printf '%sclaude --name %s --model %s --permission-mode %s' "$prefix" \
-    "$(printf '%q' "$(session_name "$2")")" "$1" "$PERMISSION_MODE"
+  printf '%sclaude --name %s --model %s --permission-mode %s%s%s' "$prefix" \
+    "$(printf '%q' "$(session_name "$2")")" "$1" "$PERMISSION_MODE" "$(extra_args)" "$(resume_flag "$2")"
   # Start as a line cook: it checks in with the sous, or waits for the sous's [hello].
   $BARE || printf ' "/bk:line-cook"'
 }
 sous_cmd() {  # the sous in the main checkout, already running /bk:sous-chef (--bare: plain)
   local prefix=""
   [[ -n "${CLAUDE_CONFIG_DIR:-}" ]] && prefix="CLAUDE_CONFIG_DIR=$(printf '%q' "$CLAUDE_CONFIG_DIR") "
-  printf '%sclaude --model %s' "$prefix" "$SOUS_MODEL"
+  printf '%sclaude --model %s%s%s' "$prefix" "$SOUS_MODEL" "$(extra_args)" "$(resume_flag "$ROOT")"
   $BARE || printf ' "/bk:sous-chef"'
 }
+# forget_session <checkout>: a saved session id is used once; the next open starts fresh.
+forget_session() { rm -f "$1/.claude/cook-session" "$1/.claude/sous-session"; }
 
 # write_launcher <station dir> <model> → <station>/.claude/cook, the way to restart
 # that cook by hand (after /exit, say, to load a new agent or MCP server) without
@@ -272,7 +296,7 @@ write_launcher() {
 cd "\$(dirname "\$0")/.." || exit 1
 $profile
 [ \$# -eq 0 ] && set -- --continue
-exec claude --name $(printf '%q' "$(session_name "$st")") --model $(printf '%q' "$2") --permission-mode $(printf '%q' "$PERMISSION_MODE") "\$@"
+exec claude --name $(printf '%q' "$(session_name "$st")") --model $(printf '%q' "$2") --permission-mode $(printf '%q' "$PERMISSION_MODE")$(extra_args) "\$@"
 EOF
   chmod +x "$file"
   excl="$(git -C "$st" rev-parse --path-format=absolute --git-path info/exclude)"
@@ -680,6 +704,9 @@ cmd_open() {
       elif ! tmux list-windows -t "$sess" -F '#W' 2>/dev/null | grep -qx sous; then
         tmux new-window -t "$sess" -n sous -c "$ROOT"
         tmux send-keys -t "$sess:sous" "$(sous_cmd)" Enter; sous_started=true
+      elif [[ "$(tmux display-message -p -t "$sess:sous" '#{pane_current_command}' 2>/dev/null)" =~ ^-?(zsh|bash|sh|fish|dash|ksh)$ ]]; then
+        # the sous window is there but the sous has left it (an /exit by hand): start it again in place
+        tmux send-keys -t "$sess:sous" "$(sous_cmd)" Enter; sous_started=true
       fi
       for i in "${!list[@]}"; do
         win="$(basename "${list[$i]}")"
@@ -690,10 +717,12 @@ cmd_open() {
         tmux send-keys -t "$sess:$win" "$(claude_cmd "${models[$i]}" "${list[$i]}")" Enter
         opened=$((opened+1))
       done
+      $sous_started && forget_session "$ROOT"
       echo "The kitchen runs in tmux session '$sess': $opened cook window(s) opened$($sous_started && echo ", the sous started in window 'sous'")."
-      if [[ -n "${TMUX:-}" ]]; then echo "  You're inside tmux: tmux switch-client -t $sess:sous   (then prefix+w to pick a window)"
+      if [[ -n "${BRIGADE_VIA_BK:-}" ]]; then echo "  Talk to the sous:  bk attach      peek at a cook:  bk peek 1      pause it all:  bk stop"
+      elif [[ -n "${TMUX:-}" ]]; then echo "  You're inside tmux: tmux switch-client -t $sess:sous   (then prefix+w to pick a window)"
       else echo "  Talk to the sous:  tmux attach -t $sess:sous      peek at a cook:  tmux attach -t $sess:station-1"; fi
-      echo "  Watch it all:      /bk:live"
+      echo "  Watch it all:      $([[ -n "${BRIGADE_VIA_BK:-}" ]] && echo "bk live" || echo "/bk:live")"
       if ! grep -qs 'mouse on' "$HOME/.tmux.conf" 2>/dev/null; then echo "  (mouse scrolling in tmux: echo 'set -g mouse on' >> ~/.tmux.conf)"; fi
       fi
       ;;
@@ -706,6 +735,7 @@ cmd_open() {
       echo "  $(basename "${list[$i]}"):  cd $(printf '%q' "${list[$i]}") && $(claude_cmd "${models[$i]}" "${list[$i]}")"
     done
   fi
+  for i in "${!list[@]}"; do forget_session "${list[$i]}"; done   # a paused session resumes once
   if $BARE; then
     echo "Sessions open bare. In each one run /bk:line-cook, or let the sous brief them."
   else

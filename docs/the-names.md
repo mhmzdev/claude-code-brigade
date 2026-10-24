@@ -34,6 +34,7 @@ here and from the plugin contract. Renaming stays a one-line change.
 | **86'd** | "we're out" | `blocked` |
 | **End of shift** | the cook goes home | `/clear`: one ticket per session |
 | **The Window** | the hatch between the kitchen and the dining room, where the chef watches the line | `/bk:live`: the live view of the kitchen in a browser |
+| **`bk`** | short for *brigade kitchen* | the skills' prefix (`/bk:<skill>`) and the command on the machine (`bk open`, `bk stop`) |
 
 | Lane | Kitchen name | Source |
 |---|---|---|

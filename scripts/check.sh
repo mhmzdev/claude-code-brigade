@@ -3,12 +3,13 @@
 # scripts/check.sh — THE gate for changes to the Brigade plugin.
 #
 # 1. manifests   claude plugin validate (skipped with a warning if no claude CLI)
-# 2. script      bash -n + shellcheck on kitchen.sh and hooks/guard.sh (shellcheck required)
+# 2. script      bash -n + shellcheck on kitchen.sh, hooks/guard.sh and bin/bk (shellcheck required)
 # 3. skills      frontmatter sanity: name matches folder, description present,
 #                disable-model-invocation only on setup
-# 4. behaviour   tests/kitchen.test.sh and tests/guard.test.sh
-# 5. release     plugin.json's version is the top CHANGELOG.md entry and, on a branch,
-#                is higher than origin/main's (every merge to main is a release)
+# 4. behaviour   tests/kitchen.test.sh, tests/guard.test.sh and tests/bk.test.sh
+# 5. release     plugin.json's version is the top CHANGELOG.md entry, the one Formula/bk.rb
+#                downloads, and, on a branch, higher than origin/main's (every merge to
+#                main is a release)
 #
 # Exit 0 = safe to push to main (which is the release).
 # =============================================================================
@@ -17,6 +18,7 @@ set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 KITCHEN=plugins/bk/skills/kitchen/kitchen.sh
 GUARD=plugins/bk/hooks/guard.sh
+BK=bin/bk
 FAILED=()
 
 step() { echo ""; echo "== $1"; }
@@ -32,11 +34,13 @@ else
   echo "   ! claude CLI not found: manifest validation skipped"
 fi
 
-step "2. kitchen.sh and hooks/guard.sh"
+step "2. kitchen.sh, hooks/guard.sh and bin/bk"
 bash -n "$KITCHEN" && echo "   ✓ bash -n kitchen.sh" || fail "bash -n $KITCHEN"
 bash -n "$GUARD" && echo "   ✓ bash -n guard.sh" || fail "bash -n $GUARD"
+bash -n "$BK" && echo "   ✓ bash -n bk" || fail "bash -n $BK"
+[[ -x "$BK" ]] && echo "   ✓ bin/bk is executable" || fail "$BK is not executable"
 if command -v shellcheck >/dev/null; then
-  if out=$(shellcheck -S warning "$KITCHEN" "$GUARD" tests/kitchen.test.sh tests/guard.test.sh scripts/check.sh 2>&1); then echo "   ✓ shellcheck"
+  if out=$(shellcheck -S warning "$KITCHEN" "$GUARD" "$BK" tests/kitchen.test.sh tests/guard.test.sh tests/bk.test.sh scripts/check.sh 2>&1); then echo "   ✓ shellcheck"
   else echo "$out" | sed 's/^/     /'; fail "shellcheck"; fi
 else
   fail "shellcheck not installed (brew install shellcheck)"
@@ -60,13 +64,15 @@ done
 python3 -c 'import json,sys; json.load(open("plugins/bk/hooks/hooks.json"))["hooks"]' 2>/dev/null || fail "plugins/bk/hooks/hooks.json: not valid JSON with a top-level \"hooks\" key"
 (( ${#FAILED[@]} == before )) && echo "   ✓ $(ls plugins/bk/skills/*/SKILL.md | wc -l | tr -d ' ') skills, $(ls plugins/bk/agents/*.md | wc -l | tr -d ' ') agents"
 
-step "4. behaviour (tests/kitchen.test.sh, tests/guard.test.sh)"
+step "4. behaviour (tests/kitchen.test.sh, tests/guard.test.sh, tests/bk.test.sh)"
 if out=$(bash tests/kitchen.test.sh 2>&1); then echo "   ✓ kitchen: $(printf '%s\n' "$out" | tail -1 | sed 's/^# //')"
 else printf '%s\n' "$out" | grep -E '^not ok|^# passed' | sed 's/^/     /'; fail "kitchen tests"; fi
 if out=$(bash tests/guard.test.sh 2>&1); then echo "   ✓ guard: $(printf '%s\n' "$out" | tail -1 | sed 's/^# //')"
 else printf '%s\n' "$out" | grep -E '^not ok|^# passed' | sed 's/^/     /'; fail "guard tests"; fi
+if out=$(bash tests/bk.test.sh 2>&1); then echo "   ✓ bk: $(printf '%s\n' "$out" | tail -1 | sed 's/^# //')"
+else printf '%s\n' "$out" | grep -E '^not ok|^# passed' | sed 's/^/     /'; fail "bk tests"; fi
 
-step "5. release (version and CHANGELOG.md)"
+step "5. release (version, CHANGELOG.md, Formula/bk.rb)"
 before=${#FAILED[@]}
 version_of() { sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' | head -1; }
 newer() {  # newer A B: A > B, both X.Y.Z
@@ -82,6 +88,8 @@ else
   top=$(grep -m1 '^## \[' CHANGELOG.md 2>/dev/null)
   [[ "$top" =~ ^"## [$version] - "[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] \
     || fail "CHANGELOG.md: top entry is '${top:-missing}', want '## [$version] - YYYY-MM-DD'"
+  grep -q "/archive/refs/tags/v$version.tar.gz\"" Formula/bk.rb \
+    || fail "Formula/bk.rb: url must download v$version (the release workflow fills in the sha256)"
   if ! git rev-parse -q --verify origin/main >/dev/null; then
     echo "   ! no origin/main: version bump not checked"
   elif git merge-base --is-ancestor HEAD origin/main && git diff --quiet HEAD; then
