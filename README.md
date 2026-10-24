@@ -161,8 +161,16 @@ touching a terminal. The sous stands at the pass, each cook at its station with 
 the commis at the record, and every message between them appears as a speech bubble and
 in the console below. The rail is down the left. Click a cook or the sous for its page:
 what it is doing, its branch, its questions, and controls that type into that session for
-you (send a line, change the model, hand off, answer a question). Run `bk live` again to
-close it. Try it without a kitchen: `bk live --demo`.
+you (send a line, change the model, hand off, answer a question). The chip at the foot is
+the budget: what the shift has spent in money, tokens, working time and CI minutes, with one
+sheet behind it, a row per session and per ticket. Run `bk live` again to close it. Try it without
+a kitchen: `bk live --demo`.
+
+**What does it cost?** `bk budget` says, in the terminal: tokens (input, output, cache read,
+cache write), money at list prices, time per session and per ticket (brief to served, and
+each phase), the sub-agents, and with `--ci` the CI minutes of each ticket's PR. It reads the
+transcripts Claude Code already keeps, so there is nothing to switch on. Each ticket's
+journal gets a cost line at the PR.
 
 <details>
 <summary>Inside Claude Code</summary>
@@ -232,7 +240,7 @@ question, is in [`PLAYBOOK.md`](PLAYBOOK.md).
 
 | | |
 |---|---|
-| `bk` | `setup`, `stations`, `open`, `attach`, `peek`, `stop`, `status`, `live`, `run`, `feedback`, profiles, and every `kitchen.sh` word (`board`, `rail`, `questions`, `doctor`, `sync`, …) |
+| `bk` | `setup`, `stations`, `open`, `attach`, `peek`, `stop`, `status`, `live`, `run`, `feedback`, profiles, and every `kitchen.sh` word (`board`, `rail`, `questions`, `doctor`, `budget`, `sync`, …) |
 | `setup` · `kitchen` | set up a repo; manage stations and print the boards |
 | `sous-chef` · `line-cook` | the lead and worker roles |
 | `brainstorm` · `grill-me` · `spec` · `file-tickets` | from idea to tickets |

@@ -34,6 +34,7 @@ export async function runDemo(store, { stations = 2 } = {}) {
   }
 
   for (const id of extras) backgroundCook(store, id, grow);
+  demoBudget(store);
 
   let round = 0;
   for (;;) {
@@ -205,4 +206,37 @@ async function backgroundCook(store, id, grow) {
     // Retire the ticket from the rail so the board stays readable.
     store.setRail({ ...store.state.rail, done: store.state.rail.done.filter((t) => t.id !== ticket) });
   }
+}
+
+// The budget in the demo: every actor spends at a rate that follows what it is doing, each
+// ticket on the floor accrues what its cook spends, a served ticket keeps its total.
+function demoBudget(store, every = 1000) {
+  const RATE = { thinking: 0.9, editing: 1.4, running: 0.4, reading: 0.7, waiting: 0.05, idle: 0, offline: 0 }; // cents per second
+  const PRICE = { opus: 1, sonnet: 0.5, haiku: 0.03, fable: 2.5 };
+  const actors = {}, tickets = new Map(), since = Date.now();
+  const tok = (usd) => Math.round(usd / 2.6 * 1e6); // mostly cache reads at $0.20 to $0.25 per million, as in a real session
+  const zero = () => ({ in: 0, out: 0, read: 0, w5: 0, w1: 0 });
+  const tick = () => {
+    const s = store.state;
+    const who = [['sous', s.sous, null], ...s.stations.map((st) => [st.id, st.cook, st.ticket])];
+    for (const [id, a, ticket] of who) {
+      const x = (actors[id] ||= { sessions: 1, cost: 0, total: 0, secs: 0, activeSecs: 0, helpers: {}, current: { role: id, model: a.model, tokens: zero(), total: 0, cost: 0, priced: true, helpers: {}, helperCost: 0, allCost: 0, allTotal: 0, secs: 0, activeSecs: 0, startedAt: since } });
+      const d = (RATE[a.activity] || 0) * (PRICE[a.model] || 1) / 100 * (every / 1000);
+      x.cost += d; x.total += tok(d); x.secs += every / 1000; if (d) x.activeSecs += every / 1000;
+      x.current.helpers = x.helpers; x.current.cost = x.cost; x.current.allCost = x.cost; x.current.total = x.total; x.current.allTotal = x.total; x.current.secs = x.secs; x.current.activeSecs = x.activeSecs; x.current.model = a.model;
+      x.current.tokens.read += tok(d) * 0.9; x.current.tokens.w5 += tok(d) * 0.08; x.current.tokens.out += tok(d) * 0.02;
+      if (ticket) {
+        const t = tickets.get(ticket) || { id: ticket, cook: id, session: a.session, status: 'open', startedAt: Date.now(), servedAt: null, tokens: zero(), total: 0, cost: 0, helpers: {}, helperCost: 0, allCost: 0, phases: { plan: null, wait: null, build: null, pass: null, ship: null }, secs: 0 };
+        tickets.set(ticket, t);
+        t.cost += d; t.allCost = t.cost; t.total += tok(d); t.tokens.read += tok(d) * 0.9; t.tokens.out += tok(d) * 0.02; t.secs = Math.round((Date.now() - t.startedAt) / 1000);
+      }
+    }
+    for (const h of s.helpers) { const x = actors[h.from]; if (!x) continue; const k = (x.helpers[h.kind] ||= { runs: 0, cost: 0, total: 0, secs: 0 }); if (!h._counted) { h._counted = true; k.runs++; } k.cost += 0.004; x.cost += 0.004; x.current.helperCost = (x.current.helperCost || 0) + 0.004; x.current.allCost = x.cost; }
+    for (const t of tickets.values()) if (t.status === 'open' && !s.stations.some((st) => st.ticket === t.id)) { t.status = 'served'; t.servedAt = Date.now(); t.phases = { plan: 9, wait: 6, build: Math.max(10, t.secs - 30), pass: 8, ship: 7 }; t.ci = { minutes: 4.5, cost: 0.036, runs: 2, branch: `${t.id.toLowerCase()}-x`, public: false }; }
+    const shift = { tokens: zero(), total: 0, cost: 0, secs: 0, activeSecs: 0, helperCost: 0, ci: { minutes: 0, cost: 0 } };
+    for (const x of Object.values(actors)) { shift.cost += x.cost; shift.total += x.total; shift.secs += x.secs; shift.activeSecs += x.activeSecs; for (const k of Object.keys(shift.tokens)) shift.tokens[k] += x.current.tokens[k]; }
+    for (const t of tickets.values()) if (t.ci) { shift.ci.minutes += t.ci.minutes; shift.ci.cost += t.ci.cost; }
+    store.setBudget({ asOf: '2026-10-24', since, computedAt: Date.now(), shift, sessions: Object.values(actors).map((x) => x.current), tickets: [...tickets.values()], actors, unknownModels: [] });
+  };
+  const t = setInterval(tick, every); t.unref?.();
 }

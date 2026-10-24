@@ -97,6 +97,8 @@ clean:                                   # lane C counters; each command prints 
     - name: todo-comments
       command: "git grep -n -E 'TODO|FIXME' -- ':!docs'"
   umbrella: null                         # optional: a tracker id, or a markdown ticket path whose ## Snapshots gets a row per scan
+prices:                                  # the budget's price table, USD per million tokens; a key is any part of a model id
+  # opus: { in: 4, out: 20, read: 0.20 } # overrides the built-in list prices (cache writes: 1.25x in, 2x for the 1-hour kind)
 docs:                                    # the map of everything the kitchen keeps (Contract 12)
   specs: docs/specs
   backlog: docs/backlog
@@ -120,6 +122,15 @@ head chef. A missing block means `feature: head-chef` and the rest `sous-chef`. 
 is always `head-chef`: a config that says otherwise is read as the default. A `docs`
 key set to `none` means the repo keeps no such store; `.claude/inbox.md` (Contract 12) is
 not under `docs` because it never reaches git.
+
+**The budget.** The kitchen knows what it spends: tokens (input, output, cache read, cache
+write), money, time and CI minutes, per session and per ticket, read from the transcripts
+Claude Code keeps for every session and sub-agent. `kitchen.sh budget` prints it, the
+Window shows it (a chip at the foot, a sheet on `B`, rows on each figure's page), and nothing
+in the kitchen records it by hand. Money is tokens times the model's list price on a dated
+built-in table; `prices:` overrides any entry. Served tickets and CI results are kept in
+`.claude/budget.jsonl` (out of git) because Claude Code deletes transcripts after its
+cleanup period. It is a meter, not a limit: nothing stops because of it.
 
 **Where each artifact lands.** Rail artifacts (specs and tickets) are written by the sous in
 the main checkout and reach trunk straight away (`rail.commit`). Work artifacts (a ticket's
@@ -643,6 +654,19 @@ cook. Entries are append-only, one line each where possible:
 - 2026-09-29 15:10 · <session name> · finding 2 (pass): <what> → fixed in <file>
 ```
 
+The journal's last line, after the closing handoff, is the ticket's **cost line**, printed
+by `kitchen.sh budget --ticket <ID> --journal-line [--session <name>]` and appended by
+`/bk:open-pr` before it commits: money, tokens, brief→PR with the phases known by then
+(plan, wait, build, pass), and the helpers. The ship phase and the CI minutes come later and
+live in `.claude/budget.jsonl`, not in the journal. The ticket's spend is what its cook
+spent between the brief and `[served]`, across a `/clear` if there was one, plus its
+sub-agents and the sous's sub-agents that name it (the taster at the pass); the sous's own
+turns are the shift's, not the ticket's.
+
+```
+- 2026-09-29 16:40 · <session name> · cost: $4.63 · 1.5M tokens (in 1.0M, out 5k, cache read 450k, cache write 50k) · brief→PR 41m (plan 31m, wait 2m, build 8m, pass 1m) · helpers: runner 1 ($0.05), taster 1 ($2.00)
+```
+
 An **unanswered question** is a `Qn:` with no matching `An`. That's how a fresh sous finds
 what cooks are waiting on: `grep` across `<kitchen>/*/docs/journal/`.
 
@@ -653,7 +677,8 @@ what cooks are waiting on: `grep` across `<kitchen>/*/docs/journal/`.
   handoff is in the reviewed PR (the journal is the one file allowed to change after the
   pass). The human can also run it any time, e.g. before clearing a cook between plan and
   implement. A fresh cook reads its ticket's journal and resumes from the last handoff.
-- **Sous:** overwrites the gitignored `.claude/sous-handoff.md` with only what lives nowhere
+- **Sous:** files the record, fetches CI minutes for the week's tickets into the budget's
+  ledger, then overwrites the gitignored `.claude/sous-handoff.md` with only what lives nowhere
   else: the head chef's standing instructions, what it meant to fire next, walk-in holds it
   granted, and which session is which cook. A fresh `/bk:sous-chef` reads it first, then
   checks it against the rail, stations and journals; **reality wins over the note**.

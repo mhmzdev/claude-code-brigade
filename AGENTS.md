@@ -39,11 +39,13 @@ plugins/bk/                         the plugin (skills are invoked /bk:<skill>)
 │                                   create-plan, implement, review-task, open-pr, clean, handoff,
 │                                   feedback, live
 ├── skills/kitchen/kitchen.sh       the runtime script: stations, boards, role, sous, questions,
-│                                   lessons, decisions, inbox, doctor, sessions, live
+│                                   lessons, decisions, inbox, doctor, sessions, live, budget
 ├── window/                         the Window (/bk:live): a Node server with no dependencies
 │                                   (server/, live/ readers of the registry, transcripts, git,
-│                                   rail, record) and a 2.5D room in plain DOM and CSS 3D (web/:
-│                                   scene.js the room and its characters, main.js the HUD)
+│                                   rail, record; live/budget.js the budget reader, which
+│                                   kitchen.sh budget runs too) and a 2.5D room in plain DOM
+│                                   and CSS 3D (web/: scene.js the room and its characters,
+│                                   main.js the HUD)
 ├── hooks/hooks.json, hooks/guard.sh  PreToolUse guard: no human dialog in a station outside a
 │                                   grilling; no [gate] question without the commis's result
 ├── agents/                         commis (searches the record), inspector (report-only),
@@ -58,6 +60,7 @@ CHANGELOG.md                        one entry per version, newest first
 tests/kitchen.test.sh               behaviour tests for kitchen.sh, both kitchen modes
 tests/guard.test.sh                 behaviour tests for hooks/guard.sh: clone and worktree stations
 tests/bk.test.sh                    behaviour tests for bin/bk: stub tmux and claude, a fake registry
+tests/budget.test.sh                behaviour tests for the budget: handmade transcripts, a stub gh
 docs/the-names.md                   the Brigade names, plus Qafila as an alternate
 PLAYBOOK.md                         how each flow runs, as questions and answers; the contract wins over it
 assets/hero.jpeg                    README banner
@@ -129,7 +132,10 @@ It runs, in order:
    `tests/guard.test.sh`: the hook guard fed the JSON Claude Code sends, in a clone station,
    a worktree station, the main checkout and a repo without the Brigade; and
    `tests/bk.test.sh`: `bin/bk` against a stub `tmux` that logs its calls and a fake session
-   registry, covering profiles, attach and peek, the pause and the resume;
+   registry, covering profiles, attach and peek, the pause and the resume; and
+   `tests/budget.test.sh`: `kitchen.sh budget` over handmade transcripts (a sous, two cook
+   conversations on one ticket, their sub-agents) and a stub `gh`, covering dedupe, prices,
+   ticket spans and phases, the ledger, CI minutes and the journal line;
 5. a release check: `version` in `plugin.json` is `X.Y.Z`, it's the top entry of
    `CHANGELOG.md` (`## [X.Y.Z] - YYYY-MM-DD`), `Formula/bk.rb` downloads that tag, and on a
    branch it's higher than `origin/main`'s.
@@ -144,7 +150,7 @@ keeps the temp dir for poking at.
 have). The `claude` CLI isn't installed there, so step 1 is skipped in CI: run the gate locally
 too. A red check means don't merge.
 
-**When you add behaviour to `kitchen.sh`, `guard.sh` or `bin/bk`, add a test for it, and make sure it can fail:**
+**When you add behaviour to `kitchen.sh`, `guard.sh`, `bin/bk` or `budget.js`, add a test for it, and make sure it can fail:**
 break the code on purpose and watch the test go red before you trust it green. Every test in
 the suite was checked that way when it was written.
 

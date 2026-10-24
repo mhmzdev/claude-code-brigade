@@ -7,6 +7,9 @@ import { tailTranscript, transcriptPath } from './transcripts.js';
 import { watchStations } from './stations.js';
 import { watchRail } from './rail.js';
 import { watchRecord } from './record.js';
+import { createBudget } from './budget.js';
+import { execFile } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 export function startLive(store, startDir, control = null) {
   const cfg = readConfig(startDir);
@@ -55,7 +58,20 @@ export function startLive(store, startDir, control = null) {
     for (const st of store.state.stations) if (!found.some((s) => s.role === st.id)) store.setActor(st.id, { session: null, status: 'offline', activity: 'offline' });
   });
   watchHandoff(cfg, store);
+  watchBudget(cfg, store);
   return cfg;
+}
+
+// The budget: read from the transcripts every few seconds (incrementally, so it stays cheap),
+// served tickets written to the ledger; CI minutes asked of gh in a child process, so a slow
+// network never stalls the Window.
+function watchBudget(cfg, store, every = 10000, ciEvery = 10 * 60000) {
+  const budget = createBudget({ root: cfg.root, stations: cfg.stations });
+  const tick = () => { try { store.setBudget(budget.compute({ write: true })); } catch (e) { console.log(`budget: ${e.message}`); } };
+  tick(); const t = setInterval(tick, every); t.unref?.();
+  const reader = fileURLToPath(new URL('./budget.js', import.meta.url));
+  const ci = () => execFile('node', [reader, '--root', cfg.root, '--ci', '--json'], { encoding: 'utf8', timeout: 120000 }, () => tick());
+  const c = setTimeout(() => { ci(); const i = setInterval(ci, ciEvery); i.unref?.(); }, 20000); c.unref?.();
 }
 
 // When this conversation began: a /clear starts a new transcript file, so its first line's

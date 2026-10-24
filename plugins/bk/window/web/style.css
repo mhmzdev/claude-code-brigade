@@ -193,7 +193,7 @@ kbd{font-family:var(--mono);font-size:10.5px;color:var(--dim);font-weight:400}
 #gate .note{margin:0}
 
 /* the line */
-#linepane{position:absolute;top:56px;left:10px;z-index:15;width:216px;max-height:calc(100vh - 130px);overflow:auto;border-radius:10px;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(8px);padding:6px}
+#linepane{position:absolute;top:56px;left:10px;z-index:15;width:244px;max-height:calc(100vh - 130px);overflow:auto;border-radius:10px;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(8px);padding:6px}
 #linepane .h{padding:4px 8px 6px}
 #line{list-style:none;margin:0;padding:0}
 #line button{width:100%;display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;border:1px solid transparent;background:transparent;cursor:pointer;text-align:left}
@@ -204,7 +204,8 @@ kbd{font-family:var(--mono);font-size:10.5px;color:var(--dim);font-weight:400}
 #line .nm{font-size:12.5px;font-weight:600;white-space:nowrap}
 #line .gate{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
 #line .sp{flex:1}
-#line .tk{font-family:var(--mono);font-size:10.5px;color:#7d776c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px}
+#line .tk{font-family:var(--mono);font-size:10.5px;color:#7d776c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70px}
+#line .cost{font-family:var(--mono);font-size:10.5px;color:#c9a227;white-space:nowrap;flex:none}
 #line kbd{border:1px solid var(--line);border-radius:3px;padding:0 3px;font-size:10px}
 
 /* the bottom sheet */
@@ -235,7 +236,16 @@ kbd{font-family:var(--mono);font-size:10.5px;color:var(--dim);font-weight:400}
 
 /* the bottom bar */
 #hud-bottom{position:absolute;left:10px;right:10px;bottom:10px;z-index:30;display:flex;gap:10px;align-items:center;pointer-events:none}
-#railsum{height:42px;gap:14px;padding:0 14px;border-radius:10px;cursor:pointer;font-size:11.5px;color:var(--muted)}
+#railsum,#budgetsum{height:42px;gap:14px;padding:0 14px;border-radius:10px;cursor:pointer;font-size:11.5px;color:var(--muted)}
+#budgetsum b{color:#e2c15a;font-weight:500}#budgetsum span{color:var(--muted)}#budgetsum:hover{border-color:var(--line2)}
+.budget{flex:1;min-height:0;overflow:auto;padding:0 14px 10px;display:grid;grid-template-columns:minmax(300px,2fr) minmax(360px,3fr);gap:14px}
+.budget h3{margin:6px 0 4px;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.budget table{width:100%;border-collapse:collapse;font-size:12px}
+.budget th{font-family:var(--mono);font-size:10.5px;font-weight:500;color:var(--dim);text-align:left;padding:3px 6px;border-bottom:1px solid #2e2b26;letter-spacing:.04em}
+.budget td{font-family:var(--mono);font-size:11.5px;padding:4px 6px;border-bottom:1px solid #26241f;white-space:nowrap;color:#d9d2c4}
+.budget td.n{text-align:right}.budget th.n{text-align:right}.budget td.usd{color:#e2c15a}.budget td.dim{color:#7d776c}
+.budget .foot{grid-column:1/-1;font-size:11px;color:var(--dim)}
+.budget .none{font-family:var(--mono);font-size:11px;color:#7d776c;padding:6px}
 #railsum:hover{border-color:var(--line2)}
 #railsum b{color:var(--ink);font-weight:500}#railsum b.doing{color:var(--accent2)}
 #chatform{pointer-events:auto;flex:1;max-width:720px;margin:0 auto;display:flex;gap:6px;align-items:center;height:42px;padding:3px 3px 3px 4px;border-radius:10px;background:rgba(27,26,23,.94);border:1px solid var(--line2);box-shadow:0 8px 24px rgba(0,0,0,.35)}

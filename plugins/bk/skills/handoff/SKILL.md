@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Write this session's handoff so it can be cleared and a fresh session carries on — the role comes from where it runs. In a station (a line cook) it appends a Handoff section to the ticket's journal (stage, what's uncommitted, next step, pending questions, follow-ups, lessons). In the main checkout (the sous chef) it runs the lesson count, files the record (head-chef decisions into ADRs, unanswered questions into question files, the inbox into the docs), and overwrites the gitignored .claude/sous-handoff.md with what lives nowhere else. Cooks run it on [go] before open-pr; anyone can run it before a /clear. Use when the user says "handoff", "hand over", "write a handoff", "I'm going to clear you", "/bk:handoff".
+description: Write this session's handoff so it can be cleared and a fresh session carries on — the role comes from where it runs. In a station (a line cook) it appends a Handoff section to the ticket's journal (stage, what's uncommitted, next step, pending questions, follow-ups, lessons). In the main checkout (the sous chef) it runs the lesson count, files the record (head-chef decisions into ADRs, unanswered questions into question files, the inbox into the docs), fetches CI minutes into the budget's ledger, and overwrites the gitignored .claude/sous-handoff.md with what lives nowhere else. Cooks run it on [go] before open-pr; anyone can run it before a /clear. Use when the user says "handoff", "hand over", "write a handoff", "I'm going to clear you", "/bk:handoff".
 argument-hint: "(none: the role comes from the station check)"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, SendMessage, ListAgents, ToolSearch
 ---
@@ -57,7 +57,8 @@ Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`.
 ## Sous handoff
 
 This is the one checkpoint that files the record (Contract 12), so steps 1 to 4 come before
-the note. They're mechanical lists; the judgement is only *where* each item goes.
+the note, and step 5 tops up the budget. They're mechanical lists; the judgement is only
+*where* each item goes.
 
 1. **The lesson count** (Contract 11, the only time it runs):
    ```bash
@@ -110,7 +111,13 @@ the note. They're mechanical lists; the judgement is only *where* each item goes
    `docs.decisions`; already in the record after all → nowhere. No type fits → add one
    (Contract 12, rule 4) and say so. Then delete the line from `.claude/inbox.md`. The
    inbox should be empty when you finish.
-5. **Overwrite** `.claude/sous-handoff.md` (make sure `.gitignore` lists it) with only what
+5. **CI minutes** (Contract 2), so each ticket's budget is complete:
+   ```bash
+   "${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" budget --ci --since 7d
+   ```
+   It asks `gh` for the runs on the PR branch of every ticket worked on this week and keeps
+   the minutes in `.claude/budget.jsonl`. No `gh`, or no PR yet → it says so per ticket; go on.
+6. **Overwrite** `.claude/sous-handoff.md` (make sure `.gitignore` lists it) with only what
    lives nowhere else:
    ```markdown
    # Sous handoff — <YYYY-MM-DD HH:MM> · <session name>
@@ -132,7 +139,7 @@ the note. They're mechanical lists; the judgement is only *where* each item goes
    ```
    Don't copy the rail, the station status or the PR list into it: a fresh sous reads those
    live, and a copy would only drift.
-6. **Tell the cooks** in one line each: `[status] sous restarting; re-send anything pending
+7. **Tell the cooks** in one line each: `[status] sous restarting; re-send anything pending
    after my [hello]`.
 
 ## Reading a handoff on start

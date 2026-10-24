@@ -12,6 +12,13 @@ const hhmm = (t) => new Date(t).toTimeString().slice(0, 5);
 const NAME = { 'head-chef': 'head chef', headchef: 'head chef' };
 const who = (id) => NAME[id] || id;
 const LINE_KEYS = '123456789';
+// Numbers, formatted the way the budget prints them in the terminal.
+const fmtTok = (n) => n >= 1e6 ? `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(Math.round(n || 0));
+const fmtUsd = (n) => n == null ? '–' : `$${n >= 100 ? n.toFixed(0) : n >= 10 ? n.toFixed(1) : n.toFixed(2)}`;
+const fmtSecs = (x) => { if (x == null) return '–'; if (x < 60) return `${Math.round(x)}s`; const m = Math.round(x / 60); return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`; };
+const spent = (s, id) => s.budget?.actors?.[id] || null;
+const ticketSpend = (s, id) => (s.budget?.tickets || []).find((t) => t.id === id) || null;
+const helpersLine = (h) => Object.entries(h || {}).map(([k, x]) => `${k} ${x.runs} (${fmtUsd(x.cost)})`).join(', ') || '–';
 
 const scene = createScene($('#stage'));
 window.__window = scene;
@@ -69,8 +76,8 @@ function renderLine(s) {
   $('#linepane').hidden = !ui.line;
   $('#line').innerHTML = lineIds(s).map((id, i) => {
     const a = actorOf(s, id), st = stationOf(s, id);
-    const tk = st ? (st.ticket || a?.model || '') : (a?.model || '');
-    return `<li><button type="button" data-who="${esc(id)}" class="${focus === id ? 'sel' : ''}"><span class="st ${esc(statusOf(a))}"></span><span class="nm">${esc(a?.name || id)}</span>${a?.activity === 'waiting' ? '<span class="gate" title="waiting"></span>' : ''}<span class="sp"></span><span class="tk">${esc(tk)}</span>${i < 9 ? `<kbd>${i + 1}</kbd>` : ''}</button></li>`;
+    const tk = st ? (st.ticket || a?.model || '') : (a?.model || ''), sp = spent(s, id);
+    return `<li><button type="button" data-who="${esc(id)}" class="${focus === id ? 'sel' : ''}"><span class="st ${esc(statusOf(a))}"></span><span class="nm">${esc(a?.name || id)}</span>${a?.activity === 'waiting' ? '<span class="gate" title="waiting"></span>' : ''}<span class="sp"></span><span class="tk">${esc(tk)}</span>${sp ? `<span class="cost" title="spent today, sub-agents included">${esc(fmtUsd(sp.cost))}</span>` : ''}${i < 9 ? `<kbd>${i + 1}</kbd>` : ''}</button></li>`;
   }).join('');
 }
 
@@ -81,17 +88,36 @@ function renderSheet(s) {
   $('#railsum').innerHTML = COLS.map(([k, n]) => `<span>${n} <b class="${k === 'in-progress' ? 'doing' : ''}">${(s.rail[k] || []).length}</b></span>`).join('');
   if (!open) return;
   for (const b of document.querySelectorAll('#sheet [data-tab]')) b.classList.toggle('on', b.dataset.tab === ui.sheet);
-  $('#rail').hidden = ui.sheet !== 'rail'; $('#log').hidden = ui.sheet !== 'heard';
+  $('#rail').hidden = ui.sheet !== 'rail'; $('#log').hidden = ui.sheet !== 'heard'; $('#budget').hidden = ui.sheet !== 'budget';
   const f = $('#filter'); f.hidden = !(ui.sheet === 'heard' && focus); if (focus) f.textContent = nameOf(focus);
   if (ui.sheet === 'rail') {
     const holder = {}; for (const st of s.stations) if (st.ticket) holder[st.ticket] = st.id;
-    $('#rail').innerHTML = COLS.map(([k, n]) => { const ts = s.rail[k] || []; return `<div class="col ${ts.length ? '' : 'empty'}"><h3><span>${n}</span><span>${ts.length}</span></h3><div class="items">${ts.slice(0, 14).map((t) => `<span class="t ${esc(t.kind || '')} ${holder[t.id] ? 'held' : ''}" data-cook="${esc(holder[t.id] || '')}" title="${esc(t.title || '')}">${esc(t.id)}</span>`).join('')}${ts.length > 14 ? `<span class="more">+${ts.length - 14}</span>` : ''}${ts.length ? '' : '<span class="none">empty</span>'}</div></div>`; }).join('');
+    const tip = (t) => { const b = ticketSpend(s, t.id); return [t.title, b ? `${fmtUsd(b.allCost)} · ${fmtTok(b.total)} tokens · ${fmtSecs(b.secs)}` : null].filter(Boolean).join('\n'); };
+    $('#rail').innerHTML = COLS.map(([k, n]) => { const ts = s.rail[k] || []; return `<div class="col ${ts.length ? '' : 'empty'}"><h3><span>${n}</span><span>${ts.length}</span></h3><div class="items">${ts.slice(0, 14).map((t) => `<span class="t ${esc(t.kind || '')} ${holder[t.id] ? 'held' : ''}" data-cook="${esc(holder[t.id] || '')}" title="${esc(tip(t))}">${esc(t.id)}</span>`).join('')}${ts.length > 14 ? `<span class="more">+${ts.length - 14}</span>` : ''}${ts.length ? '' : '<span class="none">empty</span>'}</div></div>`; }).join('');
     $('#count').textContent = '';
+  } else if (ui.sheet === 'budget') {
+    renderBudget(s); $('#count').textContent = '';
   } else {
     const lines = focus ? s.log.filter((m) => involves(m, focus)) : s.log;
     $('#log').innerHTML = lines.slice(-120).reverse().map((m) => `<li><span class="t">${hhmm(m.t)}</span><span class="k ${kindClass(m.kind)}">${esc(m.kind)}</span><span class="who">${esc(who(m.from))} → ${esc(who(m.to))}</span><span class="txt">${linkify(m.text)}</span></li>`).join('');
     $('#count').textContent = `${lines.length} line${lines.length === 1 ? '' : 's'}`;
   }
+}
+
+// ---------- the budget: the chip at the foot, and its sheet ----------
+function renderBudgetSum(s) {
+  const b = s.budget, el = $('#budgetsum');
+  el.hidden = !b; if (!b) return;
+  el.innerHTML = `<b>${esc(fmtUsd(b.shift.cost))}</b><span>${esc(fmtTok(b.shift.total))} tok</span><span>${esc(fmtSecs(b.shift.activeSecs))} working</span><span>CI ${esc(String(b.shift.ci?.minutes || 0))} min</span>`;
+}
+function renderBudget(s) {
+  const b = s.budget, el = $('#budget');
+  if (!b) { el.innerHTML = '<p class="none">No budget yet: it is read from the session transcripts, so it appears once a session has spoken.</p>'; return; }
+  const u = b.shift.tokens, hh = (t) => t ? new Date(t).toTimeString().slice(0, 5) : '–';
+  const sessions = b.sessions.length ? `<table><tr><th>who</th><th>model</th><th>start</th><th class="n">working</th><th class="n">tokens</th><th class="n">cost</th><th>helpers</th></tr>${b.sessions.map((x) => `<tr><td>${esc(x.role)}</td><td>${esc(x.model ? String(x.model).replace(/^claude-/, '') : '?')}</td><td class="dim">${hh(x.startedAt)}</td><td class="n">${fmtSecs(x.activeSecs)}</td><td class="n">${fmtTok(x.allTotal)}</td><td class="n usd">${x.priced === false && !x.allCost ? 'no price' : fmtUsd(x.allCost)}</td><td class="dim">${esc(helpersLine(x.helpers))}</td></tr>`).join('')}</table>` : '<p class="none">No sessions in this window.</p>';
+  const tickets = b.tickets.length ? `<table><tr><th>ticket</th><th>cook</th><th>status</th><th class="n">brief→served</th><th class="n">plan</th><th class="n">wait</th><th class="n">build</th><th class="n">pass</th><th class="n">ship</th><th class="n">tokens</th><th class="n">cost</th><th class="n">CI</th></tr>${b.tickets.map((t) => `<tr><td>${esc(t.id)}</td><td>${esc(t.cook || '')}</td><td class="dim">${esc(t.status)}</td><td class="n">${fmtSecs(t.secs)}</td>${['plan', 'wait', 'build', 'pass', 'ship'].map((k) => `<td class="n dim">${fmtSecs(t.phases?.[k])}</td>`).join('')}<td class="n">${fmtTok(t.total)}</td><td class="n usd">${fmtUsd(t.allCost)}</td><td class="n dim">${t.ci ? `${t.ci.minutes}m` : '–'}</td></tr>`).join('')}</table>` : '<p class="none">No ticket has been briefed yet.</p>';
+  el.innerHTML = `<div><h3>Sessions today · ${esc(fmtUsd(b.shift.cost))}</h3>${sessions}</div><div><h3>Tickets</h3>${tickets}</div>
+    <p class="foot">Tokens today: in ${esc(fmtTok(u.in))} · out ${esc(fmtTok(u.out))} · cache read ${esc(fmtTok(u.read))} · cache write ${esc(fmtTok(u.w5 + u.w1))}. Prices: Anthropic list as of ${esc(b.asOf)}${b.unknownModels?.length ? `; no price for ${esc(b.unknownModels.join(', '))}` : ''}. CI minutes come from gh for each ticket's PR branch. The terminal says the same: <code>kitchen.sh budget</code>.</p>`;
 }
 
 // ---------- the popover on the selected figure, and the hover tip ----------
@@ -138,8 +164,8 @@ function renderInspector(s) {
   if (id === 'headchef') facts = [['talks to', 'the sous only'], ['waiting', s.headChef.pending.length ? `${s.headChef.pending.length} question(s)` : 'nothing']];
   else if (id === 'runner') { const ck = s.check || {}, running = (s.helpers || []).filter((h) => h.kind === 'runner'); facts = [['role', HELPER.runner.role], ['reports', 'the sous'], ['in the machine', running[0] ? `${running[0].from} · ${running[0].note || 'the check'}` : 'nobody'], ['next', running.slice(1).map((h) => h.from).join(', ') || 'nobody'], ['last', ck.last ? `${ck.last.ok === false ? 'fail' : ck.last.ok ? 'pass' : 'done'} in ${ck.last.secs}s · ${ck.last.who}` : null], ['this shift', `${ck.runs || 0} runs · ${ck.failed || 0} red`]]; }
   else if (isHelper(id)) facts = [['role', HELPER[id].role], ['reports', 'the sous']];
-  else if (id === 'sous') facts = [['session', a.session || 'not running'], ['model', a.model], ['where', 'the main checkout'], ['pid', a.pid], ['attach', a.tmux ? `tmux attach -t ${a.tmux}` : null]];
-  else facts = [['session', a.session || 'not running'], ['model', a.model], ['ticket', st.ticket], ['station', st.path || st.id], ['branch', st.branch || 'detached at trunk'], ['tree', st.dirty ? 'dirty' : 'clean'], ['ahead', st.ahead ? `+${st.ahead} commits` : null], ['pid', a.pid], ['peek', a.tmux ? `tmux attach -t ${a.tmux}` : null]];
+  else if (id === 'sous') facts = [['session', a.session || 'not running'], ['model', a.model], ['where', 'the main checkout'], ['pid', a.pid], ['attach', a.tmux ? `tmux attach -t ${a.tmux}` : null], ...spendFacts(s, id, null)];
+  else facts = [['session', a.session || 'not running'], ['model', a.model], ['ticket', st.ticket], ['station', st.path || st.id], ['branch', st.branch || 'detached at trunk'], ['tree', st.dirty ? 'dirty' : 'clean'], ['ahead', st.ahead ? `+${st.ahead} commits` : null], ['pid', a.pid], ['peek', a.tmux ? `tmux attach -t ${a.tmux}` : null], ...spendFacts(s, id, st.ticket)];
   const about = id === 'headchef' ? ABOUT.head : isHelper(id) ? HELPER[id].about : id === 'sous' ? ABOUT.sous : ABOUT.cook;
   $('#d-head').innerHTML = `<div class="top"><span class="dot" style="background:var(--${statusOf(a) === 'busy' ? 'busy' : statusOf(a) === 'waiting' ? 'wait' : a ? 'idle' : 'muted'})"></span><strong>${esc(nameOf(id))}</strong>${a ? `<span class="pill" data-s="${esc(statusOf(a))}">${esc(a.activity)}</span>` : ''}<span class="sp"></span><button type="button" class="link" id="insp-close">Close</button></div>
     <dl>${facts.filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${f?.said ? `<p class="say">“${esc(f.said)}”</p>` : ''}<p class="about">${esc(about)}</p>`;
@@ -180,6 +206,18 @@ function renderInspector(s) {
   }
   const heard = s.log.filter((m) => involves(m, id)).slice(-60).reverse();
   $('#d-heard').innerHTML = heard.length ? heard.map((m) => `<li><div class="row"><span class="k">${esc(m.kind)}</span><span class="who">${esc(who(m.from))} → ${esc(who(m.to))}</span><span class="sp"></span><span class="t">${hhmm(m.t)}</span></div><p>${linkify(m.text)}</p></li>`).join('') : '<li class="none">Nothing heard yet.</li>';
+}
+
+// The budget rows of an actor's page: today across its sessions, this conversation, and its ticket.
+function spendFacts(s, id, ticket) {
+  const sp = spent(s, id); if (!sp) return [];
+  const c = sp.current, u = c?.tokens, t = ticket && ticketSpend(s, ticket);
+  return [
+    ['spent today', `${fmtUsd(sp.cost)} · ${fmtTok(sp.total)} tokens · ${fmtSecs(sp.activeSecs)} working${sp.sessions > 1 ? ` · ${sp.sessions} conversations` : ''}`],
+    ['this conversation', c ? `${fmtUsd(c.allCost)} · in ${fmtTok(u.in)} · out ${fmtTok(u.out)} · cache read ${fmtTok(u.read)} · write ${fmtTok(u.w5 + u.w1)}` : null],
+    ['helpers today', Object.keys(sp.helpers || {}).length ? helpersLine(sp.helpers) : null],
+    [t ? `on ${t.id}` : null, t ? `${fmtUsd(t.allCost)} · ${fmtTok(t.total)} tokens · ${fmtSecs(t.secs)} since the brief${t.ci ? ` · CI ${t.ci.minutes} min` : ''}` : null],
+  ].filter(([k, v]) => k && v);
 }
 
 // A styled stand-in for <select>: one button, a list that opens under it, closes on click-away or Esc.
@@ -226,7 +264,7 @@ function ago(t) { const m = Math.round((Date.now() - t) / 60000); return m < 1 ?
 // ---------- render everything ----------
 function render(s) {
   if (!s) return;
-  renderTop(s); renderLine(s); renderSheet(s); renderInspector(s); renderPop(s);
+  renderTop(s); renderLine(s); renderSheet(s); renderBudgetSum(s); renderInspector(s); renderPop(s);
   $('#target').textContent = nameOf(target()); $('#chat').placeholder = `Say something to ${nameOf(target())}…   ( / )`;
 }
 function setFocus(id) {
@@ -239,6 +277,7 @@ $('#hud-top .toggles').addEventListener('click', (e) => { const b = e.target.clo
 $('#sheet .tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { ui.sheet = b.dataset.tab; render(state); } });
 $('#sheet-close').addEventListener('click', () => { ui.sheet = null; render(state); });
 $('#railsum').addEventListener('click', () => { ui.sheet = ui.sheet === 'rail' ? null : 'rail'; render(state); });
+$('#budgetsum').addEventListener('click', () => { ui.sheet = ui.sheet === 'budget' ? null : 'budget'; render(state); });
 $('#filter').addEventListener('click', () => setFocus(null));
 $('#rail').addEventListener('click', (e) => { const t = e.target.closest('.t.held'); if (t?.dataset.cook) { ui.sheet = null; setFocus(t.dataset.cook); } });
 // Question options: the gate, the head chef's inspector page, and the popover share one handler.
@@ -253,14 +292,16 @@ document.addEventListener('keydown', (e) => {
   if (tag === 'input' || tag === 'select' || tag === 'textarea' || e.metaKey || e.ctrlKey || e.altKey || !state) return;
   const k = e.key.toLowerCase(), i = LINE_KEYS.indexOf(e.key);
   if (i >= 0) { const id = lineIds(state)[i]; if (id) setFocus(id === focus ? null : id); return; }
+  // While a question is open, a–i answer it and nothing else.
+  const oi = 'abcdefghi'.indexOf(k);
+  if (ui.gateX && oi >= 0) { const b = document.querySelectorAll('#gate button[data-opt]')[oi]; if (b && !b.disabled) b.click(); return; }
   if (k === '/') { e.preventDefault(); $('#chat').focus(); }
   if (k === 'i') { if (!focus) focus = 'sous'; ui.insp = !ui.insp; scene.setSelected(focus); render(state); }
   if (k === 'r') { ui.sheet = ui.sheet === 'rail' ? null : 'rail'; render(state); }
   if (k === 'h') { ui.sheet = ui.sheet === 'heard' ? null : 'heard'; render(state); }
+  if (k === 'b') { ui.sheet = ui.sheet === 'budget' ? null : 'budget'; render(state); }
   if (k === 'l') { ui.line = !ui.line; render(state); }
   if (k === 'g' && state.headChef.pending.length) { ui.gateX = !ui.gateX; render(state); }
-  const oi = 'abcdefghi'.indexOf(k);
-  if (ui.gateX && oi >= 0) { const b = document.querySelectorAll('#gate button[data-opt]')[oi]; if (b && !b.disabled) b.click(); }
 });
 
 // ---------- the stream ----------

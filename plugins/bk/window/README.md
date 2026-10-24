@@ -4,10 +4,17 @@ A live view of a Brigade kitchen on localhost, drawn as a room in 2.5D from a fi
 the cooks at their stations, the sous at the pass, the head chef in the glass office, the
 commis running to the record, the check as a dish machine that shows what is queued, what is
 in, the last result and the last ten, and messages flying between sessions. Around it float
-what needs you (top), the line (left), the rail or everything heard (a sheet at the bottom),
+what needs you (top), the line (left), the rail, everything heard or the budget (a sheet at the bottom),
 the composer (foot), and an inspector for the selected figure (right).
 
 ![The Window: a four-station demo service](assets/window.png)
+
+The chip at the foot is the budget: what the shift has spent in money, tokens, working time
+and CI minutes. `B` opens its sheet, one table of today's sessions and one of the tickets
+(brief→served and each phase, tokens, cost, CI). The line shows each session's spend today
+and a figure's page has its rows. The numbers come from the transcripts (`live/budget.js`,
+the same reader `kitchen.sh budget` runs), priced on a dated list; served tickets and CI
+minutes (asked of `gh` every ten minutes) are kept in `.claude/budget.jsonl`.
 
 From a kitchen, `/bk:live` opens it and `/bk:live` again closes it (`kitchen.sh live` does
 the same from a shell). It needs node 20 or newer and nothing else: the room is plain DOM and
@@ -54,5 +61,5 @@ already writes; one Server-Sent Events stream; the room is plain DOM and CSS 3D 
 characters as inline SVG, so the browser composites it and nothing redraws while the room is
 still. The only script loop runs while a message is in flight, at most 30 frames a second.
 
-Keys: `1`–`9` select a session, `/` the composer, `i` the inspector, `r` the rail, `h` what was
+Keys: `1`–`9` select a session, `/` the composer, `i` the inspector, `r` the rail, `b` the budget, `h` what was
 heard, `l` the line, `g` the question waiting on you (then `a`, `b`, … to answer), `Esc` back.

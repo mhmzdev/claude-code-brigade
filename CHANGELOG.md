@@ -12,6 +12,23 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.23.0] - 2026-10-24
+
+**The kitchen's budget.** The kitchen now knows what it spends, per session and per ticket:
+tokens (input, output, cache read, cache write), money at Anthropic's list prices on a dated
+table (`prices:` in `.claude/brigade.md` overrides it), time (working time per session;
+brief→served per ticket with its phases: plan, wait, build, pass, ship), every sub-agent,
+and the CI minutes of each ticket's PR branch. `kitchen.sh budget` (and `bk budget`) prints
+it; `--ticket ID`, `--since 7d|all`, `--ci`, `--json`. The Window shows it: a chip at the
+foot with the shift's spend, a Budget sheet (`B`) with a row per session and per ticket, the
+spend on each line entry and on each figure's page. It is all read from the transcripts
+Claude Code already keeps, so nothing has to be switched on; served tickets and CI results
+are kept in `.claude/budget.jsonl` (out of git) so they outlive transcript cleanup. Each
+ticket's journal gets a cost line when `/bk:open-pr` commits; the sous's handoff and the open
+Window fetch CI minutes. It is a meter, not a limit: nothing stops because of it.
+
+What you must do: nothing. `bk budget` needs node 20 or newer, like the Window.
+
 ## [0.22.0] - 2026-10-24
 
 **The Window's floor, and a check you can read.** The room is now a corner of a bigger

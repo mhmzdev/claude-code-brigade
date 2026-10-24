@@ -6,7 +6,7 @@
 # 2. script      bash -n + shellcheck on kitchen.sh, hooks/guard.sh and bin/bk (shellcheck required)
 # 3. skills      frontmatter sanity: name matches folder, description present,
 #                disable-model-invocation only on setup
-# 4. behaviour   tests/kitchen.test.sh, tests/guard.test.sh and tests/bk.test.sh
+# 4. behaviour   tests/kitchen.test.sh, tests/guard.test.sh, tests/bk.test.sh and tests/budget.test.sh
 # 5. release     plugin.json's version is the top CHANGELOG.md entry, the one Formula/bk.rb
 #                downloads, and, on a branch, higher than origin/main's (every merge to
 #                main is a release)
@@ -40,7 +40,7 @@ bash -n "$GUARD" && echo "   ✓ bash -n guard.sh" || fail "bash -n $GUARD"
 bash -n "$BK" && echo "   ✓ bash -n bk" || fail "bash -n $BK"
 [[ -x "$BK" ]] && echo "   ✓ bin/bk is executable" || fail "$BK is not executable"
 if command -v shellcheck >/dev/null; then
-  if out=$(shellcheck -S warning "$KITCHEN" "$GUARD" "$BK" tests/kitchen.test.sh tests/guard.test.sh tests/bk.test.sh scripts/check.sh 2>&1); then echo "   ✓ shellcheck"
+  if out=$(shellcheck -S warning "$KITCHEN" "$GUARD" "$BK" tests/kitchen.test.sh tests/guard.test.sh tests/bk.test.sh tests/budget.test.sh scripts/check.sh 2>&1); then echo "   ✓ shellcheck"
   else echo "$out" | sed 's/^/     /'; fail "shellcheck"; fi
 else
   fail "shellcheck not installed (brew install shellcheck)"
@@ -64,13 +64,15 @@ done
 python3 -c 'import json,sys; json.load(open("plugins/bk/hooks/hooks.json"))["hooks"]' 2>/dev/null || fail "plugins/bk/hooks/hooks.json: not valid JSON with a top-level \"hooks\" key"
 (( ${#FAILED[@]} == before )) && echo "   ✓ $(ls plugins/bk/skills/*/SKILL.md | wc -l | tr -d ' ') skills, $(ls plugins/bk/agents/*.md | wc -l | tr -d ' ') agents"
 
-step "4. behaviour (tests/kitchen.test.sh, tests/guard.test.sh, tests/bk.test.sh)"
+step "4. behaviour (tests/kitchen.test.sh, tests/guard.test.sh, tests/bk.test.sh, tests/budget.test.sh)"
 if out=$(bash tests/kitchen.test.sh 2>&1); then echo "   ✓ kitchen: $(printf '%s\n' "$out" | tail -1 | sed 's/^# //')"
 else printf '%s\n' "$out" | grep -E '^not ok|^# passed' | sed 's/^/     /'; fail "kitchen tests"; fi
 if out=$(bash tests/guard.test.sh 2>&1); then echo "   ✓ guard: $(printf '%s\n' "$out" | tail -1 | sed 's/^# //')"
 else printf '%s\n' "$out" | grep -E '^not ok|^# passed' | sed 's/^/     /'; fail "guard tests"; fi
 if out=$(bash tests/bk.test.sh 2>&1); then echo "   ✓ bk: $(printf '%s\n' "$out" | tail -1 | sed 's/^# //')"
 else printf '%s\n' "$out" | grep -E '^not ok|^# passed' | sed 's/^/     /'; fail "bk tests"; fi
+if out=$(bash tests/budget.test.sh 2>&1); then echo "   ✓ budget: $(printf '%s\n' "$out" | tail -1 | sed 's/^# //')"
+else printf '%s\n' "$out" | grep -E '^not ok|^# passed|^Bail' | sed 's/^/     /'; fail "budget tests"; fi
 
 step "5. release (version, CHANGELOG.md, Formula/bk.rb)"
 before=${#FAILED[@]}

@@ -9,7 +9,7 @@ allowed-tools: Bash, Read
 
 Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md`. Invoking this skill is its approval (Contract 5): open or close the Window and report, ask nothing.
 
-The Window reads what the kitchen already writes (the session registry, each session's transcript, the stations' git state, the rail, the record) and draws it as a room. It changes nothing by itself. Its controls type into a session's terminal when that session runs inside tmux, which is how `/bk:kitchen open` starts the kitchen; a session opened in Warp or the OS's terminal gets the command to paste instead.
+The Window reads what the kitchen already writes (the session registry, each session's transcript, the stations' git state, the rail, the record, the budget) and draws it as a room; it changes nothing by itself beyond the budget's local ledger (`.claude/budget.jsonl`, where it keeps served tickets and the CI minutes it fetches every ten minutes). The chip at the foot is the shift's spend (money, tokens, working time, CI minutes; `B` opens the sheet with every session and ticket), the line shows what each session has spent today, and a figure's page has its spend rows. Its controls type into a session's terminal when that session runs inside tmux, which is how `/bk:kitchen open` starts the kitchen; a session opened in Warp or the OS's terminal gets the command to paste instead.
 
 ## Contents
 

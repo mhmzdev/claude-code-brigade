@@ -273,7 +273,17 @@ is doing, the commis runs to the record before a question goes up, tickets fly b
 sessions, and the panel holds what needs you, the line, the rail and the message log. Click a
 cook or the sous for its page: session, model, ticket, branch, and controls (model, a line
 to send, handoff, end of shift). It reads what the kitchen writes and changes nothing by
-itself; it needs node 20 or newer. `/bk:live` again closes it.
+itself beyond the budget's local ledger; it needs node 20 or newer. `/bk:live` again closes it.
+
+**What is it costing me?** `bk budget` (or `/bk:kitchen budget`) prints the shift: money,
+tokens by kind, working time and CI minutes, then a row per session and a row per ticket
+with brief→served and each phase (plan, wait for the sign-off, build, pass, ship). `--ticket
+ID` is one ticket's page, `--since 7d` or `--since all` widens the window, `--ci` asks `gh`
+for the CI minutes of each ticket's PR branch. The Window shows the same at its foot. It is
+read from the transcripts Claude Code keeps, priced on a dated list (`prices:` in the config
+overrides it), and it is a meter: nothing stops because of it. Each ticket's journal gets a
+cost line when its PR opens; the sous's handoff and the open Window (every ten minutes)
+fetch CI minutes into `.claude/budget.jsonl`.
 
 ## Grilling and brainstorming
 
@@ -306,7 +316,7 @@ before `/clear`, and no skill ever clears a session; `/clear` is always yours.
 | Where | Writes | When |
 |---|---|---|
 | a station (cook) | a `## Handoff` section appended to the ticket's journal: stage, uncommitted files, next step, pending questions, follow-ups, lessons | automatically on `[go]`, before the PR. Any other time, you ask for it, for example before clearing a cook that is waiting on a sign-off |
-| the main checkout (sous) | first it files the record (decisions you made into ADRs, questions you haven't answered into question files, the inbox into the docs), then `.claude/sous-handoff.md`, gitignored, overwritten each time: your standing instructions, what it meant to assign next, walk-in holds, which session is which cook | when you say "handoff" before clearing the sous |
+| the main checkout (sous) | first it files the record (decisions you made into ADRs, questions you haven't answered into question files, the inbox into the docs) and fetches CI minutes into the budget, then `.claude/sous-handoff.md`, gitignored, overwritten each time: your standing instructions, what it meant to assign next, walk-in holds, which session is which cook | when you say "handoff" before clearing the sous |
 
 A cook cleared before `[go]` without being asked for a handoff leaves none. The journal
 still has its questions, answers and decisions, and the station still has the files.
@@ -461,6 +471,7 @@ still sees the sous. `.claude/cook "/bk:line-cook"` starts a fresh session inste
 | see what the kitchen is waiting on you for | `/bk:kitchen questions` | main checkout |
 | tell the kitchen something it should remember | just say it to the sous; it goes in the inbox and is filed at handoff | sous |
 | check the rail and the docs map | `/bk:kitchen doctor` | main checkout |
+| see what the shift costs | `bk budget` or `/bk:kitchen budget` (`--ticket ID`, `--since 7d`, `--ci`) | main checkout or a station |
 | capture an idea or a bug | tell the sous; it files a backlog item | sous |
 | turn an item into tickets | `/bk:grill-me` → `/bk:spec` → `/bk:file-tickets` | sous, or a cook the sous briefs for the grilling |
 | clear a session safely | "handoff", then `/clear` | that session |
