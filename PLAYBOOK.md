@@ -246,6 +246,14 @@ in one snapshot. The sous refreshes it whenever a message changes a station's st
 generated, never edited and never committed. Open it in your editor; a terminal `watch`
 loop is not the way (stock macOS has no `watch`, and the script is not on your `PATH`).
 
+**Can I watch it instead of reading it?** Yes: **`/bk:live`** opens the Window, a live view
+of the service in your browser on localhost. Each cook stands at its station doing what it
+is doing, the commis runs to the record before a question goes up, tickets fly between
+sessions, and the panel holds what needs you, the line, the rail and the message log. Click a
+cook or the sous for its page: session, model, ticket, branch, and controls (model, a line
+to send, handoff, end of shift). It reads what the kitchen writes and changes nothing by
+itself; it needs node 20 or newer. `/bk:live` again closes it.
+
 ## Grilling and brainstorming
 
 **Grilling** (`/bk:grill-me`) questions an idea until there is one shared picture. It needs
@@ -416,6 +424,7 @@ still sees the sous. `.claude/cook "/bk:line-cook"` starts a fresh session inste
 | start or restart the sous | `/bk:sous-chef` | main checkout |
 | restart a cleared cook | `/bk:line-cook` | its station |
 | see everything | open `.claude/board.md`, or `/bk:kitchen board` | main checkout |
+| watch the kitchen in a browser | `/bk:live` (again to close) | main checkout or a station |
 | see what the kitchen is waiting on you for | `/bk:kitchen questions` | main checkout |
 | tell the kitchen something it should remember | just say it to the sous; it goes in the inbox and is filed at handoff | sous |
 | check the rail and the docs map | `/bk:kitchen doctor` | main checkout |

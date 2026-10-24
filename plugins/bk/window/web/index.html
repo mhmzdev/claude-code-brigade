@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Window · Brigade</title>
+<link rel="stylesheet" href="/style.css" />
+<script type="importmap">{ "imports": { "pixi.js": "/vendor/pixi/pixi.min.mjs" } }</script>
+</head>
+<body>
+<main id="stage"><canvas id="kitchen"></canvas>
+  <div id="hud"><span id="conn" class="dot off"></span><span id="title">The Window</span><span id="fps"></span></div>
+</main>
+<button id="toggle" title="Toggle the panel">◂</button>
+<aside id="panel">
+  <header>
+    <h1 id="repo">kitchen</h1>
+    <div class="meta"><span id="mode"></span><span id="demo" class="badge" hidden>demo service</span></div>
+  </header>
+  <div id="overview" class="stack">
+    <section id="attention" class="card attention" hidden>
+      <h2>Needs you</h2>
+      <ul id="questions"></ul>
+    </section>
+    <section class="card">
+      <h2>The line</h2>
+      <ul id="line"></ul>
+    </section>
+    <section class="card">
+      <h2>The rail</h2>
+      <div id="rail" class="rail"></div>
+    </section>
+    <section class="card grow">
+      <h2>Heard on the line</h2>
+      <ol id="log" class="log"></ol>
+    </section>
+  </div>
+  <div id="detail" class="stack" hidden>
+    <button id="back" class="link">◂ the kitchen</button>
+    <section class="card" id="d-head"></section>
+    <section class="card" id="d-controls"></section>
+    <section class="card grow"><h2 id="d-log-title">Heard</h2><ol id="d-log" class="log"></ol></section>
+  </div>
+  <footer>
+    <form id="chatform"><input id="chat" type="text" placeholder="Say something to the sous…" autocomplete="off" /><button type="submit">Send</button></form>
+    <div id="chatnote" class="note" hidden></div>
+  </footer>
+</aside>
+<script type="module" src="/main.js"></script>
+</body>
+</html>

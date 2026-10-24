@@ -28,9 +28,12 @@ plugins/bk/                         the plugin (skills are invoked /bk:<skill>)
 ├── skills/<name>/SKILL.md          one skill each: setup, kitchen, sous-chef, line-cook, rail,
 │                                   brainstorm, grill-me, spec, file-tickets, pick-ticket,
 │                                   create-plan, implement, review-task, open-pr, clean, handoff,
-│                                   feedback
+│                                   feedback, live
 ├── skills/kitchen/kitchen.sh       the runtime script: stations, boards, role, sous, questions,
-│                                   lessons, decisions, inbox, doctor, sessions
+│                                   lessons, decisions, inbox, doctor, sessions, live
+├── window/                         the Window (/bk:live): a Node server with no dependencies
+│                                   (server/, live/ readers of the registry, transcripts, git,
+│                                   rail, record) and a PixiJS room (web/, PixiJS vendored)
 ├── hooks/hooks.json, hooks/guard.sh  PreToolUse guard: no human dialog in a station outside a
 │                                   grilling; no [gate] question without the commis's result
 ├── agents/                         commis (searches the record), inspector (report-only),
