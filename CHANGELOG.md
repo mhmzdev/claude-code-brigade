@@ -12,6 +12,24 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.21.0] - 2026-10-24
+
+**The Window in 2.5D.** The room is now a tilted floor you can turn by dragging (within a
+quarter turn each way) and zoom with the wheel: the pass, the stations with their burners,
+the record's cupboards filling with books, the walk-in, the check, and the head chef in a
+glass office in the corner. The characters are the same chefs and helpers as before. Around
+the room float the controls: what needs you at the top (press `G` to answer, `A`/`B`/… to
+pick), the line down the left (`1`–`9` select a session), the rail or everything heard in a
+sheet at the bottom (`R`, `H`), the composer at the foot addressed to whoever is selected
+(`/`), a popover on the selected figure with Message, Handoff and Details, and the inspector
+on the right (`I`) with the same controls as before: change model, handoff, `/clear` when the
+handoff makes it safe, and everything heard by that session. PixiJS is gone: the room is
+plain DOM and CSS 3D, so the Window has no vendored code and nothing redraws while the room
+is still.
+
+What you must do: nothing. `bk live` (or `/bk:live`) opens the new room; demo mode still
+works with `bk live --demo`.
+
 ## [0.20.1] - 2026-10-24
 
 The Window's start-up test waits for the port instead of guessing one second, which failed
