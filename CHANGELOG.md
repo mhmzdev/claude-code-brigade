@@ -12,6 +12,33 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.18.0] - 2026-10-24
+
+**The kitchen runs in tmux.** `/bk:kitchen open` now starts everything in one tmux session,
+`<repo>-brigade`: a `sous` window in the main checkout already running `/bk:sous-chef`, and
+one window per station already running `/bk:line-cook`. Nothing opens on your screen. You
+attach to the sous to talk to it (`tmux attach -t <repo>-brigade:sous`, the command it
+prints), peek at a cook's window when you want to see it work, and detach with `Ctrl-b d`;
+the sessions keep running. Opening again joins the session: it adds windows for new or
+dead cooks and leaves the running ones alone. The sous's model comes from `sous_model` in
+the config (default opus); the cooks' from `-m` as before.
+
+What you must do: nothing on a Mac with Homebrew, where `kitchen open` installs tmux if it is
+missing. On Linux it prints the one package line to run. Windows works through WSL. Your
+current cooks and sous, if they were opened in Warp, keep working; the next `kitchen open`
+starts the new way. Warp and the OS's terminal remain available with `--terminal warp` or
+`--terminal native`, in which case you start the sous yourself as before.
+
+For the Window (`/bk:live`): because every session now lives in tmux, its controls (change
+model, send a line, handoff, end of shift, answer a question) type straight into the right
+pane, and each page shows the `tmux attach` line for that session. The layout is rearranged
+the way an IDE is: the line as chips in a top bar, the rail down the left, the room in the
+middle with questions as a banner over it, the message log as a full-width console at the
+bottom with the prompt at its foot, and an inspector that floats over the room while a
+figure is selected. Selecting a figure filters the console instead of replacing it. Bubbles
+in the room are cut at three lines; hover the figure for the whole message. The Window
+re-checks for tmux every few seconds, so installing it mid-service is noticed.
+
 ## [0.17.0] - 2026-10-24
 
 **The Window: watch the kitchen in your browser.** `/bk:live` opens a live view of the

@@ -19,16 +19,21 @@
 #   kitchen.sh setup  [-n N]              create stations 1..N, keeping existing ones, so
 #                                         it also grows a kitchen (clone, gitignore,
 #                                         copy files, seed permissions, install)
-#   kitchen.sh open   [-n N] [-m "O S"] [--terminal warp|native|tmux|print] [--bare]
-#                                         open one claude session per station (every one,
-#                                         or the first N with -n) that has no cook
-#                                         running yet, already
-#                                         running /bk:line-cook (--bare: a plain session;
-#                                         --no-launch: write the Warp config or show the
-#                                         native launch, open nothing). Default terminal:
-#                                         Warp if installed, else the OS's own terminal
+#   kitchen.sh open   [-n N] [-m "O S"] [--terminal tmux|warp|native|print] [--bare]
+#                                         open the kitchen: one claude session per station
+#                                         (every one, or the first N with -n) that has no
+#                                         cook running yet, already running /bk:line-cook.
+#                                         Default terminal: tmux, one session <repo>-brigade
+#                                         with a 'sous' window in the main checkout already
+#                                         running /bk:sous-chef (model: sous_model in the
+#                                         config, BRIGADE_SOUS_MODEL, else opus) and one
+#                                         window per station; a Mac without tmux gets it
+#                                         from Homebrew. Attach to the sous to talk to it.
+#                                         Else Warp if installed, else the OS's own terminal
 #                                         (Terminal.app, Windows Terminal/mintty, or the
-#                                         Linux desktop's), else printed commands. Each
+#                                         Linux desktop's), else printed commands (--bare:
+#                                         plain sessions; --no-launch: write the Warp config
+#                                         or show the native launch, open nothing). Each
 #                                         station it opens gets .claude/cook, which
 #                                         restarts that cook with the same profile
 #                                         (CLAUDE_CONFIG_DIR), name and model
@@ -87,7 +92,7 @@
 #   BRIGADE_PERMISSION_MODE (default: auto — cooks run unattended, so a mode that
 #   stops on every permission would stall them), BRIGADE_TERMINAL
 #
-# Requires: git, claude. Optional: gh (status), Warp or tmux (open), node 20+ (live).
+# Requires: git, claude. Optional: tmux (open; installed by Homebrew on a Mac), gh (status), node 20+ (live).
 # BRIGADE_OS (mac|linux|wsl|windows) overrides OS detection; the tests use it.
 # =============================================================================
 
@@ -154,6 +159,7 @@ INSTALL="$(cfg install)"
 COPY_FILES="$(cfg copy_into_stations)"
 MIGRATIONS="$(cfg migrations)"; [[ "$MIGRATIONS" == "none" ]] && MIGRATIONS=""
 MODEL="${BRIGADE_MODEL:-sonnet}"
+SOUS_MODEL="${BRIGADE_SOUS_MODEL:-$(cfg sous_model)}"; SOUS_MODEL="${SOUS_MODEL:-opus}"
 PERMISSION_MODE="${BRIGADE_PERMISSION_MODE:-$(cfg permission_mode)}"; PERMISSION_MODE="${PERMISSION_MODE:-auto}"
 TERMINAL="${BRIGADE_TERMINAL:-}"
 BARE=false
@@ -240,6 +246,12 @@ claude_cmd() {  # claude_cmd <model> <station dir>
   # Start as a line cook: it checks in with the sous, or waits for the sous's [hello].
   $BARE || printf ' "/bk:line-cook"'
 }
+sous_cmd() {  # the sous in the main checkout, already running /bk:sous-chef (--bare: plain)
+  local prefix=""
+  [[ -n "${CLAUDE_CONFIG_DIR:-}" ]] && prefix="CLAUDE_CONFIG_DIR=$(printf '%q' "$CLAUDE_CONFIG_DIR") "
+  printf '%sclaude --model %s' "$prefix" "$SOUS_MODEL"
+  $BARE || printf ' "/bk:sous-chef"'
+}
 
 # write_launcher <station dir> <model> → <station>/.claude/cook, the way to restart
 # that cook by hand (after /exit, say, to load a new agent or MCP server) without
@@ -268,6 +280,43 @@ EOF
   grep -qxF ".claude/cook" "$excl" 2>/dev/null && return 0
   [[ -s "$excl" && -n "$(tail -c1 "$excl")" ]] && echo "" >> "$excl"
   echo ".claude/cook" >> "$excl"
+}
+
+# ensure_tmux → 0 when tmux is on the PATH, installing it on a Mac with Homebrew (no sudo
+# needed there). Elsewhere it prints the one command to run and returns 1: those package
+# managers want sudo, which can't be answered from a session.
+# Homebrew's folder is looked in too, since a tmux installed mid-session isn't on a PATH
+# that was built before it. The tests clear BRIGADE_TMUX_DIRS so the laptop's tmux stays out.
+tmux_on_path() {
+  local d
+  for d in ${BRIGADE_TMUX_DIRS-/opt/homebrew/bin /usr/local/bin /home/linuxbrew/.linuxbrew/bin}; do
+    [[ -x "$d/tmux" ]] && [[ ":$PATH:" != *":$d:"* ]] && PATH="$PATH:$d"   # after, so a tmux already on the PATH wins
+  done
+  command -v tmux >/dev/null 2>&1
+}
+# tmux_usable → 0 when tmux is here, or can be put here without a password (a Mac with Homebrew).
+tmux_usable() {
+  tmux_on_path && return 0
+  [[ "$(os_kind)" == mac ]] && command -v brew >/dev/null 2>&1
+}
+ensure_tmux() {
+  tmux_on_path && return 0
+  case "$(os_kind)" in
+    mac)
+      if command -v brew >/dev/null 2>&1; then
+        echo "tmux isn't installed; installing it with Homebrew (brew install tmux)…"
+        if brew install tmux >/dev/null 2>&1 && tmux_on_path; then echo "  tmux installed."; return 0; fi
+        echo "  brew install tmux failed: run it yourself, then open again." >&2; return 1
+      fi
+      echo "tmux isn't installed and neither is Homebrew. Install one: https://brew.sh then 'brew install tmux'." >&2; return 1 ;;
+    linux|wsl)
+      local pm="sudo apt-get install -y tmux"
+      command -v dnf >/dev/null 2>&1 && pm="sudo dnf install -y tmux"
+      command -v pacman >/dev/null 2>&1 && pm="sudo pacman -S --noconfirm tmux"
+      echo "tmux isn't installed. Run: $pm   (then open again)" >&2; return 1 ;;
+    windows) echo "tmux isn't available in Git Bash or MSYS. Use WSL, or stay with Warp / Windows Terminal (the Window then shows commands to paste)." >&2; return 1 ;;
+    *) echo "tmux isn't installed; install it, then open again." >&2; return 1 ;;
+  esac
 }
 
 # os_kind → mac | linux | wsl | windows (Git Bash, MSYS, Cygwin) | other.
@@ -567,7 +616,11 @@ cmd_open() {
   for i in "${!list[@]}"; do write_launcher "${list[$i]}" "${models[$i]}"; done
 
   if [[ -z "$TERMINAL" ]]; then
-    if warp_installed; then TERMINAL=warp
+    # tmux by default: the sessions run unattended, attachable when you want to look, and the
+    # Window can type into them. A Mac without it gets it from Homebrew; otherwise Warp, else
+    # the OS's terminal, else printed commands.
+    if tmux_usable; then TERMINAL=tmux
+    elif warp_installed; then TERMINAL=warp
     elif native_terminal >/dev/null; then TERMINAL=native
     else TERMINAL=print; fi
   fi
@@ -616,17 +669,33 @@ cmd_open() {
       fi
       ;;
     tmux)
-      local sess="${REPO_NAME}-brigade"
-      tmux has-session -t "$sess" 2>/dev/null && { echo "tmux session '$sess' already exists: tmux attach -t $sess"; return 0; }
+      if ! ensure_tmux; then echo "commands:"; TERMINAL=print; else
+      # One tmux session per kitchen, <repo>-brigade: a 'sous' window in the main checkout that
+      # starts /bk:sous-chef by itself, and one window per station. Nothing to type: attach to
+      # the sous to talk to it; peek at a cook's window when you want to see it work.
+      local sess="${REPO_NAME}-brigade" win opened=0 sous_started=false
+      if ! tmux has-session -t "$sess" 2>/dev/null; then
+        tmux new-session -d -s "$sess" -n sous -c "$ROOT"
+        tmux send-keys -t "$sess:sous" "$(sous_cmd)" Enter; sous_started=true
+      elif ! tmux list-windows -t "$sess" -F '#W' 2>/dev/null | grep -qx sous; then
+        tmux new-window -t "$sess" -n sous -c "$ROOT"
+        tmux send-keys -t "$sess:sous" "$(sous_cmd)" Enter; sous_started=true
+      fi
       for i in "${!list[@]}"; do
-        if (( i == 0 )); then
-          tmux new-session -d -s "$sess" -n "$(basename "${list[$i]}")" -c "${list[$i]}"
-        else
-          tmux new-window -t "$sess" -n "$(basename "${list[$i]}")" -c "${list[$i]}"
+        win="$(basename "${list[$i]}")"
+        if tmux list-windows -t "$sess" -F '#W' 2>/dev/null | grep -qx "$win"; then
+          tmux kill-window -t "$sess:$win" 2>/dev/null   # the cook that lived there is gone; reuse its window
         fi
-        tmux send-keys -t "$sess:$(basename "${list[$i]}")" "$(claude_cmd "${models[$i]}" "${list[$i]}")" Enter
+        tmux new-window -t "$sess" -n "$win" -c "${list[$i]}"
+        tmux send-keys -t "$sess:$win" "$(claude_cmd "${models[$i]}" "${list[$i]}")" Enter
+        opened=$((opened+1))
       done
-      echo "tmux session '$sess' started: tmux attach -t $sess"
+      echo "The kitchen runs in tmux session '$sess': $opened cook window(s) opened$($sous_started && echo ", the sous started in window 'sous'")."
+      if [[ -n "${TMUX:-}" ]]; then echo "  You're inside tmux: tmux switch-client -t $sess:sous   (then prefix+w to pick a window)"
+      else echo "  Talk to the sous:  tmux attach -t $sess:sous      peek at a cook:  tmux attach -t $sess:station-1"; fi
+      echo "  Watch it all:      /bk:live"
+      if ! grep -qs 'mouse on' "$HOME/.tmux.conf" 2>/dev/null; then echo "  (mouse scrolling in tmux: echo 'set -g mouse on' >> ~/.tmux.conf)"; fi
+      fi
       ;;
     print) ;;
     *) echo "Unknown terminal '$TERMINAL' (use warp, native, tmux or print); commands:"; TERMINAL=print ;;

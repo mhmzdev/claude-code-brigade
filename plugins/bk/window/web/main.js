@@ -1,17 +1,26 @@
 // Boot: connect to the server's event stream, feed the scene, render the panel.
-// The panel has two faces: the kitchen overview, and one actor's detail with controls.
+// Layout: top bar (identity, the line), rail left, the room centre with questions as a banner,
+// inspector right while a figure is selected, console bottom with the prompt at its foot.
 import { createKitchen } from './kitchen.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const linkify = (s) => esc(s).replace(/https?:\/\/[^\s<)]+/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u.replace(/^https?:\/\/(www\.)?/, '')}</a>`);
 const kindClass = (k) => esc(k.replace(/[[\]]/g, ''));
-const logItem = (m) => `<li><span class="k ${kindClass(m.kind)}">${esc(m.kind)}</span><span><span class="who">${esc(m.from)} → ${esc(m.to)}</span> ${linkify(m.text)}</span></li>`;
+const logItem = (m) => `<li><span class="k ${kindClass(m.kind)}">${esc(m.kind)}</span><span class="who">${esc(m.from)} → ${esc(m.to)}</span><span class="txt">${linkify(m.text)}</span></li>`;
 
 const scene = await createKitchen($('#kitchen'), $('#stage'));
 window.__window = scene;
 
-$('#toggle').addEventListener('click', () => { document.body.classList.toggle('collapsed'); $('#toggle').textContent = document.body.classList.contains('collapsed') ? '▸' : '◂'; });
+$('#rail-toggle').addEventListener('click', () => document.body.classList.toggle('norail'));
+$('#console-toggle').addEventListener('click', () => document.body.classList.toggle('noconsole'));
+// Drag the console's top edge to resize it; the room takes the rest.
+$('#console-bar .grip').addEventListener('pointerdown', (e) => {
+  e.preventDefault(); document.body.classList.remove('noconsole');
+  const move = (ev) => { const h = Math.min(window.innerHeight * .7, Math.max(90, window.innerHeight - ev.clientY)); document.documentElement.style.setProperty('--console', `${h}px`); };
+  const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+});
 
 // Hover descriptions come from the scene; the tooltip is plain HTML so it costs nothing to draw.
 const tip = document.createElement('div'); tip.id = 'tip'; tip.hidden = true; document.body.appendChild(tip);
@@ -45,16 +54,20 @@ function renderOverview(s) {
   const qs = s.headChef.pending;
   $('#attention').hidden = qs.length === 0;
   $('#questions').innerHTML = qs.map((q) => `<li data-q="${esc(q.id)}"><div class="from">${esc(q.from)} · via the sous</div>${esc(q.text)}<div class="opts">${(q.options || []).map((o) => `<button data-opt="${esc(o)}">${esc(o)}</button>`).join('')}</div><div class="note" hidden></div></li>`).join('');
-  const actor = (a, sub, who) => `<li class="actor ${a.activity === 'waiting' ? 'waiting' : ''}" data-who="${esc(who)}"><span class="st ${esc(a.status)}"></span><span class="name">${esc(a.name)}</span><span class="act">${esc(a.activity)}</span><span class="sub">${esc(sub)}</span></li>`;
+  // The line as chips in the top bar: status dot, name, activity. The selected one is ringed.
+  const actor = (a, sub, who) => `<li class="actor ${a.activity === 'waiting' ? 'waiting' : ''} ${focus === who ? 'selected' : ''}" data-who="${esc(who)}" title="${esc(sub)}"><span class="st ${esc(a.status)}"></span><span class="name">${esc(a.name)}</span><span class="act">${esc(a.activity)}</span><span class="sub">${esc(sub)}</span></li>`;
   const sousSub = s.sous.session ? `${s.sous.session}${s.sous.model ? ' · ' + s.sous.model : ''}` : 'no sous session';
-  // Past three stations the list goes compact: ticket and model only (the branch lives on the detail page).
-  const compact = s.stations.length > 3;
-  $('#line').classList.toggle('compact', compact);
-  $('#line').innerHTML = actor(s.sous, sousSub, 'sous') + s.stations.map((st) => actor(st.cook, (compact ? [st.ticket || st.id, st.dirty ? 'dirty' : null, st.ahead ? `+${st.ahead}` : null, st.cook.model] : [st.id, st.ticket, st.branch, st.dirty ? 'dirty' : null, st.ahead ? `+${st.ahead}` : null, st.cook.model]).filter(Boolean).join(' · '), st.id)).join('');
+  $('#line').classList.toggle('many', s.stations.length > 4);
+  $('#line').innerHTML = actor(s.sous, sousSub, 'sous') + s.stations.map((st) => actor(st.cook, [st.id, st.ticket, st.branch, st.dirty ? 'dirty' : null, st.ahead ? `+${st.ahead}` : null, st.cook.model].filter(Boolean).join(' · '), st.id)).join('');
   const cols = ['backlog', 'todo', 'in-progress', 'rfr', 'done'];
-  // One row per status, chips wrapping, so the rail reads at any panel width and any count.
-  $('#rail').innerHTML = cols.map((c) => { const ts = s.rail[c] || []; return `<div class="col"><h3>${c === 'in-progress' ? 'doing' : c}<span>${ts.length}</span></h3><div class="chips">${ts.slice(0, 12).map((t) => `<div class="t ${esc(t.kind || '')}" title="${esc(t.title)}">${esc(t.id)}</div>`).join('')}${ts.length > 12 ? `<div class="t more">+${ts.length - 12}</div>` : ''}</div></div>`; }).join('');
-  $('#log').innerHTML = s.log.slice(-60).reverse().map(logItem).join('');
+  // The rail as a board down the left: one section per status, id and title per ticket.
+  $('#rail').innerHTML = cols.map((c) => { const ts = s.rail[c] || []; return `<div class="col ${ts.length ? '' : 'empty'}"><h3>${c === 'in-progress' ? 'doing' : c}<span>${ts.length}</span></h3><div class="chips">${ts.slice(0, 12).map((t) => `<div class="t ${esc(t.kind || '')}" title="${esc(t.title)}">${esc(t.id)}<span class="title">${esc(t.title || '')}</span></div>`).join('')}${ts.length > 12 ? `<div class="t more">+${ts.length - 12} more</div>` : ''}</div></div>`; }).join('');
+  // The console: everything heard, or only what involves the selected figure.
+  const lines = focus ? s.log.filter((m) => involves(m, focus)) : s.log;
+  $('#log').innerHTML = lines.slice(-80).reverse().map(logItem).join('');
+  $('#count').textContent = `${lines.length} line${lines.length === 1 ? '' : 's'}`;
+  const f = $('#filter'); f.hidden = !focus;
+  if (focus) f.textContent = focus === 'headchef' ? 'Head chef' : (actorOf(s, focus)?.name || focus);
 }
 
 function renderDetail(s) {
@@ -64,15 +77,13 @@ function renderDetail(s) {
     $('#d-head').innerHTML = `<div class="top"><span class="st dot"></span><h1>Head Chef</h1><span class="act">you</span></div><dl><dt>talks to</dt><dd>the sous only</dd><dt>waiting on you</dt><dd>${qs.length ? qs.length + ' question(s)' : 'nothing'}</dd></dl>`;
     if (controlsFor !== who) { controlsFor = who; $('#d-controls').innerHTML = `<h2>Needs you</h2><ul id="d-questions"></ul>`; }
     $('#d-questions').innerHTML = qs.length ? qs.map((q) => `<li data-q="${esc(q.id)}"><div class="from">${esc(q.from)} · via the sous</div>${esc(q.text)}<div class="opts">${(q.options || []).map((o) => `<button data-opt="${esc(o)}">${esc(o)}</button>`).join('')}</div><div class="note" hidden></div></li>`).join('') : '<li class="note">No open questions.</li>';
-    $('#d-log-title').textContent = 'What you said';
-    $('#d-log').innerHTML = s.log.filter((m) => involves(m, who)).slice(-60).reverse().map(logItem).join('');
     return;
   }
   const a = actorOf(s, who), st = stationOf(s, who);
   if (!a) { setFocus(null); return; }
   const facts = who === 'sous'
-    ? [['session', a.session || 'not running'], ['model', a.model], ['where', 'the main checkout'], ['pid', a.pid]]
-    : [['session', a.session || 'not running'], ['model', a.model], ['station', st.path || st.id], ['ticket', st.ticket], ['branch', st.branch || 'detached at trunk'], ['tree', st.dirty ? 'dirty' : 'clean'], ['ahead', st.ahead ? `+${st.ahead} commits` : null], ['pid', a.pid]];
+    ? [['session', a.session || 'not running'], ['model', a.model], ['where', 'the main checkout'], ['pid', a.pid], ['attach', a.tmux ? `tmux attach -t ${a.tmux}` : null]]
+    : [['session', a.session || 'not running'], ['model', a.model], ['station', st.path || st.id], ['ticket', st.ticket], ['branch', st.branch || 'detached at trunk'], ['tree', st.dirty ? 'dirty' : 'clean'], ['ahead', st.ahead ? `+${st.ahead} commits` : null], ['pid', a.pid], ['peek', a.tmux ? `tmux attach -t ${a.tmux}` : null]];
   $('#d-head').innerHTML = `<div class="top"><span class="st ${esc(a.activity === 'waiting' ? 'waiting' : a.status)}"></span><h1>${esc(a.name)}</h1><span class="act">${esc(a.activity)}</span></div><dl>${facts.filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${a.bubble?.text ? `<div class="note">“${esc(a.bubble.text)}”</div>` : ''}`;
   if (controlsFor !== who) {
     controlsFor = who;
@@ -106,8 +117,6 @@ function renderDetail(s) {
   const sh = shiftOf(s, who);
   $('#c-clear').classList.toggle('dim', !sh.ok); $('#c-handoff').classList.toggle('due', !sh.ok && sh.needsHandoff);
   $('#c-shift').textContent = sh.why;
-  $('#d-log-title').textContent = `Heard, ${a.name}`;
-  $('#d-log').innerHTML = s.log.filter((m) => involves(m, who)).slice(-60).reverse().map(logItem).join('');
 }
 
 // A styled stand-in for <select>: one button, a list that opens under it, closes on click-away or Esc.
@@ -166,8 +175,9 @@ function ago(t) { const m = Math.round((Date.now() - t) / 60000); return m < 1 ?
 function render(s) {
   $('#repo').textContent = s.kitchen.repo; $('#mode').textContent = `${s.kitchen.mode} · trunk ${s.kitchen.trunk}`;
   $('#demo').hidden = !s.kitchen.demo;
-  $('#overview').hidden = !!focus; $('#detail').hidden = !focus;
-  if (focus) renderDetail(s); else renderOverview(s);
+  renderOverview(s);
+  $('#inspector').hidden = !focus;
+  if (focus) renderDetail(s);
   $('#chat').placeholder = focus && focus !== 'headchef' ? `Say something to ${actorOf(s, focus)?.name || focus}…` : 'Say something to the sous…';
 }
 function setFocus(who) {
@@ -176,6 +186,7 @@ function setFocus(who) {
 }
 scene.onSelect(setFocus);
 $('#back').addEventListener('click', () => setFocus(null));
+$('#filter').addEventListener('click', () => setFocus(null));
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && focus) setFocus(null); });
 $('#line').addEventListener('click', (e) => { const li = e.target.closest('[data-who]'); if (li) setFocus(li.dataset.who); });
 // Question options: the overview card and the head-chef detail share one handler.

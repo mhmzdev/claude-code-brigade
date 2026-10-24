@@ -115,7 +115,7 @@ class Chef extends Container {
     this.setStatus('offline'); this.setActivity('offline');
     this.eventMode = 'static'; this.cursor = 'pointer'; this.info = ''; this.hitArea = new Rectangle(-24, -118, 48, 132);
   }
-  get about() { return `${this.label.text} · ${this.activity}${this.info ? ' · ' + this.info : ''}\n${ABOUT[this.role]}`; }
+  get about() { return `${this.label.text} · ${this.activity}${this.info ? ' · ' + this.info : ''}\n${this.said ? `“${this.said.length > 600 ? this.said.slice(0, 600) + '…' : this.said}”\n` : ''}${ABOUT[this.role]}`; }
   setName(n) { if (this.label.text !== n) this.label.text = n; }
   setStatus(s) {
     if (this.status === s) return; this.status = s;
@@ -473,8 +473,14 @@ ${parts || 'Nothing written down yet.'} What the kitchen remembers: specs, ticke
     if (kind === '[served]') plateTo(from, 'gone');
     wake();
   }
+  // A bubble shows about three lines; a live kitchen's messages run to paragraphs, so the
+  // rest is cut with an ellipsis and the whole text shows on hover (and in the console).
+  const BUBBLE_MAX = 110;
   function say(who, text, ttl) {
     const old = bubbles.get(who); if (old) { bubbles.delete(who); ui.removeChild(old); old.destroy({ children: true }); }
+    const speaker = who === 'sous' ? sous : who === 'headchef' ? head : stations.get(who)?.cook;
+    if (speaker) speaker.said = text;
+    if (text.length > BUBBLE_MAX) text = text.slice(0, BUBBLE_MAX).replace(/\s+\S*$/, '') + ' …';
     const side = who === 'headchef' || who === 'sous' ? 'right' : 'up';
     const b = new Bubble(text, ttl ?? Math.min(9, 3 + text.length / 25), side); const p = posOf(who);
     if (side === 'right') b.placeAt(p[0] + (who === 'headchef' ? 34 : 30), p[1] - (who === 'headchef' ? 50 : 70), W, H);

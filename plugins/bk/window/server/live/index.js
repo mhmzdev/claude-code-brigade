@@ -8,7 +8,7 @@ import { watchStations } from './stations.js';
 import { watchRail } from './rail.js';
 import { watchRecord } from './record.js';
 
-export function startLive(store, startDir) {
+export function startLive(store, startDir, control = null) {
   const cfg = readConfig(startDir);
   store.setKitchen({ repo: cfg.repo, root: cfg.root, mode: cfg.mode, trunk: cfg.trunk, configured: cfg.hasConfig, rail: cfg.railAdapter });
   if (!cfg.hasConfig) console.log(`No .claude/brigade.md in ${cfg.root}: showing stations and sessions only.`);
@@ -47,6 +47,7 @@ export function startLive(store, startDir) {
         const file = transcriptPath(s.cwd, s.sessionId);
         if (file) { tails.set(s.pid, tailTranscript({ file, who, store, resolve })); store.setActor(who, { startedAt: conversationStart(file) }); }
         else tails.set(s.pid, null); // no transcript yet; retried on the next change
+        control?.whereIs(s.pid).then((t) => { if (t) store.setActor(who, { tmux: t }); });
       }
     }
     for (const [pid, t] of tails) if (!seen.has(pid)) { t?.close(); tails.delete(pid); }

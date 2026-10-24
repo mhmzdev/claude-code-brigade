@@ -22,11 +22,11 @@ export async function runDemo(store, { stations = 2 } = {}) {
   for (let i = 3; i <= Math.max(2, stations); i++) { const id = `station-${i}`; extras.push(id); store.upsertStation(id, { branch: null, cook: { name: `Cook ${i}`, model: ['sonnet', 'opus', 'haiku'][i % 3] } }); }
 
   await sleep(800);
-  store.setActor('sous', { session: 'demo-kitchen-sous', status: 'busy', activity: 'thinking', model: 'opus', startedAt: Date.now() });
+  store.setActor('sous', { session: 'demo-kitchen-sous', status: 'busy', activity: 'thinking', model: 'opus', startedAt: Date.now(), tmux: 'demo-kitchen-brigade:sous' });
   store.say('sous', 'Service starts. Who is on the line?');
   await sleep(1200);
   for (const id of ['station-1', 'station-2', ...extras]) {
-    store.setActor(id, { session: `demo-kitchen-cook-${id.split('-')[1]}`, status: 'idle', activity: 'idle' });
+    store.setActor(id, { session: `demo-kitchen-cook-${id.split('-')[1]}`, status: 'idle', activity: 'idle', tmux: `demo-kitchen-brigade:${id}` });
     store.message({ from: 'sous', to: id, kind: '[hello]', text: "I'm the sous, check in" });
     await sleep(900);
     store.message({ from: id, to: 'sous', kind: '[check-in]', text: `${id}, clean, fresh, waiting on nothing` });
