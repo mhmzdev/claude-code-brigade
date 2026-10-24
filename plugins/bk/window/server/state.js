@@ -16,6 +16,7 @@ export function createState(kitchen) {
     log: [],                            // last messages between sessions
     record: { total: 0, kinds: {} },    // what the kitchen remembers: pages per docs kind
     check: { history: [], runs: 0, failed: 0, last: null },   // the runner's results this shift: { ok, secs, who, note, at }
+    budget: null,                       // what the shift spends (live/budget.js compute()): shift, sessions, tickets, actors
     updatedAt: Date.now(),
   };
   const listeners = new Set();
@@ -43,6 +44,7 @@ export function createState(kitchen) {
 
     setKitchen(patch) { Object.assign(state.kitchen, patch); touch(); },
     setRecord(r) { state.record = { total: r.total || 0, kinds: r.kinds || {} }; touch(); },
+    setBudget(b) { state.budget = b; touch(); },
 
     upsertStation(id, patch) {
       let s = state.stations.find((x) => x.id === id);

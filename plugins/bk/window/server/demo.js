@@ -34,6 +34,7 @@ export async function runDemo(store, { stations = 2 } = {}) {
   }
 
   for (const id of extras) backgroundCook(store, id, grow);
+  demoBudget(store);
 
   let round = 0;
   for (;;) {
@@ -205,4 +206,70 @@ async function backgroundCook(store, id, grow) {
     // Retire the ticket from the rail so the board stays readable.
     store.setRail({ ...store.state.rail, done: store.state.rail.done.filter((t) => t.id !== ticket) });
   }
+}
+
+// The budget in the demo: every actor spends at a rate that follows what it is doing, each
+// ticket on the floor accrues what its cook spends in the stage its messages say it is in
+// (prep until [approved], cook until [handoff], check until [go], then serve), each
+// sub-agent in flight is a step, a red runner starts rework, and a served ticket keeps it all.
+function demoBudget(store, every = 1000) {
+  const RATE = { thinking: 0.9, editing: 1.4, running: 0.4, reading: 0.7, waiting: 0.05, idle: 0, offline: 0 }; // cents per second
+  const PRICE = { opus: 1, sonnet: 0.5, haiku: 0.03, fable: 2.5 };
+  const actors = {}, tickets = new Map(), since = Date.now(), seenHelpers = new Map();
+  const tok = (usd) => Math.round(usd / 2.6 * 1e6); // mostly cache reads at $0.20 to $0.25 per million, as in a real session
+  const zero = () => ({ in: 0, out: 0, read: 0, w5: 0, w1: 0 });
+  const stageOf = (t) => t.marks.go ? 'serve' : t.marks.handoff ? 'check' : t.marks.approved ? 'cook' : 'prep';
+  const step = (t, stage, who, model, kind, note) => { let st = t.steps.find((x) => x.stage === stage && x.who === who && x.kind === kind && x.open); if (!st) { st = { t: Date.now(), stage, who, model, kind, note, cost: 0, total: 0, secs: 0, ok: null, open: true }; t.steps.push(st); } return st; };
+  const tick = () => {
+    const s = store.state;
+    const holding = (who) => s.stations.find((st) => st.id === who)?.ticket;
+    for (const m of s.log) { if (!m.text && !m.kind) continue; const id = (String(m.text).match(/\b(S\d{3}-\d{2}|BKLG-\d{3}|HYG-\d{3})\b/) || [])[1] || holding(m.from) || holding(m.to); const t = id && tickets.get(id); if (!t || m.t < t.startedAt) continue; const k = m.kind.replace(/[[\]]/g, ''); if (['plan', 'approved', 'handoff', 'go', 'served'].includes(k)) t.marks[k] ||= m.t; }
+    const who = [['sous', s.sous, null], ...s.stations.map((st) => [st.id, st.cook, st.ticket])];
+    for (const [id, a, ticket] of who) {
+      const x = (actors[id] ||= { sessions: 1, cost: 0, total: 0, secs: 0, activeSecs: 0, helpers: {}, current: { id, role: id, model: a.model, tokens: zero(), total: 0, cost: 0, priced: true, helpers: {}, helperCost: 0, allCost: 0, allTotal: 0, secs: 0, activeSecs: 0, turns: 0, startedAt: since, lastAt: Date.now() } });
+      const d = (RATE[a.activity] || 0) * (PRICE[a.model] || 1) / 100 * (every / 1000);
+      x.cost += d; x.total += tok(d); x.secs += every / 1000; if (d) { x.activeSecs += every / 1000; x.current.turns++; }
+      x.current.helpers = x.helpers; x.current.cost = x.cost; x.current.allCost = x.cost; x.current.total = x.total; x.current.allTotal = x.total; x.current.secs = x.secs; x.current.activeSecs = x.activeSecs; x.current.model = a.model; x.current.lastAt = Date.now();
+      x.current.tokens.read += tok(d) * 0.9; x.current.tokens.w5 += tok(d) * 0.08; x.current.tokens.out += tok(d) * 0.02;
+      if (ticket) {
+        // The scripted service briefs the same ticket again next round: that is a new dish.
+        if (tickets.get(ticket)?.status === 'served') tickets.delete(ticket);
+        const t = tickets.get(ticket) || { id: ticket, cook: id, session: a.session, status: 'open', startedAt: Date.now(), servedAt: null, model: a.model, tokens: zero(), total: 0, cost: 0, helpers: {}, helperCost: 0, allCost: 0, phases: { plan: null, wait: null, build: null, pass: null, ship: null }, secs: 0, marks: {}, steps: [], stages: { prep: { cost: 0, total: 0, secs: 0, steps: 0 }, cook: { cost: 0, total: 0, secs: 0, steps: 0 }, check: { cost: 0, total: 0, secs: 0, steps: 0 }, serve: { cost: 0, total: 0, secs: 0, steps: 0 } }, rework: null };
+        tickets.set(ticket, t);
+        const stage = stageOf(t), st = step(t, stage, id, a.model, 'own', 'the cook');
+        t.cost += d; t.allCost = t.cost + t.helperCost; t.total += tok(d); t.tokens.read += tok(d) * 0.9; t.tokens.out += tok(d) * 0.02; t.secs = Math.round((Date.now() - t.startedAt) / 1000);
+        st.cost += d; st.total += tok(d); if (d) st.secs += every / 1000; st.note = `${Math.round(st.secs / 2) + 1} turns`;
+        const g = t.stages[stage]; g.cost += d; g.total += tok(d); if (d) g.secs += every / 1000;
+        if (t.rework && !t.rework.settled) { t.rework.cost += d; if (d) t.rework.secs += every / 1000; }
+        const mk = t.marks; t.phases = { plan: mk.plan ? Math.round((mk.plan - t.startedAt) / 1000) : null, wait: mk.plan && mk.approved ? Math.round((mk.approved - mk.plan) / 1000) : null, build: mk.approved && mk.handoff ? Math.round((mk.handoff - mk.approved) / 1000) : null, pass: mk.handoff && mk.go ? Math.round((mk.go - mk.handoff) / 1000) : null, ship: mk.go && mk.served ? Math.round((mk.served - mk.go) / 1000) : null };
+      }
+    }
+    for (const h of s.helpers) {
+      const x = actors[h.from]; if (!x) continue;
+      const k = (x.helpers[h.kind] ||= { runs: 0, cost: 0, total: 0, secs: 0 });
+      if (!seenHelpers.has(h.id)) { seenHelpers.set(h.id, h); k.runs++; }
+      k.cost += 0.004; k.total += 1500; k.secs += every / 1000; x.cost += 0.004; x.total += 1500; x.current.helperCost = (x.current.helperCost || 0) + 0.004; x.current.allCost = x.cost; x.current.allTotal = x.total;
+      const station = s.stations.find((st) => st.id === h.from), tid = station?.ticket || (String(h.note).match(/\b(S\d{3}-\d{2}|BKLG-\d{3}|HYG-\d{3})\b/) || [])[1];
+      const t = tid && tickets.get(tid); if (!t) continue;
+      const stage = stageOf(t), st = step(t, stage, h.kind, h.kind === 'runner' ? 'haiku' : 'sonnet', h.kind, h.note || h.kind); st._helper = h.id;
+      st.cost += 0.004; st.total += 1500; st.secs += every / 1000; t.helperCost += 0.004; t.allCost = t.cost + t.helperCost; (t.helpers[h.kind] ||= { runs: 0, cost: 0, total: 0, secs: 0 }); if (st.secs <= every / 1000) t.helpers[h.kind].runs++; t.helpers[h.kind].cost += 0.004; t.helpers[h.kind].secs += every / 1000;
+      const g = t.stages[stage]; g.cost += 0.004; g.total += 1500; if (st.secs <= every / 1000) g.steps++;
+      if (t.rework && !t.rework.settled) { t.rework.cost += 0.004; t.rework.secs += every / 1000; }
+    }
+    // A helper that has gone: close its step; a runner's verdict is the check's last result for that cook.
+    for (const t of tickets.values()) for (const st of t.steps) {
+      if (!st.open) continue;
+      if (st.kind === 'own') { if (stageOf(t) !== st.stage || t.status === 'served') st.open = false; continue; }
+      if (s.helpers.some((h) => h.id === st._helper)) continue;
+      st.open = false;
+      if (st.kind === 'runner') { const r = [...s.check.history].reverse().find((r) => r.who === t.cook); st.ok = r ? r.ok : true; if (st.ok === false) { t.rework ||= { reds: 0, cost: 0, secs: 0, settled: false }; t.rework.reds++; t.rework.settled = false; } else if (t.rework) t.rework.settled = true; }
+    }
+    for (const t of tickets.values()) { for (const g of Object.values(t.stages)) g.steps = t.steps.filter((x) => x.stage === Object.keys(t.stages).find((k) => t.stages[k] === g)).length; if (t.status === 'open' && !s.stations.some((st) => st.ticket === t.id)) { t.status = 'served'; t.servedAt = Date.now(); t.marks.served ||= t.servedAt; t.ci = { minutes: 4.5, cost: 0.036, runs: 2, branch: `${t.id.toLowerCase()}-x`, public: false }; } }
+    const shift = { tokens: zero(), total: 0, cost: 0, secs: 0, activeSecs: 0, helperCost: 0, ci: { minutes: 0, cost: 0 } };
+    for (const x of Object.values(actors)) { shift.cost += x.cost; shift.total += x.total; shift.secs += x.secs; shift.activeSecs += x.activeSecs; for (const k of Object.keys(shift.tokens)) shift.tokens[k] += x.current.tokens[k]; }
+    for (const t of tickets.values()) if (t.ci) { shift.ci.minutes += t.ci.minutes; shift.ci.cost += t.ci.cost; }
+    const pub = (t) => { const { marks, ...rest } = t; return { ...rest, steps: t.steps.map(({ open, _helper, ...x }) => x) }; };
+    store.setBudget({ asOf: '2026-10-24', since, computedAt: Date.now(), shift, sessions: Object.values(actors).map((x) => x.current), tickets: [...tickets.values()].map(pub), actors, unknownModels: [], windows: { shift: since, today: since, week: since - 6 * 86400000 }, caps: { shift_usd: 60, ticket_usd: 12 } });
+  };
+  const t = setInterval(tick, every); t.unref?.();
 }

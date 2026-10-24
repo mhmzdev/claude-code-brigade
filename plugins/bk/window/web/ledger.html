@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Ledger · Brigade</title>
+<link rel="stylesheet" href="/ledger.css" />
+</head>
+<body>
+<!-- The Ledger: what the kitchen spends, as a page. Dishes (tickets) or sessions, over the shift, today or the week. -->
+<header id="top">
+  <div class="chip ident"><span id="conn" class="dot off"></span><b id="repo">kitchen</b><span id="mode" class="mono muted"></span><span id="demo" class="badge" hidden>demo</span></div>
+  <nav class="seg"><a href="/" id="live">Live <kbd>Esc</kbd></a><span class="on">Ledger</span></nav>
+  <span class="sp"></span>
+  <nav class="seg" id="views"><button type="button" data-view="dishes" class="on">Dishes <kbd>D</kbd></button><button type="button" data-view="sessions">Sessions <kbd>S</kbd></button></nav>
+  <nav class="seg" id="ranges"><button type="button" data-range="shift" class="on">Shift</button><button type="button" data-range="today">Today</button><button type="button" data-range="week">Week</button></nav>
+</header>
+<section id="summary"></section>
+<main id="body"></main>
+<footer id="foot"></footer>
+<script type="module" src="/ledger.js"></script>
+</body>
+</html>

@@ -444,7 +444,7 @@ in progress), when the head chef asks, or when about three passes have gone by s
 handoff. Suggest it; clearing is the head chef's call.
 
 Run `/bk:handoff`. It counts lessons and promotes the due ones, files the record's three
-lists (decisions, open questions, the inbox), writes `.claude/sous-handoff.md`, and tells
+lists (decisions, open questions, the inbox), fetches CI minutes into the budget, writes `.claude/sous-handoff.md`, and tells
 the cooks you're restarting. After `/clear`, a fresh `/bk:sous-chef` picks up from Step 0.
 
 ## Standing rules

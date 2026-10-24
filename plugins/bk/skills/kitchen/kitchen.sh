@@ -79,6 +79,21 @@
 #   kitchen.sh sessions [--dir D]         the Claude Code session transcripts saved for
 #                                         this checkout (or D, e.g. a station), newest
 #                                         first, from $CLAUDE_CONFIG_DIR (else ~/.claude)
+#   kitchen.sh budget [--ticket ID] [--since today|7d] [--ci] [--json]
+#                                         what the kitchen spends: tokens (input, output,
+#                                         cache read, cache write), money at Anthropic's
+#                                         list prices (a prices: block in the config
+#                                         overrides), time (per session: working time;
+#                                         per ticket: brief→served and each phase), and
+#                                         sub-agents, per session and per ticket, read
+#                                         from the session transcripts Claude Code keeps
+#                                         (needs node 20+; a week back at most). --ci asks gh for the CI
+#                                         minutes of each ticket's PR branch. Served
+#                                         tickets and CI results are kept in
+#                                         .claude/budget.jsonl (out of git) so they
+#                                         outlive transcript cleanup.
+#                                         --ticket ID --journal-line [--session NAME]
+#                                         prints the one line open-pr adds to the journal
 #   kitchen.sh live [stop|status] [--port P] [--demo [-n N]] [--no-launch]
 #                                         the Window: a live view of this kitchen on
 #                                         localhost (needs node 20+). With no word it
@@ -99,7 +114,7 @@
 # starts that session with `claude --resume <id>` instead of a fresh one, then removes
 # the file. Both files are kept out of git.
 #
-# Requires: git, claude. Optional: tmux (open; installed by Homebrew on a Mac), gh (status), node 20+ (live).
+# Requires: git, claude. Optional: tmux (open; installed by Homebrew on a Mac), gh (status, budget --ci), node 20+ (live, budget).
 # BRIGADE_OS (mac|linux|wsl|windows) overrides OS detection; the tests use it.
 # =============================================================================
 
@@ -181,6 +196,12 @@ MODELS=()
 LIVE_WORD=""    # stop | status, for live
 LIVE_PORT="${BRIGADE_WINDOW_PORT:-4747}"
 DEMO=false        # --demo, for live
+TICKET=""         # --ticket, for budget
+SINCE="today"     # --since, for budget
+CI=false          # --ci, for budget
+JSON=false        # --json, for budget
+JOURNAL_LINE=false # --journal-line, for budget
+SESSION_NAME=""   # --session, for budget --journal-line
 ARGV=()   # set by native_argv
 
 usage() { awk 'NR>2 { if (/^# =+$/) exit; sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"; exit 1; }
@@ -199,6 +220,12 @@ while [[ $# -gt 0 ]]; do
     --also) ALSO="$2"; shift 2 ;;
     --set) SET_SOUS=true; SOUS_NAME="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
     --add) ADD_TEXT="${2:-}"; ADD_GIVEN=true; shift; [[ $# -gt 0 ]] && shift ;;
+    --ticket) TICKET="$2"; shift 2 ;;
+    --since) SINCE="$2"; shift 2 ;;
+    --ci) CI=true; shift ;;
+    --json) JSON=true; shift ;;
+    --journal-line) JOURNAL_LINE=true; shift ;;
+    --session) SESSION_NAME="$2"; shift 2 ;;
     -m|--model) shift
       while [[ $# -gt 0 && "$1" != -* ]]; do
         for tok in ${1//,/ }; do MODELS+=("$tok"); done; shift
@@ -1258,6 +1285,24 @@ cmd_sessions() {
 }
 
 # ---------------------------------------------------------------------------
+# budget — what the kitchen spends. The reading lives in the Window's server
+# (window/server/live/budget.js) so the terminal and the Window sum the same way; this
+# only finds node and runs it from the main checkout.
+# ---------------------------------------------------------------------------
+cmd_budget() {
+  local dir args=()
+  dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../window" 2>/dev/null && pwd -P)"
+  [[ -f "$dir/server/live/budget.js" ]] || { echo "The budget reader isn't in this plugin install ($dir)." >&2; return 1; }
+  command -v node >/dev/null 2>&1 || { echo "The budget needs node 20 or newer on your PATH (brew install node, or nodejs.org)." >&2; return 1; }
+  mkdir -p "$ROOT/.claude"; exclude_locally .claude/budget.jsonl
+  args=(--root "$ROOT" --since "$SINCE")
+  [[ -n "$TICKET" ]] && args+=(--ticket "$TICKET")
+  [[ -n "$SESSION_NAME" ]] && args+=(--session "$SESSION_NAME")
+  $CI && args+=(--ci); $JSON && args+=(--json); $JOURNAL_LINE && args+=(--journal-line)
+  node "$dir/server/live/budget.js" "${args[@]}"
+}
+
+# ---------------------------------------------------------------------------
 # live — the Window. One node process (plugins/bk/window/server) serving the kitchen on
 # localhost; pid and port in .claude/window.pid, output in .claude/window.log, both kept
 # out of git. `live` toggles, `live stop` closes, `live status` only looks.
@@ -1347,5 +1392,5 @@ case "$CMD" in
   files) cmd_files ;; rail) cmd_rail ;; board) cmd_board ;; leaks) cmd_leaks ;; remove) cmd_remove ;;
   role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   decisions) cmd_decisions ;; inbox) cmd_inbox ;; doctor) cmd_doctor ;;
-  sessions) cmd_sessions ;; live) cmd_live ;; *) usage ;;
+  sessions) cmd_sessions ;; live) cmd_live ;; budget) cmd_budget ;; *) usage ;;
 esac

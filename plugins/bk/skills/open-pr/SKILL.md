@@ -55,7 +55,15 @@ The branch is `<lowercase id>-<slug>`, e.g. `bklg-004-fix-login`, reusing the pl
 
 ## 3 — Commit
 
-Stage only the ticket's files: the ones in the diff that the plan, the ticket's `files:` and the checklist account for, plus the ticket's plan, checklist and **journal** (`<docs.journal>/<ID>-<slug>.md`) and their INDEX rows. The journal is the one file allowed to have changed since the sous's `[go]`: it carries the closing handoff. A file you had to guess about is a fork: ask. Never `git add -A` unasked.
+**The cost line first** (Contract 11). Append the ticket's cost line to its journal, after the closing handoff:
+
+```bash
+"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" budget --ticket <ID> --journal-line --session <this session's name> >> <docs.journal>/<ID>-<slug>.md
+```
+
+It prints one dated line (money, tokens, brief→PR with the phases known so far, the helpers) read from the transcripts of every cook session on the ticket and the sous's sub-agents for it, so it costs nothing to write. If it fails (no node, or nothing recorded), say so in one line and go on: the line is a record, not a gate. The ship phase and the CI minutes are not known yet; they land in `.claude/budget.jsonl` later (the sous's handoff and the open Window fetch CI).
+
+Stage only the ticket's files: the ones in the diff that the plan, the ticket's `files:` and the checklist account for, plus the ticket's plan, checklist and **journal** (`<docs.journal>/<ID>-<slug>.md`) and their INDEX rows. The journal is the one file allowed to have changed since the sous's `[go]`: it carries the closing handoff and the cost line. A file you had to guess about is a fork: ask. Never `git add -A` unasked.
 
 **Leak check before the commit, and again before the push** (Contract 2): `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" leaks`, the second time with `--also <the PR body file>`. It prints `file:line` for any test-account secret that reached a file, a commit message or the PR body. A non-zero exit → stop, remove it (name the account instead), and run it again; a cook then sends `[handoff]` again if the fix changed anything but the journal.
 

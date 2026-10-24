@@ -9,6 +9,18 @@ the composer (foot), and an inspector for the selected figure (right).
 
 ![The Window: a four-station demo service](assets/window.png)
 
+The chip at the foot is the budget: what the shift has spent in money, tokens, working time
+and CI minutes, against the shift's scale when the config sets one. It opens **the Ledger**
+(`$`; `Esc` back), the Window's second page: the spend over the shift, today or the week,
+split into prep, cook, check, serve and the kitchen's own overhead; a row per dish (ticket)
+with where its money went, its time and its cost against the dish cap, opening into four
+stage cards, the model and CI totals, what a red check cost in rework, and every step (the
+cook's turns per stage and every sub-agent run, with the runner's verdict); or a row per
+session with its helpers. The line shows each session's spend today and a figure's page has
+its rows. The numbers come from the transcripts (`live/budget.js`,
+the same reader `kitchen.sh budget` runs), priced on a dated list; served tickets and CI
+minutes (asked of `gh` every ten minutes) are kept in `.claude/budget.jsonl`.
+
 From a kitchen, `/bk:live` opens it and `/bk:live` again closes it (`kitchen.sh live` does
 the same from a shell). It needs node 20 or newer and nothing else: the room is plain DOM and
 CSS 3D, so there is no install step and nothing to vendor. To run it by hand from this folder:
@@ -54,5 +66,5 @@ already writes; one Server-Sent Events stream; the room is plain DOM and CSS 3D 
 characters as inline SVG, so the browser composites it and nothing redraws while the room is
 still. The only script loop runs while a message is in flight, at most 30 frames a second.
 
-Keys: `1`–`9` select a session, `/` the composer, `i` the inspector, `r` the rail, `h` what was
+Keys: `1`–`9` select a session, `/` the composer, `i` the inspector, `r` the rail, `$` the Ledger, `h` what was
 heard, `l` the line, `g` the question waiting on you (then `a`, `b`, … to answer), `Esc` back.
