@@ -31,6 +31,9 @@ recorded in `.claude/bk-profile` (kept out of git) so every later command, and t
 after a stop, uses the same account; with several profiles and nothing recorded, `bk open`
 asks once.
 
+Also: when the `sous` window is still there but the sous has left it (an `/exit` by hand),
+opening the kitchen again starts the sous in that window instead of leaving an empty shell.
+
 What you must do: nothing. The marketplace plugin keeps working as before for sessions you
 open by hand, and `/bk:kitchen open` still works. To use `bk`, install it with Homebrew and
 run `bk open` where you ran `/bk:kitchen open`. For maintainers: the tap is

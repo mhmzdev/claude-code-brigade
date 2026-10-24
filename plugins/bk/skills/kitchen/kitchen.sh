@@ -704,6 +704,9 @@ cmd_open() {
       elif ! tmux list-windows -t "$sess" -F '#W' 2>/dev/null | grep -qx sous; then
         tmux new-window -t "$sess" -n sous -c "$ROOT"
         tmux send-keys -t "$sess:sous" "$(sous_cmd)" Enter; sous_started=true
+      elif [[ "$(tmux display-message -p -t "$sess:sous" '#{pane_current_command}' 2>/dev/null)" =~ ^-?(zsh|bash|sh|fish|dash|ksh)$ ]]; then
+        # the sous window is there but the sous has left it (an /exit by hand): start it again in place
+        tmux send-keys -t "$sess:sous" "$(sous_cmd)" Enter; sous_started=true
       fi
       for i in "${!list[@]}"; do
         win="$(basename "${list[$i]}")"

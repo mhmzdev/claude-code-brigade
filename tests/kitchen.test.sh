@@ -306,11 +306,19 @@ ok "…a station without one starts fresh" bash -c '! grep "station-2 claude" "$
 ok "…and the ids are used once" test ! -e "$C/.claude/sous-session" -a ! -e "$C/stations/station-1/.claude/cook-session"
 ok "the bk hints replace the tmux ones when bk opened the kitchen" has "$(PATH="$TB:$NB" BRIGADE_VIA_BK=1 "$K" open)" "bk attach .*bk peek 1 .*bk stop"
 # a session that already exists gains windows instead of being refused
-printf '#!/bin/sh\n[ "$1" = has-session ] && exit 0\n[ "$1" = list-windows ] && { echo sous; echo station-1; exit 0; }\necho "tmux $*" >> "%s"\n' "$TB/tmux.log" > "$TB/tmux"
+printf '#!/bin/sh\n[ "$1" = has-session ] && exit 0\n[ "$1" = list-windows ] && { echo sous; echo station-1; exit 0; }\n[ "$1" = display-message ] && { echo node; exit 0; }\necho "tmux $*" >> "%s"\n' "$TB/tmux.log" > "$TB/tmux"
 : > "$TB/tmux.log"
 out=$(PATH="$TB:$NB" "$K" open --terminal tmux)
 ok "an existing session keeps its sous window" bash -c '! grep -q "new-window -t app-brigade -n sous" "$1" && ! grep -q "new-session" "$1"' _ "$TB/tmux.log"
+ok "…and a sous still running there is left alone" bash -c '! grep -q "send-keys -t app-brigade:sous" "$1"' _ "$TB/tmux.log"
 ok "…reuses a dead cook's window and adds the missing one" bash -c 'grep -q "kill-window -t app-brigade:station-1" "$1" && grep -q "new-window -t app-brigade -n station-2" "$1"' _ "$TB/tmux.log"
+# the sous window is there but holds a bare shell (the sous was exited by hand): the sous restarts in it
+printf '#!/bin/sh\n[ "$1" = has-session ] && exit 0\n[ "$1" = list-windows ] && { echo sous; echo station-1; exit 0; }\n[ "$1" = display-message ] && { echo zsh; exit 0; }\necho "tmux $*" >> "%s"\n' "$TB/tmux.log" > "$TB/tmux"
+: > "$TB/tmux.log"
+out=$(PATH="$TB:$NB" "$K" open --terminal tmux)
+ok "a sous window left as a bare shell gets the sous started again in place" has "$(cat "$TB/tmux.log")" 'send-keys -t app-brigade:sous claude --model opus "/bk:sous-chef" Enter'
+ok "…without a second sous window" bash -c '! grep -q "new-window -t app-brigade -n sous" "$1"' _ "$TB/tmux.log"
+ok "…and says so" has "$out" "the sous started in window 'sous'"
 printf '#!/bin/sh\n[ "$1" = has-session ] && exit 1\necho "tmux $*" >> "%s"\n' "$TB/tmux.log" > "$TB/tmux"
 # no tmux, a Mac with Homebrew: brew installs it (the stub drops a tmux onto the PATH)
 BB="$TMP/brewbin"; mkdir -p "$BB"; : > "$BB/brew.log"
