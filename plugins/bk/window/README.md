@@ -1,15 +1,16 @@
 # The Window
 
-A live view of a Brigade kitchen on localhost: the cooks at their stations, the sous at
-the pass, the head chef at the window, the commis running to the record, tickets flying
-between sessions. The right-hand panel holds what needs you, the line, the rail and the
-message log.
+A live view of a Brigade kitchen on localhost, drawn as a room in 2.5D: the cooks at their
+stations, the sous at the pass, the head chef in the glass office, the commis running to the
+record, messages flying between sessions. Drag to turn the room, wheel to zoom. Around it
+float what needs you (top), the line (left), the rail or everything heard (a sheet at the
+bottom), the composer (foot), and an inspector for the selected figure (right).
 
-![The Window: a six-station demo service](assets/window.png)
+![The Window: a four-station demo service](assets/window.png)
 
 From a kitchen, `/bk:live` opens it and `/bk:live` again closes it (`kitchen.sh live` does
-the same from a shell). It needs node 20 or newer and nothing else: PixiJS is vendored under
-`web/vendor/`, so there is no install step. To run it by hand from this folder:
+the same from a shell). It needs node 20 or newer and nothing else: the room is plain DOM and
+CSS 3D, so there is no install step and nothing to vendor. To run it by hand from this folder:
 
 ```bash
 node server/index.js --root /path/to/the/repo     # the live kitchen (default: the cwd's repo)
@@ -41,9 +42,14 @@ A question's answer is typed as its option number, then Enter.
   spawns, SendMessage calls, AskUserQuestion, your own prompts to the sous.
 - each station's git state every five seconds, and the markdown rail's frontmatter.
 - the record: one book per markdown page under each folder of the config's `docs` map
-  (INDEX files excluded), counted every twenty seconds. The shelf against the left wall
-  fills a row per six pages, three rows a cupboard, and opens a second cupboard beneath; hover it for the count by kind.
+  (INDEX files excluded), counted every twenty seconds. The cupboard against the left wall
+  fills a shelf per eight pages, three shelves a cupboard, and opens a second cupboard
+  beside it; hover it for the count by kind.
 
 How it stays cheap: one Node process with no dependencies, watching files Claude Code
-already writes; one Server-Sent Events stream; PixiJS draws vector shapes (no assets),
-capped at 30 fps, 10 fps when the room is still, paused when the tab is hidden.
+already writes; one Server-Sent Events stream; the room is plain DOM and CSS 3D with the
+characters as inline SVG, so the browser composites it and nothing redraws while the room is
+still. The only script loop runs while a message is in flight, at most 30 frames a second.
+
+Keys: `1`–`9` select a session, `/` the composer, `i` the inspector, `r` the rail, `h` what was
+heard, `l` the line, `g` the question waiting on you (then `a`, `b`, … to answer), `Esc` back.

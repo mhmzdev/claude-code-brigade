@@ -15,7 +15,6 @@ import { createControl } from './control.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDir = path.join(here, '..', 'web');
-const pixiDir = path.join(here, '..', 'web', 'vendor'); // PixiJS, vendored: no install step
 
 const args = process.argv.slice(2);
 const flag = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : dflt; };
@@ -75,11 +74,6 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify(store.snapshot()));
     return;
-  }
-  if (url.pathname.startsWith('/vendor/pixi/')) {
-    const name = path.basename(url.pathname);
-    if (name !== 'pixi.min.mjs') { res.writeHead(404); res.end(); return; }
-    return serveFile(res, path.join(pixiDir, name));
   }
   const rel = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
   const file = path.normalize(path.join(webDir, rel));

@@ -5,62 +5,68 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>The Window · Brigade</title>
 <link rel="stylesheet" href="/style.css" />
-<script type="importmap">{ "imports": { "pixi.js": "/vendor/pixi/pixi.min.mjs" } }</script>
 </head>
 <body>
-<!-- Top bar: who this kitchen is, whether we're connected, the roster as chips, the frame rate. -->
-<header id="top">
-  <div class="ident">
+<!-- The room: a 2.5D floor you can turn (drag) and zoom (wheel). Everything else floats over it. -->
+<div id="stage"></div>
+<div id="tip" hidden></div>
+<div id="pop" hidden></div>
+
+<!-- Top: who this kitchen is · what needs you · the toggles and the frame rate -->
+<header id="hud-top">
+  <div class="chip ident">
     <span id="conn" class="dot off" title="connection"></span>
-    <span id="title">The Window</span>
-    <span class="sep"></span>
-    <span id="repo">kitchen</span>
-    <span id="mode" class="muted"></span>
+    <b id="repo">kitchen</b>
+    <span id="mode" class="mono muted"></span>
     <span id="demo" class="badge" hidden>demo</span>
   </div>
-  <ul id="line" title="The line: click one to inspect"></ul>
-  <div class="right"><button id="rail-toggle" class="icon" title="Show or hide the rail">▤</button><span id="fps" class="muted"></span></div>
+  <div id="gate" class="centre"></div>
+  <div class="chip toggles">
+    <button type="button" data-t="line">Line <kbd>L</kbd></button>
+    <button type="button" data-t="rail">Rail <kbd>R</kbd></button>
+    <button type="button" data-t="heard">Heard <kbd>H</kbd></button>
+    <span id="fps" class="mono muted"></span>
+  </div>
 </header>
 
-<div id="body">
-  <!-- Left: the rail, read like a board. -->
-  <aside id="railpane">
-    <h2>The rail</h2>
-    <div id="rail" class="rail"></div>
-  </aside>
+<!-- Left: the line, one row per session; a number key selects it -->
+<aside id="linepane">
+  <div class="h">The line</div>
+  <ul id="line"></ul>
+</aside>
 
-  <!-- Centre: the room, with questions as a banner over it. -->
-  <main id="stage">
-    <canvas id="kitchen"></canvas>
-    <section id="attention" hidden>
-      <h2>Needs you</h2>
-      <ul id="questions"></ul>
-    </section>
-  </main>
-
-  <!-- Right: the inspector, only while a figure is selected. -->
-  <aside id="inspector" hidden>
-    <button id="back" class="icon close" title="Close (Esc)">✕</button>
-    <section id="d-head"></section>
-    <section id="d-controls"></section>
-  </aside>
-</div>
-
-<!-- Bottom: the console. Everything heard on the line, filtered to the selected figure, with the prompt at its foot. -->
-<section id="console">
-  <div id="console-bar">
-    <span class="grip" title="Drag to resize"></span>
-    <h2>Heard on the line</h2>
-    <button id="filter" class="chip" hidden></button>
-    <span id="count" class="muted"></span>
-    <button id="console-toggle" class="icon" title="Collapse or expand">▾</button>
+<!-- Bottom sheet: the rail as a board, or everything heard on the line -->
+<section id="sheet" hidden>
+  <div class="tabs">
+    <button type="button" data-tab="rail">The rail</button>
+    <button type="button" data-tab="heard">Heard</button>
+    <span class="sp"></span>
+    <button type="button" id="filter" class="pill-btn" hidden></button>
+    <span id="count" class="mono muted"></span>
+    <button type="button" id="sheet-close" class="link">Close</button>
   </div>
-  <ol id="log" class="log"></ol>
-  <footer>
-    <form id="chatform"><span class="prompt">›</span><input id="chat" type="text" placeholder="Say something to the sous…" autocomplete="off" /><button type="submit">Send</button></form>
-    <div id="chatnote" class="note" hidden></div>
-  </footer>
+  <div id="rail" class="rail" hidden></div>
+  <ol id="log" class="log" hidden></ol>
 </section>
+
+<!-- Bottom: the rail in numbers · the composer, addressed to the selected session or the sous -->
+<footer id="hud-bottom">
+  <button type="button" id="railsum" class="chip mono" title="The rail (R)"></button>
+  <form id="chatform">
+    <span class="to">to <b id="target">Sous Chef</b></span>
+    <input id="chat" type="text" placeholder="Say something to the sous…   ( / )" autocomplete="off" />
+    <button type="submit">Send</button>
+  </form>
+</footer>
+<div id="chatnote" class="note float" hidden></div>
+
+<!-- Right: the inspector for the selected figure (I) -->
+<aside id="inspector" hidden>
+  <section id="d-head"></section>
+  <section id="d-controls"></section>
+  <div class="h heard">Heard</div>
+  <ol id="d-heard" class="heard"></ol>
+</aside>
 <script type="module" src="/main.js"></script>
 </body>
 </html>
