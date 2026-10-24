@@ -1,10 +1,11 @@
 # The Window
 
-A live view of a Brigade kitchen on localhost, drawn as a room in 2.5D: the cooks at their
-stations, the sous at the pass, the head chef in the glass office, the commis running to the
-record, messages flying between sessions. Drag to turn the room, wheel to zoom. Around it
-float what needs you (top), the line (left), the rail or everything heard (a sheet at the
-bottom), the composer (foot), and an inspector for the selected figure (right).
+A live view of a Brigade kitchen on localhost, drawn as a room in 2.5D from a fixed angle:
+the cooks at their stations, the sous at the pass, the head chef in the glass office, the
+commis running to the record, the check as a dish machine that shows what is queued, what is
+in, the last result and the last ten, and messages flying between sessions. Around it float
+what needs you (top), the line (left), the rail or everything heard (a sheet at the bottom),
+the composer (foot), and an inspector for the selected figure (right).
 
 ![The Window: a four-station demo service](assets/window.png)
 
@@ -41,6 +42,8 @@ A question's answer is typed as its option number, then Enter.
 - each session's transcript under `~/.claude/projects/`, tailed: edits, commands, sub-agent
   spawns, SendMessage calls, AskUserQuestion, your own prompts to the sous.
 - each station's git state every five seconds, and the markdown rail's frontmatter.
+- every `runner` sub-agent as a check run: its reply says pass or fail, its duration is the
+  run's time, and the last ten results, the counts and the last result stay for the shift.
 - the record: one book per markdown page under each folder of the config's `docs` map
   (INDEX files excluded), counted every twenty seconds. The cupboard against the left wall
   fills a shelf per eight pages, three shelves a cupboard, and opens a second cupboard

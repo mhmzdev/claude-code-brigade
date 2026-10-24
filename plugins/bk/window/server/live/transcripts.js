@@ -60,7 +60,11 @@ export function tailTranscript({ file, who, store, resolve, replayBytes = 48 * 1
     } else if (o.type === 'user') {
       for (const b of content) {
         if (b.type !== 'tool_result') continue;
-        if (pendingAgents.has(b.tool_use_id)) { pendingAgents.delete(b.tool_use_id); store.helperEnd(b.tool_use_id); store.setActor(who, { activity: 'thinking' }); }
+        if (pendingAgents.has(b.tool_use_id)) {
+          pendingAgents.delete(b.tool_use_id);
+          const reply = typeof b.content === 'string' ? b.content : (Array.isArray(b.content) ? b.content.filter((x) => x.type === 'text').map((x) => x.text).join(' ') : '');
+          store.helperEnd(b.tool_use_id, String(reply || '').slice(0, 600)); store.setActor(who, { activity: 'thinking' });
+        }
         if (pendingAsks.has(b.tool_use_id)) { pendingAsks.delete(b.tool_use_id); store.answer(b.tool_use_id); store.setActor(who, { activity: 'thinking' }); }
       }
       // The head chef typing to the sous: a plain user prompt, not a tool result.
