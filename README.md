@@ -104,7 +104,8 @@ Or commit it for your whole team in `.claude/settings.json`:
 
 You need a Claude Code version where sessions on one machine can see each other
 (`ListAgents`) and message each other (`SendMessage`). All sessions must run under the
-same `CLAUDE_CONFIG_DIR`.
+same `CLAUDE_CONFIG_DIR`. The kitchen runs in **tmux** (macOS and Linux; on Windows use
+WSL): `kitchen open` installs it with Homebrew on a Mac, or names the package on Linux.
 
 ### Update
 
@@ -178,9 +179,18 @@ Two worktree habits: stashes are shared between stations (stash with
 
 ## Run a service
 
-1. In the main checkout: `/bk:sous-chef`. With no cooks yet, it tells you so and waits.
-2. From the sous (or any terminal): `/bk:kitchen open`. Each station opens **already running
-   `/bk:line-cook`**, finds the sous and checks in. There's nothing to type in the stations.
+The kitchen runs in **tmux**: one tmux session per repo, `<repo>-brigade`, with a `sous`
+window in the main checkout and one window per station. Nothing opens on your screen; the
+sessions run unattended, and you attach to the one you want to see. tmux is the terminal the
+Brigade uses, not the one you type `claude` into by hand. On a Mac without tmux, `kitchen
+open` installs it with Homebrew; on Linux it tells you the one `apt`/`dnf`/`pacman` line.
+
+1. From any terminal in the main checkout: `/bk:kitchen open` (or `kitchen.sh open`). It
+   starts the sous **already running `/bk:sous-chef`** and each station **already running
+   `/bk:line-cook`**; the cooks find the sous and check in. It prints the attach line.
+2. Talk to the sous: `tmux attach -t <repo>-brigade:sous`. Peek at a cook when you like:
+   `tmux attach -t <repo>-brigade:station-2` (detach with `Ctrl-b d`). Or watch the whole
+   kitchen in your browser with `/bk:live`.
 3. The sous puts each free cook on the next ready ticket and tells you what it assigned:
    `priority: high` first, then whatever unblocks the most, then spec tickets before
    backlog bugs before hygiene, oldest first. Steer it by
@@ -196,6 +206,10 @@ there. It's the name in the terminal title, in `/resume`, and in the sous's sess
 the repo prefix keeps two kitchens on one machine apart. Cooks start in Claude Code's
 `auto` permission mode, since nobody watches their terminals between gates (set
 `permission_mode:` in the config to change it).
+
+**Prefer windows you can see?** `kitchen open --terminal warp` (or `native`) opens one
+terminal per station the old way, and you run `/bk:sous-chef` yourself. The Window's controls
+can't type into those sessions, so they show you the command to paste instead.
 
 **The start order doesn't matter.** A cook that comes up before the sous says it's waiting;
 when the sous starts it sends `[hello]` to cooks in its stations, and they check in. The

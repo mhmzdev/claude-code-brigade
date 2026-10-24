@@ -31,6 +31,11 @@ mkdir -p "$HOME"
 cleanup() { [[ -n "${KEEP:-}" ]] && echo "kept: $TMP" || rm -rf "$TMP"; }
 trap cleanup EXIT
 
+# A sealed PATH: every tool kitchen.sh uses, and nothing it must not find on this machine
+# (tmux, brew, Warp, node), so the terminal it picks depends on the test, not the laptop.
+NB="$TMP/sealedbin"; mkdir -p "$NB"; export BRIGADE_TMUX_DIRS=""
+for t in git bash sh awk sed grep head tail cat mkdir rm cp mv ls ps lsof readlink chmod nohup sleep printf kill uname dirname basename sort uniq wc tr find date mktemp cut env touch xargs diff paste seq rev tee stat id gh curl python3 open; do p=$(command -v "$t" 2>/dev/null) && ln -sf "$p" "$NB/$t"; done
+
 PASS=0; FAIL=0; N=0
 ok() {  # ok <description> <command…>: passes when the command exits 0
   local desc="$1"; shift; N=$((N+1))
@@ -191,20 +196,20 @@ ok "on Linux the Warp config goes to warp-terminal's data dir" test -f "$HOME/.l
 FAKE="$TMP/fakebin"; mkdir -p "$FAKE"
 stub() { printf '#!/bin/sh\nexit 0\n' > "$FAKE/$1"; chmod +x "$FAKE/$1"; }
 stub gnome-terminal; stub osascript; stub wt.exe
-out=$(BRIGADE_OS=linux DISPLAY=:0 PATH="$FAKE:$PATH" "$K" open --no-launch)
+out=$(BRIGADE_OS=linux DISPLAY=:0 PATH="$FAKE:$NB" "$K" open --no-launch)
 ok "no Warp: open falls back to the Linux desktop's terminal" has "$out" "would run: gnome-terminal --working-directory=.*station-1"
 ok "…running the cook's claude command" has "$out" "app-cook-1"
 stub warp-terminal
-out=$(BRIGADE_OS=linux DISPLAY=:0 PATH="$FAKE:$PATH" "$K" open --no-launch)
+out=$(BRIGADE_OS=linux DISPLAY=:0 PATH="$FAKE:$NB" "$K" open --no-launch)
 ok "Warp installed: open prefers it over the native terminal" has "$out" "Warp config written"
 rm "$FAKE/warp-terminal"
-out=$(env -u DISPLAY -u WAYLAND_DISPLAY BRIGADE_OS=linux PATH="$FAKE:$PATH" "$K" open --no-launch)
+out=$(env -u DISPLAY -u WAYLAND_DISPLAY BRIGADE_OS=linux PATH="$FAKE:$NB" "$K" open --no-launch)
 ok "no Warp and no desktop: open prints the commands" has "$out" "cd .*station-1.* && claude"
-out=$(BRIGADE_OS=mac PATH="$FAKE:$PATH" "$K" open --terminal native --no-launch)
+out=$(BRIGADE_OS=mac PATH="$FAKE:$NB" "$K" open --terminal native --no-launch)
 ok "macOS native terminal is Terminal.app" has "$out" 'would run: osascript .*Terminal'
-out=$(BRIGADE_OS=wsl PATH="$FAKE:$PATH" "$K" open --terminal native --no-launch)
+out=$(BRIGADE_OS=wsl PATH="$FAKE:$NB" "$K" open --terminal native --no-launch)
 ok "WSL native terminal is Windows Terminal running wsl.exe" has "$out" "would run: wt.exe .*wsl.exe"
-out=$(BRIGADE_OS=windows PATH="$FAKE:$PATH" "$K" open --terminal native --no-launch)
+out=$(BRIGADE_OS=windows PATH="$FAKE:$NB" "$K" open --terminal native --no-launch)
 ok "Git Bash native terminal is Windows Terminal" has "$out" "would run: wt.exe -w 0 new-tab"
 out=$(env -u DISPLAY -u WAYLAND_DISPLAY BRIGADE_OS=linux "$K" open --terminal native --no-launch)
 ok "--terminal native with no terminal found prints the commands" has "$out" "No terminal found"
@@ -274,6 +279,37 @@ ok ".claude/sous stays out of git without touching a tracked file" test "$before
 ok "a new sous overwrites the old name" test "$(cd "$S1" && "$K" sous)" = app-sous-2
 ok "…without a second exclude line" test "$(grep -c '^\.claude/sous$' "$C/.git/info/exclude")" = 1
 
+section "open --terminal tmux"
+TB="$TMP/tmuxbin"; mkdir -p "$TB"; : > "$TB/tmux.log"
+printf '#!/bin/sh\n[ "$1" = has-session ] && exit 1\necho "tmux $*" >> "%s"\n' "$TB/tmux.log" > "$TB/tmux"; chmod +x "$TB/tmux"
+out=$(PATH="$TB:$NB" "$K" open --terminal tmux)
+ok "tmux: the session starts with a 'sous' window in the main checkout" has "$(cat "$TB/tmux.log")" "new-session -d -s app-brigade -n sous -c $(cd "$C" && pwd -P)"
+ok "…running /bk:sous-chef on opus, with no cook name" has "$(cat "$TB/tmux.log")" "send-keys -t app-brigade:sous claude --model opus \"/bk:sous-chef\" Enter"
+ok "…and one window per station running /bk:line-cook" bash -c 'grep -q "new-window -t app-brigade -n station-1" "$1" && grep -q "station-2 .*line-cook" "$1"' _ "$TB/tmux.log"
+ok "…and says how to attach to the sous" has "$out" "tmux attach -t app-brigade:sous"
+ok "tmux is the default terminal when it is on the PATH" has "$(PATH="$TB:$NB" "$K" open)" "runs in tmux session 'app-brigade'"
+cp "$C/.claude/brigade.md" "$TMP/brigade.md.bak"; printf -- '---\nsous_model: haiku\n---\n' > "$C/.claude/brigade.md"; : > "$TB/tmux.log"
+PATH="$TB:$NB" "$K" open >/dev/null
+ok "sous_model in the config picks the sous's model" has "$(cat "$TB/tmux.log")" "sous claude --model haiku"
+cp "$TMP/brigade.md.bak" "$C/.claude/brigade.md"
+# a session that already exists gains windows instead of being refused
+printf '#!/bin/sh\n[ "$1" = has-session ] && exit 0\n[ "$1" = list-windows ] && { echo sous; echo station-1; exit 0; }\necho "tmux $*" >> "%s"\n' "$TB/tmux.log" > "$TB/tmux"
+: > "$TB/tmux.log"
+out=$(PATH="$TB:$NB" "$K" open --terminal tmux)
+ok "an existing session keeps its sous window" bash -c '! grep -q "new-window -t app-brigade -n sous" "$1" && ! grep -q "new-session" "$1"' _ "$TB/tmux.log"
+ok "…reuses a dead cook's window and adds the missing one" bash -c 'grep -q "kill-window -t app-brigade:station-1" "$1" && grep -q "new-window -t app-brigade -n station-2" "$1"' _ "$TB/tmux.log"
+printf '#!/bin/sh\n[ "$1" = has-session ] && exit 1\necho "tmux $*" >> "%s"\n' "$TB/tmux.log" > "$TB/tmux"
+# no tmux, a Mac with Homebrew: brew installs it (the stub drops a tmux onto the PATH)
+BB="$TMP/brewbin"; mkdir -p "$BB"; : > "$BB/brew.log"
+printf '#!/bin/sh\necho "brew $*" >> "%s"\ncp "%s" "%s/tmux"\n' "$BB/brew.log" "$TB/tmux" "$BB" > "$BB/brew"; chmod +x "$BB/brew"
+: > "$TB/tmux.log"
+out=$(PATH="$BB:$NB" BRIGADE_OS=mac "$K" open --terminal tmux 2>&1)
+ok "tmux missing on a Mac: brew install tmux runs" has "$(cat "$BB/brew.log")" "brew install tmux"
+ok "…and the kitchen then opens in tmux" has "$out" "runs in tmux session 'app-brigade'"
+rm -f "$BB/tmux"
+out=$(PATH="$NB" BRIGADE_OS=linux "$K" open --terminal tmux 2>&1)
+ok "tmux missing on Linux: says the apt command and falls back to printed commands" bash -c 'printf "%s" "$1" | grep -q "sudo apt-get install -y tmux" && printf "%s" "$1" | grep -q "claude --name"' _ "$out"
+
 section "live (the Window)"
 ok "live status with nothing running says closed" has "$("$K" live status)" "closed"
 ok "live stop with nothing running is quiet and fine" has "$("$K" live stop)" "closed"
@@ -300,7 +336,6 @@ if command -v node >/dev/null 2>&1; then
 else
   echo "# node not installed: skipping the Window's start/stop tests"
 fi
-NB="$TMP/nonode"; mkdir -p "$NB"; for t in git bash awk sed grep head tail cat mkdir rm nohup sleep printf kill uname dirname basename; do p=$(command -v $t 2>/dev/null) && ln -sf "$p" "$NB/$t"; done
 ok "live without node says what to install" has "$(PATH="$NB" "$K" live --no-launch 2>&1)" "needs node"
 
 section "leaks"

@@ -25,7 +25,9 @@ const ROOT = path.resolve(flag('--root', process.cwd()));
 
 const store = createState({ repo: path.basename(ROOT), root: ROOT });
 const control = createControl(store, { demo: DEMO });
-control.describe().then((d) => store.setKitchen(d));
+// Re-described every few seconds: tmux installed mid-service changes what the panel says.
+const describe = () => control.describe().then((d) => { if (d.control !== store.state.kitchen.control) store.setKitchen(d); });
+describe(); setInterval(describe, 5000).unref();
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.map': 'application/json', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' };
 
@@ -87,5 +89,5 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`The Window  http://localhost:${PORT}  (${DEMO ? 'demo service' : 'live: ' + ROOT})`);
-  if (DEMO) runDemo(store, { stations: Number(flag('--stations', 2)) }); else startLive(store, ROOT);
+  if (DEMO) runDemo(store, { stations: Number(flag('--stations', 2)) }); else startLive(store, ROOT, control);
 });

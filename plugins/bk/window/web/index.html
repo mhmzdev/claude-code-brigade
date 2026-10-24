@@ -8,44 +8,59 @@
 <script type="importmap">{ "imports": { "pixi.js": "/vendor/pixi/pixi.min.mjs" } }</script>
 </head>
 <body>
-<main id="stage"><canvas id="kitchen"></canvas>
-  <div id="hud"><span id="conn" class="dot off"></span><span id="title">The Window</span><span id="fps"></span></div>
-</main>
-<button id="toggle" title="Toggle the panel">◂</button>
-<aside id="panel">
-  <header>
-    <h1 id="repo">kitchen</h1>
-    <div class="meta"><span id="mode"></span><span id="demo" class="badge" hidden>demo service</span></div>
-  </header>
-  <div id="overview" class="stack">
-    <section id="attention" class="card attention" hidden>
+<!-- Top bar: who this kitchen is, whether we're connected, the roster as chips, the frame rate. -->
+<header id="top">
+  <div class="ident">
+    <span id="conn" class="dot off" title="connection"></span>
+    <span id="title">The Window</span>
+    <span class="sep"></span>
+    <span id="repo">kitchen</span>
+    <span id="mode" class="muted"></span>
+    <span id="demo" class="badge" hidden>demo</span>
+  </div>
+  <ul id="line" title="The line: click one to inspect"></ul>
+  <div class="right"><button id="rail-toggle" class="icon" title="Show or hide the rail">▤</button><span id="fps" class="muted"></span></div>
+</header>
+
+<div id="body">
+  <!-- Left: the rail, read like a board. -->
+  <aside id="railpane">
+    <h2>The rail</h2>
+    <div id="rail" class="rail"></div>
+  </aside>
+
+  <!-- Centre: the room, with questions as a banner over it. -->
+  <main id="stage">
+    <canvas id="kitchen"></canvas>
+    <section id="attention" hidden>
       <h2>Needs you</h2>
       <ul id="questions"></ul>
     </section>
-    <section class="card">
-      <h2>The line</h2>
-      <ul id="line"></ul>
-    </section>
-    <section class="card">
-      <h2>The rail</h2>
-      <div id="rail" class="rail"></div>
-    </section>
-    <section class="card grow">
-      <h2>Heard on the line</h2>
-      <ol id="log" class="log"></ol>
-    </section>
+  </main>
+
+  <!-- Right: the inspector, only while a figure is selected. -->
+  <aside id="inspector" hidden>
+    <button id="back" class="icon close" title="Close (Esc)">✕</button>
+    <section id="d-head"></section>
+    <section id="d-controls"></section>
+  </aside>
+</div>
+
+<!-- Bottom: the console. Everything heard on the line, filtered to the selected figure, with the prompt at its foot. -->
+<section id="console">
+  <div id="console-bar">
+    <span class="grip" title="Drag to resize"></span>
+    <h2>Heard on the line</h2>
+    <button id="filter" class="chip" hidden></button>
+    <span id="count" class="muted"></span>
+    <button id="console-toggle" class="icon" title="Collapse or expand">▾</button>
   </div>
-  <div id="detail" class="stack" hidden>
-    <button id="back" class="link">◂ the kitchen</button>
-    <section class="card" id="d-head"></section>
-    <section class="card" id="d-controls"></section>
-    <section class="card grow"><h2 id="d-log-title">Heard</h2><ol id="d-log" class="log"></ol></section>
-  </div>
+  <ol id="log" class="log"></ol>
   <footer>
-    <form id="chatform"><input id="chat" type="text" placeholder="Say something to the sous…" autocomplete="off" /><button type="submit">Send</button></form>
+    <form id="chatform"><span class="prompt">›</span><input id="chat" type="text" placeholder="Say something to the sous…" autocomplete="off" /><button type="submit">Send</button></form>
     <div id="chatnote" class="note" hidden></div>
   </footer>
-</aside>
+</section>
 <script type="module" src="/main.js"></script>
 </body>
 </html>

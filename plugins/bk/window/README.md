@@ -27,8 +27,9 @@ Hover anyone for their role. Click the floor or press Esc to go back.
 ## How the controls reach a session
 
 Claude Code has no outside switch for a session's model or prompt. The only honest route
-is typing into the terminal the session runs in, which tmux allows. Open the kitchen with
-`kitchen.sh open --terminal tmux` and the Window types `/model sonnet`, `/clear`, a chat
+is typing into the terminal the session runs in, which tmux allows. `kitchen.sh open` starts
+the kitchen in tmux (the sous in its own window, one per station), so the Window types
+`/model sonnet`, `/clear`, a chat
 line, or a question's answer straight into the right pane; you see it land in the
 terminal. Without tmux (Warp, Terminal.app) the Window shows you the command to paste.
 A question's answer is typed as its option number, then Enter.

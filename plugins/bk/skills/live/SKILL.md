@@ -9,7 +9,7 @@ allowed-tools: Bash, Read
 
 Honour the plugin contract: the `README.md` in this skill's parent folder, `${CLAUDE_SKILL_DIR}/../README.md`. Invoking this skill is its approval (Contract 5): open or close the Window and report, ask nothing.
 
-The Window reads what the kitchen already writes (the session registry, each session's transcript, the stations' git state, the rail, the record) and draws it as a room. It changes nothing by itself. Its controls type into a session's terminal only when that session runs in tmux; otherwise they show the command to paste.
+The Window reads what the kitchen already writes (the session registry, each session's transcript, the stations' git state, the rail, the record) and draws it as a room. It changes nothing by itself. Its controls type into a session's terminal when that session runs inside tmux, which is how `/bk:kitchen open` starts the kitchen; a session opened in Warp or the OS's terminal gets the command to paste instead.
 
 ## Contents
 
@@ -39,4 +39,5 @@ Repeat the script's line as it printed it, for example *"The Window is open: htt
 
 - **"needs node 20 or newer"**: the Window is one Node process with no dependencies. Say what the script said; on a Mac `brew install node` is the usual route.
 - **"didn't start"**: the script printed the tail of `.claude/window.log`. Pass it on. The common cause is the port already in use: try `/bk:live --port 4748`.
+- **The controls say the session runs outside tmux**: that session was opened in Warp or the OS's terminal. Close it and run `/bk:kitchen open`, which starts the kitchen in tmux; the panel's `peek`/`attach` line on each page shows where each one lives.
 - **A stale pid**: a Window killed from outside leaves `.claude/window.pid` behind; the script notices and treats it as closed, so just run `/bk:live` again.

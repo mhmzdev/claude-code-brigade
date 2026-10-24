@@ -64,6 +64,7 @@ install: "npm install"
 copy_into_stations: ".env .env.local"   # space-separated; names only
 kitchen_mode: clone                      # clone (default) | worktree — see Contract 8
 permission_mode: auto                    # cook sessions' Claude Code permission mode (default auto)
+sous_model: opus                         # the sous's model when `kitchen open` starts it in tmux (default opus)
 kitchen: stations                        # stations dir, relative to repo root (worktree default: ../<repo>-stations)
 stations: 2                              # how many a fresh setup creates; setup -n N grows it
 migrations: none                         # path, or none

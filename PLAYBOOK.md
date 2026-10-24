@@ -128,14 +128,21 @@ somebody's claim.
 
 ## Starting a shift
 
-Two commands, in either order:
+One command: **`/bk:kitchen open`** in the main checkout. It starts the whole kitchen in a
+tmux session named `<repo>-brigade`: a `sous` window already running `/bk:sous-chef`, and one
+window per station already running `/bk:line-cook`. Nothing opens on your screen. It prints
+the line to attach to the sous.
 
-1. **`/bk:kitchen open`** in the main checkout opens one terminal per station, each already
-   running `/bk:line-cook`. It only opens sessions. It assigns nothing.
-2. **`/bk:sous-chef`** in the main checkout makes that session the sous. It pulls trunk,
-   reads its last handoff note, collects unanswered questions from the cooks' journals,
-   builds the board, records its session name for the cooks (`kitchen.sh sous`), says
-   `[hello]` to cooks that were already waiting, and then assigns work.
+**Where do I type?** Attach to the sous: `tmux attach -t <repo>-brigade:sous`. That is the one
+session you talk to. `Ctrl-b d` detaches and leaves everything running; `Ctrl-b w` lists the
+windows, so you can peek at a cook. `/bk:live` shows the whole kitchen in your browser, and
+its controls type into these sessions for you.
+
+**Do I run `/bk:sous-chef` myself?** Not when tmux opened the kitchen: the sous starts with it,
+pulls trunk, reads its last handoff note, collects unanswered questions from the cooks'
+journals, builds the board, records its session name for the cooks (`kitchen.sh sous`), says
+`[hello]` to cooks that were already waiting, and assigns work. Only with `--terminal warp`
+or `native` do you start the sous yourself, in your own terminal.
 
 So the sous is what picks tickets, not `kitchen open`. You don't need to ask it to.
 
@@ -420,7 +427,9 @@ still sees the sous. `.claude/cook "/bk:line-cook"` starts a fresh session inste
 |---|---|---|
 | set the repo up | `/bk:setup` | main checkout |
 | create or add stations | `/bk:kitchen setup -n N` | main checkout |
-| open the cooks | `/bk:kitchen open` | main checkout |
+| open the kitchen (sous and cooks, in tmux) | `/bk:kitchen open` | main checkout |
+| talk to the sous | `tmux attach -t <repo>-brigade:sous` | any terminal |
+| peek at a cook | `tmux attach -t <repo>-brigade:station-N`, `Ctrl-b d` to leave | any terminal |
 | start or restart the sous | `/bk:sous-chef` | main checkout |
 | restart a cleared cook | `/bk:line-cook` | its station |
 | see everything | open `.claude/board.md`, or `/bk:kitchen board` | main checkout |
