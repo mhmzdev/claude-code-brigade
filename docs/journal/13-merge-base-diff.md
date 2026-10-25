@@ -50,3 +50,4 @@ Covers #26 too (same defect, sharper fix): one PR, "Closes #13, closes #26".
 - **Follow-ups:** none from clean around; #50 (kitchen tests inherit bk's env) is already filed by the sous.
 - lesson(repo): kitchen-tests-bk-env | in a session opened by `bk`, run the gate as `env -u BRIGADE_CLAUDE_ARGS -u BRIGADE_VIA_BK -u TMUX -u TMUX_PANE scripts/check.sh` or 7 kitchen tests fail (until #50 lands) | #13
 - 2026-10-25 · claude-code-brigade-cook-1 · cost line: kitchen.sh budget --ticket 13 / '#13' found no spend recorded for the ticket; skipped (a record, not a gate).
+- 2026-10-25 · claude-code-brigade-cook-1 · [findings] #13 PR #52 (sous): main moved, #49 (Window polish) took 0.27.5. Merged origin/main 4a2e5c2 in (a merge commit, no force-push); bumped to 0.27.6 (plugin.json, Formula url, CHANGELOG [0.27.6] over #49's [0.27.5] and #48's [0.27.4]); plan and checklist version mentions updated to match. Release files and docs only, no new pass.

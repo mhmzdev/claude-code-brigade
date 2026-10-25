@@ -61,6 +61,8 @@ tests/kitchen.test.sh               behaviour tests for kitchen.sh, both kitchen
 tests/guard.test.sh                 behaviour tests for hooks/guard.sh: clone and worktree stations
 tests/bk.test.sh                    behaviour tests for bin/bk: stub tmux and claude, a fake registry
 tests/budget.test.sh                behaviour tests for the budget: handmade transcripts, a stub gh
+tests/window.test.sh                behaviour tests for the Window's live reader (tests/window-live.mjs):
+                                    how a helper in flight is seen, from the sub-agent's meta file
 docs/the-names.md                   the Brigade names, plus Qafila as an alternate
 PLAYBOOK.md                         how each flow runs, as questions and answers; the contract wins over it
 assets/hero.jpeg                    README banner
@@ -135,7 +137,10 @@ It runs, in order:
    registry, covering profiles, attach and peek, the pause and the resume; and
    `tests/budget.test.sh`: `kitchen.sh budget` over handmade transcripts (a sous, two cook
    conversations on one ticket, their sub-agents) and a stub `gh`, covering dedupe, prices,
-   ticket spans and phases, the ledger, CI minutes and the journal line;
+   ticket spans and phases, the ledger, CI minutes and the journal line; and
+   `tests/window.test.sh`: the Window's live reader against handmade transcripts and
+   sub-agent meta files, covering a helper seen in flight, ended by its result or by
+   `finished`, and one already out when the Window attaches;
 5. a release check: `version` in `plugin.json` is `X.Y.Z`, it's the top entry of
    `CHANGELOG.md` (`## [X.Y.Z] - YYYY-MM-DD`), `Formula/bk.rb` downloads that tag, and on a
    branch it's higher than `origin/main`'s.

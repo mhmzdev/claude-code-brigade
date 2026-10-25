@@ -51,7 +51,7 @@ export function layout(n) {
     stations.push({ x: cx + r * 0.5 + (c - (per - 1) / 2) * sp, y: y0 + r * dy, w: sw });
   }
   const D = Math.max(10.4, y0 + (rows - 1) * dy + 3.1);
-  return { stations, D, homes: { commis: [2.1, 5], taster: [11.8, 3.1], inspector: [2.1, D + 0.2], runner: [15.75, 7.2] }, sous: [8, 2.9], chef: [14.2, 0.9], record: [1.5, 4.2], check: [14.9, 6.9] };
+  return { stations, D, homes: { commis: [2.1, 5], taster: [11.8, 3.1], inspector: [2.1, D + 0.2], runner: [18.2, 8.3] }, sous: [8, 2.9], chef: [14.2, 0.9], record: [1.5, 4.2], check: [14.9, 6.9] };
 }
 
 // A box: top, south, north, east, west faces around a floor rectangle. Labels sit on the
@@ -62,7 +62,7 @@ function box(b) {
   const top = el('face top'); top.style.cssText = `transform:translateZ(${b.h}px);background:${b.top}`;
   if (b.topLabel) top.innerHTML = `<span class="toplabel" style="color:${b.ink || '#333'}">${b.topLabel}</span>`;
   const south = el('face south'); south.style.cssText = `height:${b.h}px;background:${b.south};border:${b.southBd || 'none'}`;
-  if (b.label) south.innerHTML = `<div class="label ${b.lj || 'center'}" style="color:${b.ink || '#333'};font-size:${b.fs || '10px'}"><span class="name">${b.label}</span>${b.sub ? `<span class="sub" style="border-left-color:${b.mark || '#34312b'}">${b.sub}</span>` : ''}</div>`;
+  if (b.label) south.innerHTML = `<div class="label ${b.lj || 'center'}${b.lv === 'top' ? ' high' : ''}" style="color:${b.ink || '#333'};font-size:${b.fs || '10px'}"><span class="name">${b.label}</span>${b.sub ? `<span class="sub" style="border-left-color:${b.mark || '#34312b'}">${b.sub}</span>` : ''}</div>`;
   const north = el('face north'); north.style.cssText = `height:${b.h}px;background:${b.side}`;
   const east = el('face east'); east.style.cssText = `width:${b.h}px;background:${b.east};border:${b.eastBd || 'none'}`;
   const west = el('face west'); west.style.cssText = `width:${b.h}px;background:${b.side}`;
@@ -84,8 +84,7 @@ const pg = (pts, fill) => `<polygon points="${pts}" fill="${fill}"/>`;
 const face = (x, y, r) => `<g class="face" transform="translate(${x} ${y})"><g class="eyes">${ci(-r * .38, -r * .05, r * .14, '#2a2520')}${ci(r * .38, -r * .05, r * .14, '#2a2520')}</g><path d="M-2.5 ${r * .35} Q0 ${r * .5} 2.5 ${r * .35}" fill="none" stroke="#8a5a4a" stroke-width="1.2"/></g>`;
 function chefSVG(role) {
   const R = ROLE[role], coat = role === 'head' ? '#2b2b2b' : WHITE;
-  let s = `<svg class="chef" viewBox="-26 -118 52 136" width="52" height="136">`;
-  s += `<ellipse cx="0" cy="2" rx="22" ry="8" fill="#000" opacity=".18"/>`;
+  let s = `<svg class="chef" viewBox="-26 -118 52 122" width="52" height="122">`;
   s += rr(-10, -24, 8, 22, 3, '#2b2b2b') + rr(2, -24, 8, 22, 3, '#2b2b2b') + rr(-12, -5, 11, 6, 2, '#1a1a1a') + rr(1, -5, 11, 6, 2, '#1a1a1a');
   s += rr(-17, -64, 34, 44, 9, coat, OUT);
   if (role === 'head') {
@@ -110,8 +109,7 @@ function chefSVG(role) {
 }
 function helperSVG(kind) {
   const cap = HELPER[kind].cap;
-  let s = `<svg class="helper" viewBox="-17 -56 34 74" width="34" height="74">`;
-  s += `<ellipse cx="0" cy="1" rx="11" ry="4" fill="#000" opacity=".18"/>`;
+  let s = `<svg class="helper" viewBox="-17 -56 34 60" width="34" height="60">`;
   s += `<g class="leg l" transform="translate(-3 -12)">${rr(-2, 0, 4, 12, 2, '#2b2b2b')}${rr(-3, 9, 6, 3.5, 1.5, '#1a1a1a')}</g><g class="leg r" transform="translate(3 -12)">${rr(-2, 0, 4, 12, 2, '#2b2b2b')}${rr(-3, 9, 6, 3.5, 1.5, '#1a1a1a')}</g>`;
   s += rr(-9, -34, 18, 24, 6, WHITE, OUT) + rr(-7, -22, 14, 11, 2, cap) + ci(-3, -29, 1.2, '#c9c2b2') + ci(3, -29, 1.2, '#c9c2b2');
   s += ci(0, -40, 7, SKIN, OUT) + rr(-8, -50, 16, 8, 3, cap, OUT) + rr(-9, -44, 18, 3, 1.5, cap);
@@ -122,6 +120,8 @@ function helperSVG(kind) {
   s += face(0, -40, 7) + '</svg>';
   return s;
 }
+const BUBBLE_MAX = 110;
+const shortOf = (text) => text.length > BUBBLE_MAX ? text.slice(0, BUBBLE_MAX).replace(/\s+\S*$/, '') + ' …' : text;
 // A figure: a floor anchor that holds a billboard (the character, always facing the camera)
 // and a ring on the floor. The billboard also carries the badge, the activity glyph, the
 // bubble and, for everyone but the cooks (whose station says who they are), a name.
@@ -132,8 +132,16 @@ function figure({ id, name, role, label = true }) {
   bb.innerHTML = `<div class="bubble" hidden></div><span class="badge" hidden></span><span class="glyph" hidden></span>${label ? `<span class="name">${name}</span>` : ''}${ROLE[role] ? chefSVG(role) : helperSVG(role)}`;
   bb.style.transform = BB;
   root.appendChild(bb);
-  const f = { id, name, role, root, bb, ring, bubble: bb.querySelector('.bubble'), badge: bb.querySelector('.badge'), glyph: bb.querySelector('.glyph'), x: 0, y: 0, status: 'offline', activity: 'offline', said: '' };
+  const f = { id, name, role, root, bb, ring, bubble: bb.querySelector('.bubble'), badge: bb.querySelector('.badge'), glyph: bb.querySelector('.glyph'), x: 0, y: 0, status: 'offline', activity: 'offline', said: '', model: null, pinned: false };
   f.place = (x, y) => { f.x = x; f.y = y; root.style.left = px(x); root.style.top = px(y); };
+  // A bubble is cut at three lines; a click opens it whole and keeps it up, a second click lets it go.
+  f.bubble.addEventListener('click', (e) => {
+    e.stopPropagation();
+    f.pinned = !f.pinned; f.bubble.classList.toggle('full', f.pinned);
+    clearTimeout(f.bubbleT);
+    if (f.pinned) f.bubble.textContent = f.said;
+    else { f.bubble.textContent = shortOf(f.said); f.bubbleT = setTimeout(() => { f.bubble.hidden = true; }, 2500); }
+  });
   return f;
 }
 
@@ -194,7 +202,7 @@ export function createScene(stage) {
     add({ x: 12.5, y: 0, w: 0.12, d: 1.15, h: 26, ...BASE });
     add({ x: 12.5, y: 0, w: 0.12, d: 1.15, h: 78, ...GLASS });
     add({ x: 4, y: 1.4, w: 8, d: 0.7, h: 34, ...STEEL, label: 'THE PASS', ink: '#3a4046', fs: '11px' });
-    add({ x: 1.4, y: 0, w: 1.3, d: 0.07, h: 86, top: '#9aa3aa', south: 'linear-gradient(90deg, transparent 82%, #6d757c 82% 86%, transparent 86%) 0 30% / 100% 30% no-repeat, #d5dbe0', southBd: '4px solid #9aa3aa', east: '#aab3ba', side: '#9aa3aa', label: 'WALK-IN', ink: '#5b6570', fs: '9px', lj: 'start' });
+    add({ x: 1.4, y: 0, w: 1.3, d: 0.07, h: 86, top: '#9aa3aa', south: 'linear-gradient(90deg, transparent 82%, #6d757c 82% 86%, transparent 86%) 0 30% / 100% 30% no-repeat, #d5dbe0', southBd: '4px solid #9aa3aa', east: '#aab3ba', side: '#9aa3aa', label: 'WALK-IN', ink: '#5b6570', fs: '9px', lj: 'start', lv: 'top' });
     layers.boxes.appendChild(check.root); fixed.push(check.root);
     drawRecord(lastRecord, true);
   }
@@ -240,7 +248,8 @@ export function createScene(stage) {
     f.bb.addEventListener('mouseleave', () => { hovered = null; hoverCb?.(null); });
     return f;
   }
-  const hoverText = (f) => `${f.name}\n${f.meta || ''}`;
+  const modelName = (m) => { const s = String(m || '').toLowerCase(); for (const n of ['fable', 'opus', 'sonnet', 'haiku']) if (s.includes(n)) return n[0].toUpperCase() + n.slice(1); return m || ''; };
+  const hoverText = (f) => `${f.name}${f.model ? ': ' + modelName(f.model) : ''}\n${f.meta || ''}`;
   const sous = addFig(figure({ id: 'sous', name: 'Sous Chef', role: 'sous' }), ...layout(1).sous);
   const chef = addFig(figure({ id: 'headchef', name: 'Head Chef', role: 'head', label: false }), ...layout(1).chef);
   const residents = {};
@@ -320,7 +329,7 @@ export function createScene(stage) {
       const st = stations.get(x.id); st.i = i; st.mark = PAL[i % PAL.length];
       const name = x.cook?.name || x.name; if (st.cook.name !== name) { st.cook.name = name; st.cook.bb.setAttribute('aria-label', name); }
       setActor(st.cook, x.cook);
-      st.cook.meta = [x.ticket, x.cook?.model, x.branch].filter(Boolean).join(' · ');
+      st.cook.meta = [x.ticket, x.branch].filter(Boolean).join(' · ');
       if (st.ticket !== (x.ticket || null)) {
         st.ticket = x.ticket || null;
         let sub = st.box.querySelector('.label .sub');
@@ -329,7 +338,7 @@ export function createScene(stage) {
       }
       st.box.classList.toggle('cooking', ['editing', 'running'].includes(x.cook?.activity));
     });
-    setActor(sous, s.sous); sous.meta = [s.sous.session, s.sous.model].filter(Boolean).join(' · ');
+    setActor(sous, s.sous); sous.meta = s.sous.session || '';
     const n = s.headChef.pending.length;
     chef.badge.hidden = !n; chef.badge.textContent = String(n);
     sous.badge.hidden = !n; sous.badge.textContent = '!';
@@ -346,8 +355,9 @@ export function createScene(stage) {
   // resident is already out.
   const helpers = new Map();
   const posOf = (who) => who === 'sous' ? L.sous : (who === 'headchef' || who === 'head-chef') ? L.chef : stations.get(who)?.pos ? [stations.get(who).pos.x, stations.get(who).pos.y - 0.6] : L.sous;
-  function walk(f, [x, y], then) {
-    const d = Math.hypot(x - f.x, y - f.y), secs = Math.max(.4, d / 4);
+  const MAT_FRONT = [[13.7, 8.3], [18.2, 8.3]];   // the two ends of the check's mat, along its front edge
+  function walk(f, [x, y], then, speed = 4) {
+    const d = Math.hypot(x - f.x, y - f.y), secs = Math.max(.4, d / speed);
     f.root.style.transition = `left ${secs}s linear, top ${secs}s linear`;
     f.root.classList.add('walking'); f.place(x, y);
     clearTimeout(f.walkT); f.walkT = setTimeout(() => { f.root.classList.remove('walking'); then?.(); }, secs * 1000);
@@ -363,24 +373,27 @@ export function createScene(stage) {
       : h.kind === 'taster' ? (() => { const p = posOf(h.note?.match(/station-\d+/)?.[0] || h.from); return [p[0] + 0.8, p[1] + 0.2]; })()
       : at;
     f.glyph.hidden = false; f.glyph.textContent = GLYPH.running;
-    walk(f, target, () => { f.bb.dataset.activity = 'running'; });
+    f.bb.classList.toggle('atwork', h.kind === 'runner');   // the beacon over the machine names it; a label there would sit on the machine
+    if (h.kind === 'runner') {
+      // the runner paces the front of the mat, end to end, for as long as the run is in
+      const pace = () => { if (!f.busy) return; const end = Math.abs(f.x - MAT_FRONT[0][0]) < 0.5 ? MAT_FRONT[1] : MAT_FRONT[0]; walk(f, end, pace, 2.2); };
+      walk(f, MAT_FRONT[1], () => { f.bb.dataset.activity = 'running'; pace(); });
+    } else walk(f, target, () => { f.bb.dataset.activity = 'running'; });
     helpers.set(h.id, f);
   }
   function endHelper(id) {
     const f = helpers.get(id); if (!f) return; helpers.delete(id);
-    f.busy = false; f.note = ''; if (f.role !== 'runner') f.meta = HELPER[f.role].role; f.glyph.hidden = true; f.bb.dataset.activity = '';
+    f.busy = false; f.note = ''; if (f.role !== 'runner') f.meta = HELPER[f.role].role; f.glyph.hidden = true; f.bb.dataset.activity = ''; f.bb.classList.remove('atwork');
     walk(f, L.homes[f.role], () => { if (f.extra) { f.root.remove(); extras.delete(f); } });
   }
 
   // --- what is said: a bubble over the speaker, cut at three lines (the whole text is in
   // the popover and the console); a paper flies from sender to receiver for every message
-  const BUBBLE_MAX = 110;
   function say(who, text, ttl) {
     const f = figs.get(who === 'head-chef' ? 'headchef' : who); if (!f) return;
     f.said = text;
-    const short = text.length > BUBBLE_MAX ? text.slice(0, BUBBLE_MAX).replace(/\s+\S*$/, '') + ' …' : text;
-    f.bubble.textContent = short; f.bubble.hidden = false;
-    clearTimeout(f.bubbleT); f.bubbleT = setTimeout(() => { f.bubble.hidden = true; }, (ttl ?? Math.min(9, 3 + text.length / 25)) * 1000);
+    f.bubble.textContent = f.pinned ? text : shortOf(text); f.bubble.hidden = false;
+    clearTimeout(f.bubbleT); if (!f.pinned) f.bubbleT = setTimeout(() => { f.bubble.hidden = true; }, (ttl ?? Math.min(9, 3 + text.length / 25)) * 1000);
   }
   const papers = [];
   function flyMessage({ from, to, kind, text }) {

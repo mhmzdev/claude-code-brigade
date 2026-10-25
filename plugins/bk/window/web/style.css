@@ -58,6 +58,7 @@ kbd{font-family:var(--mono);font-size:10.5px;color:var(--dim);font-weight:400}
 .face .toplabel{transform:rotate(90deg);white-space:nowrap;font-size:10px;font-weight:700;letter-spacing:.2em}
 .face .label{position:absolute;inset:0;transform:scaleY(-1);display:flex;align-items:center;justify-content:center;gap:6px;padding:5px 4px;overflow:hidden;white-space:nowrap;font-weight:700;letter-spacing:.18em}
 .face .label.start{justify-content:flex-start}
+.face .label.high{align-items:flex-start;padding-top:9px}   /* the walk-in: the name above the handle, not across it */
 .face .label .sub{padding:0 5px;border-radius:3px;background:#f3ecdc;border-left:3px solid #34312b;color:#2b2925;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:0}
 /* the record's open side: shelves of books, top shelf first */
 .shelves{position:absolute;inset:0;display:flex;flex-direction:row-reverse;padding:4px 6px}
@@ -121,8 +122,8 @@ kbd{font-family:var(--mono);font-size:10.5px;color:var(--dim);font-weight:400}
 .fig:hover .ring{box-shadow:0 0 14px rgba(233,169,60,.45)}
 .fig.selected .ring{border-color:var(--accent);border-width:4px;box-shadow:0 0 22px rgba(233,169,60,.75),inset 0 0 12px rgba(233,169,60,.35);animation:ringpulse 1.6s ease-in-out infinite}
 @keyframes ringpulse{50%{transform:translateZ(1px) scale(1.12)}}
-.bb{position:absolute;left:-26px;bottom:0;width:52px;height:136px;padding:0;border:none;background:none;cursor:pointer;transform-origin:50% 100%;transition:opacity 300ms;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px}
-.bb.small{left:-17px;width:34px;height:74px}
+.bb{position:absolute;left:-26px;bottom:0;width:52px;height:auto;padding:0;border:none;background:none;cursor:pointer;transform-origin:50% 100%;transition:opacity 300ms;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px}
+.bb.small{left:-17px;width:34px}
 .bb svg{display:block;flex:none}
 .bb .name{white-space:nowrap;font-size:10px;font-weight:600;letter-spacing:.04em;color:#2a2520;background:rgba(255,253,247,.75);border-radius:3px;padding:0 4px;line-height:14px;pointer-events:none}
 .bb .badge{min-width:16px;height:16px;border-radius:4px;display:grid;place-items:center;font-size:10px;padding:0 4px}
@@ -131,10 +132,16 @@ kbd{font-family:var(--mono);font-size:10.5px;color:var(--dim);font-weight:400}
 .bb[data-activity=thinking] .glyph{animation:pulse 1s ease-in-out infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes pulse{50%{opacity:.35}}
-.bb .bubble{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);width:200px;padding:5px 8px;border-radius:7px;background:#fffdf7;color:#2a2520;border:1px solid #d6cdb8;font-size:11.5px;line-height:14px;text-align:left;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.25)}
-/* The head chef stands against the back wall, so a bubble above the hat would sink into it: lift it toward the camera, in front of the wall. */
+.bb .bubble{position:relative;flex:none;margin-bottom:6px;width:200px;padding:5px 8px;border-radius:7px;background:#fffdf7;color:#2a2520;border:1px solid #d6cdb8;font-size:11.5px;line-height:14px;text-align:left;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+/* The head chef stands against the back wall, so anything above the hat (bubble, badge, glyph) would sink into it: lift it toward the camera, in front of the wall. */
 .fig[data-id="headchef"] .bb{transform-style:preserve-3d}
-.fig[data-id="headchef"] .bubble{transform:translateX(-50%) translateZ(140px)}
+.fig[data-id="headchef"] .bubble{transform:translateZ(140px)}
+.fig[data-id="headchef"] .badge,.fig[data-id="headchef"] .glyph{transform:translateZ(140px)}
+/* a bubble opens whole on a click and stays up; the cursor says so */
+.bb .bubble{cursor:pointer;pointer-events:auto}
+.bb .bubble.full{display:block;-webkit-line-clamp:unset;max-height:220px;overflow:auto;width:260px;box-shadow:0 10px 26px rgba(0,0,0,.35),0 0 0 2px var(--accent)}
+/* the runner at the machine: the beacon names it, so its own label stays off the machine */
+.bb.atwork .name{display:none}
 .bb .bubble::after{content:"";position:absolute;left:50%;top:100%;margin-left:-5px;border:5px solid transparent;border-top-color:#fffdf7}
 /* life in the characters: blinking, a working arm, walking legs */
 .eyes{transform-origin:0 0;animation:blink 4.2s infinite}

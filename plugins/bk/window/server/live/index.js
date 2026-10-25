@@ -46,14 +46,18 @@ export function startLive(store, startDir, control = null) {
       const status = s.status === 'busy' ? 'busy' : 'idle';
       if (who === 'sous') store.setActor('sous', { session: s.name, status, activity: status === 'busy' ? (store.state.sous.activity === 'offline' || store.state.sous.activity === 'idle' ? 'thinking' : store.state.sous.activity) : 'idle', pid: s.pid, tmux: s.tmux });
       else { store.upsertStation(who, { name: who, cook: { session: s.name, status, pid: s.pid, tmux: s.tmux } }); store.setActor(who, { activity: status === 'busy' ? (['offline', 'idle'].includes(store.state.stations.find((x) => x.id === who)?.cook.activity) ? 'thinking' : undefined) : 'idle' }); }
+      // A /clear keeps the process (and its pid) but starts a new conversation with a new
+      // transcript: a tail is good for one sessionId, and is replaced when that changes.
+      const had = tails.get(s.pid);
+      if (had && had.sessionId !== s.sessionId) { had.tail?.close(); tails.delete(s.pid); }
       if (!tails.has(s.pid)) {
         const file = transcriptPath(s.cwd, s.sessionId);
-        if (file) { tails.set(s.pid, tailTranscript({ file, who, store, resolve })); store.setActor(who, { startedAt: conversationStart(file) }); }
-        else tails.set(s.pid, null); // no transcript yet; retried on the next change
-        control?.whereIs(s.pid).then((t) => { if (t) store.setActor(who, { tmux: t }); });
+        if (file) { tails.set(s.pid, { sessionId: s.sessionId, tail: tailTranscript({ file, who, store, resolve }) }); store.setActor(who, { startedAt: conversationStart(file) }); }
+        else tails.set(s.pid, { sessionId: null, tail: null }); // no transcript yet; retried on the next change
+        if (!had) control?.whereIs(s.pid).then((t) => { if (t) store.setActor(who, { tmux: t }); });
       }
     }
-    for (const [pid, t] of tails) if (!seen.has(pid)) { t?.close(); tails.delete(pid); }
+    for (const [pid, t] of tails) if (!seen.has(pid)) { t?.tail?.close(); tails.delete(pid); }
     if (!sous) store.setActor('sous', { session: null, status: 'offline', activity: 'offline' });
     for (const st of store.state.stations) if (!found.some((s) => s.role === st.id)) store.setActor(st.id, { session: null, status: 'offline', activity: 'offline' });
   });
