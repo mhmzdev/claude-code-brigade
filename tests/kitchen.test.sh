@@ -435,6 +435,8 @@ printf -- '---\nid: BKLG-004\ntitle: An item\nlane: B\nkind: item\nstatus: backl
 out=$("$K" rail)
 ok "a kind: chore backlog item is ready" has "$out" "BKLG-003 +B +backlog +- +yes"
 ok "a kind: item backlog item still says spec" has "$out" "BKLG-004 +B +backlog +- +spec"
+printf -- '---\nid: BKLG-007\ntitle: A third provider\nlane: B\nkind: precedent\nprecedent: [src/providers/a.ts, src/providers/b.ts]\nprecedent_why: docs/specs/002-providers.md\nstatus: backlog\ncook: null\n---\n' > "$C/docs/backlog/BKLG-007-precedent.md"
+ok "a kind: precedent backlog item is ready (Contract 4)" has "$("$K" rail)" "BKLG-007 +B +backlog +- +yes"
 
 section "questions: open question files"
 ok "no docs.questions folder: only journal questions are listed" bash -c '! "$1" questions | grep -q "(record)"' _ "$K"
@@ -527,7 +529,12 @@ out=$("$K" doctor 2>&1)
 ok "doctor reports an unknown status" has "$out" 'BKLG-005-bad.md: unknown status "cooking"'
 ok "doctor reports a blocker that is no ticket" has "$out" "BKLG-005-bad.md is blocked by BKLG-999, which is no ticket here"
 ok "doctor reports a duplicate id" has "$out" "BKLG-006-dup.md: id BKLG-001 is also docs/backlog/BKLG-001-open.md"
-rm "$C/docs/backlog/BKLG-005-bad.md" "$C/docs/backlog/BKLG-006-dup.md" "$C/docs/backlog/BKLG-003-chore.md" "$C/docs/backlog/BKLG-004-item.md"
+ok "doctor accepts kind: precedent with its instances" bash -c '! printf "%s" "$1" | grep -q "BKLG-007-precedent.md"' _ "$out"
+printf -- '---\nid: BKLG-008\ntitle: Says precedent, names one\nlane: B\nkind: precedent\nprecedent: [src/providers/a.ts]\nprecedent_why: null\nstatus: backlog\ncook: null\n---\n' > "$C/docs/backlog/BKLG-008-bare.md"
+out=$("$K" doctor 2>&1)
+ok "doctor fails on kind: precedent with one instance" has "$out" "BKLG-008-bare.md: kind: precedent needs two instances or more under precedent: \(has 1\)"
+ok "doctor fails on kind: precedent without precedent_why" has "$out" "BKLG-008-bare.md: kind: precedent without precedent_why:"
+rm "$C/docs/backlog/BKLG-005-bad.md" "$C/docs/backlog/BKLG-006-dup.md" "$C/docs/backlog/BKLG-003-chore.md" "$C/docs/backlog/BKLG-004-item.md" "$C/docs/backlog/BKLG-007-precedent.md" "$C/docs/backlog/BKLG-008-bare.md"
 sed -i.bak 's/^status: done$/kind: chore\nstatus: done/' "$C/docs/backlog/BKLG-002-done.md" 2>/dev/null || true
 printf -- '---\nid: BKLG-002\ntitle: Done ticket\nlane: B\nkind: chore\nstatus: done\ncook: null\n---\n' > "$C/docs/backlog/BKLG-002-done.md"; rm -f "$C/docs/backlog/BKLG-002-done.md.bak"
 for d in backlog journal specs plans checklists research brainstorm decisions conventions domains questions; do mkdir -p "$C/docs/$d"; printf '# index\n' > "$C/docs/$d/INDEX.md"; done

@@ -43,7 +43,7 @@ Classify it. The class decides whether code gets read at all.
 
 - **Generic**: process, tooling, docs, team practice. Skip Step 2.
 - **Touches the code**: a feature, a behaviour change, a contract or data change. Step 2 is mandatory.
-- **A bug, not an idea**: something that exists works wrong. Say so and recommend `/bk:file-tickets` (one backlog item, `kind: bug`). Likewise a **chore** whose outcome is already fixed (`kind: chore`). Don't brainstorm what doesn't need it.
+- **A bug, not an idea**: something that exists works wrong. Say so and recommend `/bk:file-tickets` (one backlog item, `kind: bug`). Likewise a **chore** whose outcome is already fixed (`kind: chore`), and a **precedent**, another instance of what the code already does twice the same way (`kind: precedent`, once the commis confirms it). Don't brainstorm what doesn't need it.
 
 Pick the slug now: lowercase-kebab, 2–5 words. The file is `<docs.brainstorm>/YYYY-MM-DD-<slug>.md` (Contract 4). If a brainstorm with the same slug already exists, read it fully and extend it. Never overwrite a file you haven't read.
 

@@ -22,10 +22,11 @@ here and from the plugin contract. Renaming stays a one-line change.
 | **The Rail** | where fired tickets hang | the ticket store: markdown in `docs/`, GitHub Projects, or Jira |
 | **Ticket** | one order | one unit of work |
 | **Mise en place** | prep before cooking | the plan |
-| **Chef's sign-off** | the head chef approves the dish | plan approval, which authorises the commits made under it: the head chef's for a feature, the sous's by `gates.plan_approval` for a bug, chore or hygiene ticket |
+| **Chef's sign-off** | the head chef approves the dish | plan approval, which authorises the commits made under it: the head chef's for a feature, the sous's by `gates.plan_approval` for a bug, chore, precedent or hygiene ticket |
 | **Taster** | tastes every plate before it leaves the pass | the `taster` sub-agent |
 | **Runner** | fetches and carries so the chefs stay on the line | the `runner` sub-agent |
 | **The Pass** | where every plate is checked | the sous's pre-commit review |
+| **A precedent** | a dish the kitchen already makes: the third omelette needs no tasting menu | a backlog item of `kind: precedent`: the code does this kind of thing twice already and the record says why, so the sous signs off its plan; the first of its kind is the head chef's |
 | **Commis** | the junior who fetches for the line | the `commis` sub-agent: searches the record before any question goes up |
 | **The Record** | the kitchen's book: recipes, standards, what the chef decided | everything written down that a session reads instead of asking: the `docs:` map, `CLAUDE.md`, the journals |
 | **The Inbox** | the order spike: notes stuck up during service, dealt with after | `.claude/inbox.md`: what the head chef said in passing, filed at the sous's handoff |
@@ -39,7 +40,7 @@ here and from the plugin contract. Renaming stays a one-line change.
 | Lane | Kitchen name | Source |
 |---|---|---|
 | A | **Specials** | a spec, sliced into tickets |
-| B | **À la carte** | bugs and chores on the backlog; every other backlog item becomes a spec first |
+| B | **À la carte** | bugs, chores and precedents on the backlog; every other backlog item becomes a spec first |
 | C | **Clean as you go** | the kitchen generates them: `/bk:clean scan` |
 
 ## Why a kitchen

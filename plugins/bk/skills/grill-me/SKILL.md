@@ -59,13 +59,14 @@ Then read any earlier-stage file for the same work: the brainstorm, the spec, th
 
 Map the artifact as a **decision tree**. The root is the WHAT and WHY. Below it hang scope, the shapes other code consumes, data, access, failure modes, rollout, and how each piece will be verified.
 
-The **frontier** is every decision whose prerequisites are already settled: the questions you can ask *now* without guessing at answers you haven't heard. **Run the frontier past the commis before you ask it**: one `bk:commis` call (model: the config's `commis_model`, if set) with the whole round's questions, the artifact's path, the main checkout, the stations folder and the `docs:` map. A question it returns `settled` for, with a decision as its source, is not asked: it's shown as already settled, with the source, so the human can say "that changed". A `fact` answers the question outright: fold the fact in and drop the question. `nothing` and `conflict` are asked (a conflict is asked with both records cited). **Ask the whole remaining frontier in one round.** Number each question and give your recommended answer (in a station, `touch .claude/grilling` first). Then stop and wait.
+The **frontier** is every decision whose prerequisites are already settled: the questions you can ask *now* without guessing at answers you haven't heard. **Run the frontier past the commis before you ask it**: one `bk:commis` call (model: the config's `commis_model`, if set) with the whole round's questions, the artifact's path, the main checkout, the stations folder and the `docs:` map. A question it returns `settled` for, with a decision as its source, is not asked: it's shown as already settled, with the source, so the human can say "that changed". A `precedent` (the code does this twice already, and the record says why) settles a *how* question the same way: shown as settled, citing the instances, so the human can say "this one differs". A `fact` answers the question outright: fold the fact in and drop the question. `nothing` and `conflict` are asked (a conflict is asked with both records cited). **Ask the whole remaining frontier in one round.** Number each question and give your recommended answer (in a station, `touch .claude/grilling` first). Then stop and wait.
 
 Format each round exactly like this:
 
 ```
 ✅ **Already settled** (say if any of these changed):
 - <title>: <the decision> — <source path>, <date>
+- <title>: follows the precedent in <instance paths> (why: <record path>) — say if this one differs
 
 ---
 
@@ -108,7 +109,7 @@ Push hardest where the artifact is vague:
    - plan → its decisions, and keep `open_questions:` honest (`/bk:implement` refuses a plan with an open question). A plan in a station is the cook's file: the sous sends the decisions as `[findings]` and the cook folds them in;
    - ticket → on a markdown rail, append a `## Decisions` section. That's a rail write, which the sous or a solo session may make. On a github or jira rail, add a comment.
    - no artifact → the summary is the input to the next skill.
-3. **Hand off.** Solo or sous: offer with `AskUserQuestion`, then wait: lane A, or a backlog item that needs a spec → `/bk:spec` (name the item, so the spec closes it); a `kind: bug` or `kind: chore` backlog item → `/bk:create-plan`; or stop. In a station: no dialog; remove `.claude/grilling`, do what the brief said comes next, and send the `[status] <ID> grilled: …` line from [Who you grill](#who-you-grill).
+3. **Hand off.** Solo or sous: offer with `AskUserQuestion`, then wait: lane A, or a backlog item that needs a spec → `/bk:spec` (name the item, so the spec closes it); a `kind: bug`, `kind: chore` or `kind: precedent` backlog item → `/bk:create-plan`; or stop. In a station: no dialog; remove `.claude/grilling`, do what the brief said comes next, and send the `[status] <ID> grilled: …` line from [Who you grill](#who-you-grill).
 
 The decisions a grilling produces are head-chef answers: once folded into the artifact they're in the record, and the sous's handoff promotes any that outlive the artifact into `docs.decisions` (Contract 12).
 

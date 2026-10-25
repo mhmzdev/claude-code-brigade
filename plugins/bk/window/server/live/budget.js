@@ -211,7 +211,7 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
       const turns = s._turns.filter((t) => t.t >= start && (!end || t.t <= end));
       const own = sum(turns);
       const agents = s._agents.filter((a) => a.t >= start && (!end || a.t <= end));
-      Object.assign(sp, { startedAt: start, status: end ? 'served' : 'open', secs: Math.round(((end || now()) - start) / 1000),
+      Object.assign(sp, { startedAt: start, status: end ? 'served' : 'open', secs: Math.max(0, Math.round(((end || now()) - start) / 1000)),
         tokens: own.tokens, total: own.total, cost: own.cost, _runs: agents, _turns: turns, model: own.model,
         phases: Object.fromEntries(PHASES.map(([name, a, b]) => [name, sp.marks[a] && sp.marks[b] ? Math.max(0, Math.round((sp.marks[b] - sp.marks[a]) / 1000)) : null])) });
       delete sp.from;
@@ -225,7 +225,7 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
     const marks = { ...y.marks, ...x.marks }; if (y.marks.served) marks.served = y.marks.served;
     const m = { ...x, marks, session: y.session, servedAt: y.servedAt || x.servedAt, status: y.servedAt || x.servedAt ? 'served' : 'open', tokens: add(zero(), x.tokens), total: x.total + y.total, cost: round(x.cost + y.cost), _runs: [...x._runs, ...y._runs], _turns: [...x._turns, ...y._turns], model: y.model || x.model };
     add(m.tokens, y.tokens);
-    m.secs = Math.round(((m.servedAt || now()) - m.startedAt) / 1000);
+    m.secs = Math.max(0, Math.round(((m.servedAt || now()) - m.startedAt) / 1000));
     m.phases = Object.fromEntries(PHASES.map(([name, p, q]) => [name, marks[p] && marks[q] ? Math.max(0, Math.round((marks[q] - marks[p]) / 1000)) : null]));
     finish(m); return m;
   };

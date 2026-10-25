@@ -34,7 +34,7 @@ pull request. Cooks can be smaller models, or big ones for hard tickets. You don
 the cooks' terminals. Everything they need decided that nobody has decided yet reaches you
 through the sous, with a recommendation; everything already decided is found in the record
 by the **commis** before anyone asks. You sign off feature plans, answer real forks, and
-merge. The sous signs off bug, chore and hygiene plans itself and tells you.
+merge. The sous signs off bug, chore, precedent and hygiene plans itself and tells you.
 
 ## Setting up
 
@@ -112,16 +112,20 @@ A backlog item carries `kind:`, and that decides how it leaves the backlog:
 | `item` (default, also when missing) | a capability, a change in behaviour | `/bk:grill-me` → `/bk:spec` → `/bk:file-tickets`. The spec's tickets get built; the item is closed with `spec: SNNN`. Its plans need your sign-off |
 | `bug` | something that exists and works wrong against what was already decided | the item is its own ticket: `/bk:create-plan`, then build. The sous signs off the plan |
 | `chore` | work whose outcome is already fixed: a bump, a rename, a missing checklist item, a doc catching up with the code | the same as a bug |
+| `precedent` | another instance of something the code already does twice or more the same way, where the record says why: a third provider, one more report, a new adapter behind an existing interface | the same as a bug. The commis finds the precedent; the sous sets the kind, lists the instances, and tells you before anyone is briefed, so you can say "that one is new" |
 
-Bug, chore or item is a fact about the work, not its size. A small new behaviour is still an
-item, and a "chore" that turns out to need a decision was an item all along.
+Bug, chore, precedent or item is a fact about the work, not its size. A small new behaviour
+is still an item, a "chore" that turns out to need a decision was an item all along, and a
+precedent whose instances disagree on the very point the new one raises was never one. The
+first of its kind (the first provider; a bus operator in a kitchen that only knows airlines)
+has no precedent, and that is exactly the decision that is yours.
 
 **The three lanes** say where a ticket came from:
 
 | Lane | Source | Ids |
 |---|---|---|
 | A | a spec, sliced into tickets | `SNNN-NN` |
-| B | bugs and chores from the backlog | `BKLG-NNN` with `kind: bug` or `kind: chore` |
+| B | bugs, chores and precedents from the backlog | `BKLG-NNN` with `kind: bug`, `kind: chore` or `kind: precedent` |
 | C | hygiene work the kitchen finds itself (`/bk:clean`) | `HYG-NNN` |
 
 **Statuses:** `backlog` → `todo` (a plan exists) → `in-progress` → `rfr` (ready for
@@ -181,7 +185,7 @@ works this out; its `RDY` column says:
 |---|---|
 | `yes` | can be assigned |
 | `no` | a blocker is still open; the open blockers are printed after the title |
-| `spec` | a backlog item that is neither a bug nor a chore: it has to become a spec and tickets first |
+| `spec` | a backlog item that is none of a bug, a chore or a precedent: it has to become a spec and tickets first |
 | `-` | already claimed |
 
 **Order among ready tickets:**
@@ -191,7 +195,7 @@ works this out; its `RDY` column says:
 3. the ticket that more other tickets are blocked by;
 4. lane A before B before C; within a spec, ticket-number order; otherwise the lowest id.
 
-So spec tickets go before backlog bugs and chores, and a backlog item that is neither is
+So spec tickets go before backlog bugs, chores and precedents, and any other backlog item is
 never assigned at all. When nothing is ready, the sous says what is blocked and on what, and
 offers a grilling for the highest-priority item waiting for a spec.
 
@@ -208,7 +212,7 @@ dialog; nobody is watching its terminal. What a cook needs goes to the sous as a
 | how something works, or whether it was decided before | nothing: it spawns the **commis**, which searches the record and answers with a source | the record |
 | a routine confirmation (scope, "continue?", which helper) | `[gate]`, with what the commis found | the sous |
 | a real design fork the record doesn't settle | `[gate]`, with what the commis searched | you, in the sous's terminal; the sous adds a recommendation and relays your answer marked `(head chef)`, and it's written down |
-| a bug or chore plan approved | `[plan]` | the sous, which tells you in one line |
+| a bug, chore or precedent plan approved | `[plan]` | the sous, which tells you in one line (a precedent plan has to follow its precedent) |
 | a hygiene ticket approved | nothing: it has no plan; the sous's `[approved]` rides in the `[brief]` | the sous, which tells you in one line |
 | a feature plan approved, or any plan with a migration, a shared resource, a production write or an unrecorded decision | `[plan]` | you, in the sous's terminal; the sous relays `[approved]` with your words |
 | a ticket changed | `[rail]` | the sous (the only writer of tickets) |
@@ -218,8 +222,8 @@ dialog; nobody is watching its terminal. What a cook needs goes to the sous as a
 | merge or deploy | nothing | you do these yourself; no session does, and a relayed "go" is refused |
 
 The sous never approves a **feature** plan itself. Those need your own yes, in the sous's
-current session, after seeing that plan; a changed plan needs a new yes. Bug, chore and
-hygiene plans the sous signs on its own, naming the rule, and tells you in one line. Want
+current session, after seeing that plan; a changed plan needs a new yes. Bug, chore,
+precedent and hygiene plans the sous signs on its own, naming the rule, and tells you in one line. Want
 every plan for a while? Say so, or set `gates.plan_approval: head-chef` in the config.
 
 If you do type in a cook's terminal, the cook does as told and tells the sous in one line.
@@ -230,8 +234,8 @@ If you do type in a cook's terminal, the cook does as told and tells the sous in
 2. The cook branches (`<id>-<slug>`), runs `/bk:pick-ticket`, and asks the sous to claim
    the ticket (`todo`).
 3. `/bk:create-plan` writes the plan. The cook sends `[plan]` and waits.
-4. The sous reads the plan and checks it against the other stations. A bug or chore plan it
-   signs itself and tells you in one line. A feature plan (or one with a migration, a shared
+4. The sous reads the plan and checks it against the other stations. A bug, chore or
+   precedent plan it signs itself and tells you in one line. A feature plan (or one with a migration, a shared
    resource, a production write or a decision the record doesn't hold) it shows you in a
    short summary with a recommendation: you approve, change something, or ask to grill it
    first.
@@ -391,6 +395,10 @@ reaches you.
   so you can say "that changed".
 - **A chore is not a decision.** `kind: chore` on a backlog item means the outcome is
   already fixed; its plan is the sous's to sign, like a bug's.
+- **A precedent is a decision already made about how.** When the code does the same kind
+  of thing in two or more places and the record says why, "how do we add the third" is
+  settled; the commis reports the instances, and a cook follows them. It never settles
+  *whether*: the first of its kind is yours.
 - **Two hooks back it up.** In a station, a dialog to the human is refused (unless a
   grilling is under way), and a question sent up without the commis's result is refused.
   Guardrails against a slip, not walls.
@@ -423,7 +431,7 @@ The point of all four is to keep long output, and long searches, out of the sess
 ## When something looks wrong
 
 **The sous picked a backlog item instead of a ticket.** It shouldn't, unless the item is
-`kind: bug` or `kind: chore` and no spec ticket is ready. Check the rail board: any other
+`kind: bug`, `kind: chore` or `kind: precedent` and no spec ticket is ready. Check the rail board: any other
 backlog item shows `spec` under `RDY` and is never assignable.
 
 **Tickets I just wrote show `RDY no`.** Read what follows the title. An open blocker is
@@ -432,8 +440,11 @@ it holds the ticket because nothing proves that work is done. Tell the sous the 
 finished and it removes the id from `blocked_by`. A chain of tickets all waiting on one
 blocked ticket will all show `no` until that one is cleared.
 
-**A backlog item I think is a bug or a chore shows `spec`.** It has no `kind: bug` or `kind: chore`. Tell the sous; it
+**A backlog item I think is a bug, a chore or a precedent shows `spec`.** It has no `kind: bug`, `kind: chore` or `kind: precedent`. Tell the sous; it
 sets `kind:` as a rail change with one line of why.
+
+**The sous marked an item `precedent` and I think it's new.** Say so: it goes back to `item`
+and gets its grilling. The sous tells you before it briefs anyone for exactly this reason.
 
 **A cook left no handoff.** It was cleared before `[go]` and nobody asked for one. Ask for
 `/bk:handoff` before clearing a cook mid-ticket.

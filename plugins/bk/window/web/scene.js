@@ -26,7 +26,7 @@ export const HELPER = {
   runner: { cap: '#e0843c', role: 'the check', about: 'Runs one noisy command (the check, a test suite, a scan) and brings back only pass or fail and the lines that matter, so nobody reads the whole output.' },
 };
 export const ABOUT = {
-  sous: 'Runs the line from the pass. Assigns tickets, answers every gate the record settles, signs off bug, chore and hygiene plans, reviews every diff before it is committed, and is the only writer of the rail.',
+  sous: 'Runs the line from the pass. Assigns tickets, answers every gate the record settles, signs off bug, chore, precedent and hygiene plans, reviews every diff before it is committed, and is the only writer of the rail.',
   cook: 'Owns one station and one ticket per session: plan, implement, review, hand off for the pass, open the PR. Never asks the human; sends the commis first, then a [gate] to the sous.',
   head: 'You. Talk to the sous only. Decide what nobody has decided yet, sign off feature plans, merge, deploy.',
 };

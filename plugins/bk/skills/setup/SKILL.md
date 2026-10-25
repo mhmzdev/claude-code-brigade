@@ -123,7 +123,8 @@ Ask together, skipping any the repo answered (say what you found):
 5. **Can the sous commit rail changes straight to trunk?** Recommend yes unless trunk is
    protected; otherwise one rail PR a day.
 6. **Who signs off which plans?** Recommend the default (`gates.plan_approval`, Contract 5):
-   the head chef for features, the sous for bugs, chores and hygiene. Offer "every plan
+   the head chef for features, the sous for bugs, chores, precedents (another instance
+   of what the code already does twice) and hygiene. Offer "every plan
    comes to me" (`plan_approval: head-chef`) for a team that wants to start tighter.
 
 ## 4. Write the config
@@ -207,7 +208,7 @@ This repo can run several Claude Code sessions at once. Config: `.claude/brigade
 - **Head Chef** (the human) talks to the sous only: signs off feature plans there, decides
   what nobody has decided yet, merges, deploys. **Sous Chef** (`/bk:sous-chef`, in this
   checkout) assigns tickets, answers every question the record or routine settles, signs
-  off bug, chore and hygiene plans, keeps the record (`docs:` map in the config), reviews
+  off bug, chore, precedent and hygiene plans, keeps the record (`docs:` map in the config), reviews
   every diff before commit, and is the **only session that writes the rail**. **Line Cooks**
   (`/bk:line-cook`) work one ticket each in `<stations path>/station-N`, send the `commis`
   sub-agent to search the record before any question, and ask the sous, never the human

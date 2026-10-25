@@ -869,7 +869,7 @@ cmd_rail() {
           rdy = (held == "" ? "yes" : "no")
           # a backlog item is built directly only when it is a bug; anything else
           # still has to become a spec and tickets (Contract 4)
-          if (id ~ /^BKLG-/ && kind != "bug" && kind != "chore") rdy = "spec"
+          if (id ~ /^BKLG-/ && kind != "bug" && kind != "chore" && kind != "precedent") rdy = "spec"
         }
         printf "%-10s %-4s %-12s %-5s %-4s %-11s %s%s\n", id, lane, status, pri, rdy, cook, title, (held == "" ? "" : "  (blocked by: " held ")")
       }
@@ -1219,17 +1219,20 @@ cmd_doctor() {
         if (lane == "") print rel ": missing lane"
         if (status == "") print rel ": missing status"
         else if (status !~ /^(backlog|todo|in-progress|rfr|done|blocked)$/) print rel ": unknown status \"" status "\""
-        if (id ~ /^BKLG-/ && kind == "") print rel ": BKLG item without kind (item | bug | chore)"
-        if (kind != "" && kind !~ /^(item|bug|chore)$/) print rel ": unknown kind \"" kind "\""
+        if (id ~ /^BKLG-/ && kind == "") print rel ": BKLG item without kind (item | bug | chore | precedent)"
+        if (kind != "" && kind !~ /^(item|bug|chore|precedent)$/) print rel ": unknown kind \"" kind "\""
+        if (kind == "precedent") { n = split(prec, pi, ","); c = 0; for (i = 1; i <= n; i++) if (pi[i] != "") c++
+          if (c < 2) print rel ": kind: precedent needs two instances or more under precedent: (has " c ")"
+          if (why == "" || why == "null") print rel ": kind: precedent without precedent_why: (where the record says why)" }
         n = split(blk, b, ","); for (i = 1; i <= n; i++) if (b[i] != "") pend[++np] = rel " blocked_by " b[i]
         file=""
       }
-      FNR==1 { flush(); file=FILENAME; rel=substr(FILENAME, length(root)+2); id=title=lane=status=kind=blk=""; fm=0; fm_seen=0 }
+      FNR==1 { flush(); file=FILENAME; rel=substr(FILENAME, length(root)+2); id=title=lane=status=kind=blk=prec=why=""; fm=0; fm_seen=0 }
       FNR==1 && $0=="---" { fm=1; fm_seen=1; next }
       fm && $0=="---" { fm=0; next }
       fm { key=$0; sub(/:.*/, "", key); val=$0; sub(/^[^:]*:[ ]*/, "", val); sub(/[ ]+#.*$/, "", val); gsub(/^"|"$/, "", val)
            if (key=="id") id=val; else if (key=="title") title=val; else if (key=="lane") lane=val; else if (key=="status") status=val
-           else if (key=="kind") kind=val; else if (key=="blocked_by") { blk=val; gsub(/[]["\047 ]/, "", blk) } }
+           else if (key=="kind") kind=val; else if (key=="precedent") { prec=val; gsub(/[]["\047 ]/, "", prec) } else if (key=="precedent_why") why=val; else if (key=="blocked_by") { blk=val; gsub(/[]["\047 ]/, "", blk) } }
       END { flush(); for (i = 1; i <= np; i++) { split(pend[i], p, " blocked_by "); if (!(p[2] in seen)) print p[1] " is blocked by " p[2] ", which is no ticket here" } }
     ' root="$ROOT" "${files[@]}")
     (( problems == 0 )) && echo "  ${#files[@]} ticket file(s), all well-formed."

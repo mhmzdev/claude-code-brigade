@@ -211,7 +211,7 @@ OUT="$("$K" budget --ticket BKLG-001 --journal-line --session app-cook-1)"
 ok "one journal line, dated, for the cook to append" has "$OUT" "^- [0-9]{4}-[0-9]{2}-[0-9]{2} 09:12 · app-cook-1 · cost: \\\$4\.63 · "
 ok "it carries the tokens, the phases, the helpers and CI" has "$OUT" "tokens \(in 1\.0M, out 5k, cache read 450k, cache write 50k\) · brief→served 42m \(plan 31m, wait 2m, build 8m, pass 1m, ship 1m\) · helpers: runner 1 \(\\\$0\.05\), taster 1 \(\\\$2\.00\) · CI 3 min \(\\\$0\.10\)"
 OUT="$("$K" budget --ticket BKLG-002 --journal-line)"
-ok "a ticket not served yet reads brief→PR, with the phases known so far and no CI" has "$OUT" "^- .* · cook3 · cost: \\\$0\.87 · 1\.7M tokens .* · brief→PR [0-9]+[hm].*\(plan 1m, wait 1m\) · helpers: runner 2 \(\\\$0\.02\)$"
+ok "a ticket not served yet reads brief→PR, with the phases known so far and no CI" has "$OUT" "^- .* · cook3 · cost: \\\$0\.87 · 1\.7M tokens .* · brief→PR [0-9]+[smh].*\(plan 1m, wait 1m\) · helpers: runner 2 \(\\\$0\.02\)$"
 ok "an unknown ticket is an error" fails "$K" budget --ticket BKLG-999 --journal-line
 
 section "stages, steps and rework"
