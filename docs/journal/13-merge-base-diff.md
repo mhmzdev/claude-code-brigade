@@ -51,3 +51,12 @@ Covers #26 too (same defect, sharper fix): one PR, "Closes #13, closes #26".
 - lesson(repo): kitchen-tests-bk-env | in a session opened by `bk`, run the gate as `env -u BRIGADE_CLAUDE_ARGS -u BRIGADE_VIA_BK -u TMUX -u TMUX_PANE scripts/check.sh` or 7 kitchen tests fail (until #50 lands) | #13
 - 2026-10-25 · claude-code-brigade-cook-1 · cost line: kitchen.sh budget --ticket 13 / '#13' found no spend recorded for the ticket; skipped (a record, not a gate).
 - 2026-10-25 · claude-code-brigade-cook-1 · [findings] #13 PR #52 (sous): main moved, #49 (Window polish) took 0.27.5. Merged origin/main 4a2e5c2 in (a merge commit, no force-push); bumped to 0.27.6 (plugin.json, Formula url, CHANGELOG [0.27.6] over #49's [0.27.5] and #48's [0.27.4]); plan and checklist version mentions updated to match. Release files and docs only, no new pass.
+
+## Handoff — 2026-10-25 13:00 · claude-code-brigade-cook-1
+
+- **Stage:** served. PR #52 open (https://github.com/mhmzdev/claude-code-brigade/pull/52), LGTM'd by the sous; re-bumped to 0.27.6 after #49 took 0.27.5 and pushed; this section supersedes the earlier handoff's "open-pr next".
+- **Uncommitted:** nothing (this section is committed with the PR).
+- **Next step:** none for this ticket. A fresh session in station-1 checks in as fresh with no ticket, after `git switch --detach origin/main`. Only if the head chef asks for changes to the PR: branch `issue-13-merge-base-diff`, plan `docs/plans/13-merge-base-diff.md`, checklist `docs/checklists/13-merge-base-diff.md`.
+- **Pending:** none. The sous may want a ticket for a transient failure seen once: kitchen tests 131/132 (`live --demo` on port 47471) failed in one full run on the merged tree and passed on two re-runs; cause not found.
+- **Follow-ups:** none drafted.
+- lesson(repo): kitchen-tests-bk-env | in a session opened by `bk`, run the gate as `env -u BRIGADE_CLAUDE_ARGS -u BRIGADE_VIA_BK -u TMUX -u TMUX_PANE scripts/check.sh` or 7 kitchen tests fail (until #50 lands) | #13
