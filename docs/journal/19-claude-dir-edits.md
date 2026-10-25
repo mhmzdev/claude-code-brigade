@@ -57,3 +57,13 @@ It reaches trunk with the PR, next to the plan and checklist.
 - 2026-10-25 · station-2 · cost line: `kitchen.sh budget --ticket 19 --journal-line` found no spend recorded (also tried `#19`); not a gate, going on.
 - 2026-10-25 · station-2 · [findings] (sous): PR #53 conflicted with main (#49, 0.27.5, 4a2e5c2). Merged origin/main (merge commit 35cda06, no force-push); CHANGELOG [0.28.0] / [0.27.5] / [0.27.4] in that order, 0.28.0 kept in plugin.json and the Formula; Window files untouched. check with the env unset: rc=0 (kitchen 270, guard 27, bk 82, budget 70, window 11). Pushed; `[served]` sent again.
 - 2026-10-25 · station-2 · [findings] (sous): main moved again (#54, 0.27.6, 1852116). Merged origin/main (merge commit c7a06e4, no force-push); CHANGELOG [0.28.0] / [0.27.6] / [0.27.5] / [0.27.4], 0.28.0 kept in plugin.json and the Formula. check with the env unset, run while no other check was running: rc=0 (kitchen 270, guard 27, bk 82, budget 70, window 16). Pushed; `[served]` sent again.
+
+## Handoff — 2026-10-25 14:12 · claude-code-brigade-cook-2
+
+- **Stage:** served. PR #53 is open (https://github.com/mhmzdev/claude-code-brigade/pull/53), head `7daee8d`, sous LGTM, waiting on CI and the head chef's merge. origin/main has moved to 0.27.7 (#55), so the branch is behind again.
+- **Uncommitted:** only this handoff section in `docs/journal/19-claude-dir-edits.md`. It goes out with the next push.
+- **Next step:** wait for the sous's "bring main in" (it said #52 merges first). Then `git fetch origin && git merge origin/main`; resolve only `CHANGELOG.md`, `Formula/bk.rb`, `plugins/bk/.claude-plugin/plugin.json`: CHANGELOG newest first (`[0.28.0]` above `[0.27.7]`, `[0.27.6]`, `[0.27.5]`, `[0.27.4]`), 0.28.0 kept in plugin.json and the Formula url. Run `env -u BRIGADE_CLAUDE_ARGS -u BRIGADE_VIA_BK -u TMUX -u TMUX_PANE scripts/check.sh` while station-1 isn't running its own (port 47471, #50), push (merge commit, no force), then `[served] #19 <url> · deploy prereqs: none · head <sha>`.
+- **Pending:** none. Three `[?]` live-session recipes sit in the PR test plan.
+- **Follow-ups:** unchanged, the sous files them at its handoff: (1) `guard.sh:78` refuses an `edit denied` gate whose text has a `Q<digit>` token and no `commis:`; (2) the `[heard]` after a head chef's lift has no `(head chef)` tag, so `budget.js:140`/`:237` count the ask as the sous's. The Window panel text is #51; the test-environment flake is #50.
+- **Lessons:** `lesson(plugin): skill-base-path-is-main` (already logged above). Nothing new.
+- **Session:** my shift is over; clear this session before any other ticket. Only the head chef merges #53.
