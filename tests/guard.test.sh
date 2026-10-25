@@ -73,6 +73,7 @@ rm "$S/.claude/grilling"
 ok "a [gate] with a question and no commis result is blocked" test "$(guard "$S" SendMessage '[gate] BKLG-004 Q3, see journal')" = 2
 ok "…and the reason says to spawn the commis" bash -c 'printf "%s" "$1" | grep -q "bk:commis"' _ "$(reason)"
 ok "a [gate] carrying the commis result passes" test "$(guard "$S" SendMessage '[gate] BKLG-004 Q3, see journal. commis: nothing recorded in decisions, specs, journals')" = 0
+ok "a [gate] carrying a precedent the commis found passes (Contract 6)" test "$(guard "$S" SendMessage '[gate] BKLG-004 Q3, see journal. commis: precedent in src/providers/a.ts, src/providers/b.ts, but they differ on refunds')" = 0
 ok "a [gate] with no numbered question passes (needs grilling, test account)" test "$(guard "$S" SendMessage '[gate] BKLG-004 needs grilling: scope')" = 0
 ok "a [gate] about a test account passes" test "$(guard "$S" SendMessage '[gate] BKLG-004 need a test account: stage, builder')" = 0
 ok "any other message kind passes" test "$(guard "$S" SendMessage '[check-in] station-1 sonnet clean no ticket fresh waiting: nothing')" = 0

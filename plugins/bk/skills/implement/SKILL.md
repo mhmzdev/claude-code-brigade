@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Carry out an approved plan phase by phase — run the config's check after every phase, tick criteria honestly, keep the plan's status and the rail current — then hand off to clean check and review-task (lanes A/B), or to clean check and the pass (lane C). Hygiene (HYG) tickets run straight from the ticket body with no plan; the proof is the counter going down. Starts only on the sign-off (typed or said solo; in a station the sous's [approved], its own for a bug, chore or hygiene ticket, the head chef's relayed for a feature) and refuses a plan that still carries open questions. Never commits. Use when the user says "implement this", "build the plan", "start coding", "execute BKLG-004", "work HYG-002", "/bk:implement".
+description: Carry out an approved plan phase by phase — run the config's check after every phase, tick criteria honestly, keep the plan's status and the rail current — then hand off to clean check and review-task (lanes A/B), or to clean check and the pass (lane C). Hygiene (HYG) tickets run straight from the ticket body with no plan; the proof is the counter going down. Starts only on the sign-off (typed or said solo; in a station the sous's [approved], its own for a bug, chore, precedent or hygiene ticket, the head chef's relayed for a feature) and refuses a plan that still carries open questions. Never commits. Use when the user says "implement this", "build the plan", "start coding", "execute BKLG-004", "work HYG-002", "/bk:implement".
 argument-hint: "[plan path | ticket id] (usually nothing: it finds this station's plan)"
 allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, AskUserQuestion, ListAgents, SendMessage, ToolSearch
 ---
@@ -12,7 +12,7 @@ Honour the plugin contract: the `README.md` in this skill's parent folder, `${CL
 **Station check first** (Contract 1): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`. If it prints `cook …`, you are a line cook even if nobody typed `/bk:line-cook` (e.g. after a `/clear`): read and follow `${CLAUDE_SKILL_DIR}/../line-cook/SKILL.md` for where questions go, the journal, and what a cook never does.
 
 You're executing a plan, and **the sign-off is what starts it** (Contract 5): the head
-chef's for a feature, the sous's own for a bug, chore or hygiene ticket.
+chef's for a feature, the sous's own for a bug, chore, precedent or hygiene ticket.
 That sign-off approves the plan and every commit under it. The sign-off check below makes
 sure it's really there, because this skill can be started by a model as well as typed. **Follow the plan, don't redesign it.** Every line you write matches the repo's live conventions.
 

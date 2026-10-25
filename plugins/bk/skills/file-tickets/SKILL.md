@@ -1,6 +1,6 @@
 ---
 name: file-tickets
-description: Put work on the rail. Two modes — slice an approved spec into thin end-to-end tickets (lane A, ids SNNN-NN, with blocked-by edges), or add one backlog item (lane B, BKLG-NNN): a bug, a chore, a follow-up, or a capability nobody has grilled or specced yet. Works on a markdown, GitHub or Jira rail through /bk:rail. Use when the user says "file a ticket", "make tickets", "break this into tickets", "slice this spec", "fire a ticket", "log this as a ticket", "add this to the backlog", "park this idea".
+description: Put work on the rail. Two modes — slice an approved spec into thin end-to-end tickets (lane A, ids SNNN-NN, with blocked-by edges), or add one backlog item (lane B, BKLG-NNN): a bug, a chore, a precedent (another instance of what the code already does twice), a follow-up, or a capability nobody has grilled or specced yet. Works on a markdown, GitHub or Jira rail through /bk:rail. Use when the user says "file a ticket", "make tickets", "break this into tickets", "slice this spec", "fire a ticket", "log this as a ticket", "add this to the backlog", "park this idea".
 argument-hint: "[<path to spec> | <description of the one backlog item>]"
 allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, Skill, AskUserQuestion, SendMessage, ListAgents, ToolSearch
 ---
@@ -31,7 +31,7 @@ Firing a ticket is a rail write, and **only the sous chef writes the rail** (Con
 | Mode | When | Creates |
 |---|---|---|
 | **A — Slice a spec** | a spec in `<docs.specs>` is approved, or the user says "break this into tickets" | one ticket per thin slice, `SNNN-NN`, lane A, with `blocked_by` edges |
-| **B — Backlog item** | anything that isn't a ticket yet: a capability, a change, a follow-up that changes behaviour (`kind: item`), a bug (`kind: bug`), or a chore whose outcome is already fixed (`kind: chore`) | one `BKLG-NNN` item, lane B |
+| **B — Backlog item** | anything that isn't a ticket yet: a capability, a change, a follow-up that changes behaviour (`kind: item`), a bug (`kind: bug`), a chore whose outcome is already fixed (`kind: chore`), or a precedent, another instance of what the code already does twice (`kind: precedent`) | one `BKLG-NNN` item, lane B |
 
 If it's ambiguous, ask. Hygiene tickets (`HYG-NNN`, lane C) come from `/bk:clean`, not from here.
 
@@ -73,8 +73,9 @@ If it's ambiguous, ask. Hygiene tickets (`HYG-NNN`, lane C) come from `/bk:clean
 2. **Ground it as far as it's known.**
    - **A bug (`kind: bug`):** measure it (real numbers from the real system, not impressions), name the code (a `file:line` for the mechanism, read in this run), and say what the intended behaviour is and where that's written. It gets a `## Done when`: a cook will plan straight from it.
    - **A chore (`kind: chore`):** say exactly what changes and what stays the same, and point at what fixed the outcome (the reviewer's comment, the checklist item, the dependency's changelog). It gets a `## Done when` too.
+   - **A precedent (`kind: precedent`):** the code already does this kind of thing twice or more the same way, and the record says why (Contract 4). Only the commis's `precedent` verdict makes one: list its instances under `precedent:` (two at least, paths), the record under `precedent_why:`, and say in `## Notes` how the instances agree and what this one adds. It gets a `## Done when`. No verdict, one instance, or instances that disagree → it's an item.
    - **An item (`kind: item`):** the `## Why` is enough: who wants it and what they can't do today. Don't design it here; that's the spec's job. Leave `## Done when` out, since the spec's tickets will carry it.
-3. **Write it.** Next number = highest existing `BKLG-NNN` (on a markdown rail) plus one, zero-padded. The file is `<docs.backlog>/BKLG-NNN-<slug>.md`, from the ticket template with `lane: B`, `kind: item`, `kind: bug` or `kind: chore`, `status: backlog`:
+3. **Write it.** Next number = highest existing `BKLG-NNN` (on a markdown rail) plus one, zero-padded. The file is `<docs.backlog>/BKLG-NNN-<slug>.md`, from the ticket template with `lane: B`, `kind: item`, `kind: bug`, `kind: chore` or `kind: precedent`, `status: backlog`:
 
    ```markdown
    ## Why
@@ -83,7 +84,7 @@ If it's ambiguous, ask. Hygiene tickets (`HYG-NNN`, lane C) come from `/bk:clean
    ## Options            <!-- only if there's a real fork -->
    1. … — trade-off
 
-   ## Done when         <!-- kind: bug and kind: chore; an item leaves this out -->
+   ## Done when         <!-- kind: bug, chore and precedent; an item leaves this out -->
    - [ ] <observable outcome>
    - [ ] `<check from config>` passes
 
@@ -91,7 +92,7 @@ If it's ambiguous, ask. Hygiene tickets (`HYG-NNN`, lane C) come from `/bk:clean
    A bug: the mechanism (file:line) and what you ruled out. An item: links and constraints.
    ```
 
-4. **Fire** through `/bk:rail fire`, add the row to `<docs.backlog>/INDEX.md`, commit per `rail.commit`. Report the id and its kind, and offer the next step by name: a bug or a chore → `/bk:pick-ticket <id>`; an item → `/bk:grill-me <id>`, then `/bk:spec`. Then wait.
+4. **Fire** through `/bk:rail fire`, add the row to `<docs.backlog>/INDEX.md`, commit per `rail.commit`. Report the id and its kind, and offer the next step by name: a bug, a chore or a precedent → `/bk:pick-ticket <id>`; an item → `/bk:grill-me <id>`, then `/bk:spec`. A precedent filed by the sous is told to the head chef in the same line, naming the instances, before any cook is briefed on it (Contract 4). Then wait.
 
 ## What not to do
 

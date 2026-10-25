@@ -12,6 +12,24 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.24.0] - 2026-10-25
+
+**A precedent settles how.** A backlog item that is another instance of something the code
+already does twice or more the same way, where the record says why the pattern exists (a
+third payment provider, one more report, a new adapter behind an existing interface), no
+longer waits for a grilling and a spec: it is `kind: precedent`, planned and built like a
+chore, and the sous signs off its plan naming the precedent (`gates.plan_approval.precedent`,
+`sous-chef` by default). The commis finds precedents (a new `precedent` verdict: every
+instance with `file:line`, and the record for the why; one instance, or instances that
+disagree, is only a fact), `grill-me` shows a round a precedent settles as settled, and
+`pick-ticket`, `create-plan` and `file-tickets` know the kind. The ticket carries
+`precedent:` (the instances) and `precedent_why:` (the record), so you can see which work
+the kitchen built from precedent; the board treats the kind as ready and `doctor` refuses a
+precedent with no instances. What you must do: nothing. The sous tells you in one line
+before it briefs anyone, so you can say "that one is new": the first of its kind is still
+yours. Add `precedent: sous-chef` under `gates.plan_approval` in `.claude/brigade.md` if
+you spell the whole table out.
+
 ## [0.23.0] - 2026-10-24
 
 **The kitchen's budget.** The kitchen now knows what it spends, per session and per ticket:

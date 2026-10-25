@@ -1,6 +1,6 @@
 ---
 name: pick-ticket
-description: Pick up a ticket cold. Rebuilds the context behind it (why it exists, what it links to, what happened since, what the record already decided about it), checks the code at origin/<trunk>, returns one of six staleness verdicts with evidence, checks nobody else owns it, says whether a backlog item is a bug or chore to build or still needs a spec, then recommends the next skill and — only on a yes — claims it on the rail. Works on any rail (markdown, GitHub, Jira). Read-only until told otherwise. Use when the user says "pick a ticket", "pick up BKLG-004", "catch me up on S001-02", "is this ticket still valid", "what's the story on HYG-003".
+description: Pick up a ticket cold. Rebuilds the context behind it (why it exists, what it links to, what happened since, what the record already decided about it), checks the code at origin/<trunk>, returns one of six staleness verdicts with evidence, checks nobody else owns it, says whether a backlog item is a bug, chore or precedent to build or still needs a spec, then recommends the next skill and — only on a yes — claims it on the rail. Works on any rail (markdown, GitHub, Jira). Read-only until told otherwise. Use when the user says "pick a ticket", "pick up BKLG-004", "catch me up on S001-02", "is this ticket still valid", "what's the story on HYG-003".
 argument-hint: "<ticket id, path, or URL>"
 allowed-tools: Bash, Read, Skill, ListAgents, SendMessage, AskUserQuestion, ToolSearch
 ---
@@ -130,9 +130,9 @@ Code read at `origin/<trunk>` <sha>
 **(a) Recommend the next skill by name, and wait.**
 
 - The WHAT is contested (`Unclear`, `Body drifted`, comments disagree with the body) → `/bk:grill-me <ID>`. A cook doesn't start a grilling unasked: it sends the sous `[gate] <ID> needs grilling: <what's contested>` and waits.
-- **A backlog item (`BKLG-*`, or `lane:B` on a tracker) that is neither `kind: bug` nor `kind: chore`** → `/bk:grill-me <ID>`, then `/bk:spec` (Contract 4). It still has to become a spec and tickets, however small it looks. Offer no claim: the item stays `backlog` until `/bk:spec` closes it into the spec. If the head chef says build this one directly anyway, do, and note in the plan that it has no spec.
-- **A `kind: bug` or `kind: chore` that isn't one**: doing it means deciding *what* the behaviour should be, not restoring or carrying out what was already decided. Say so with the evidence, and stop: it's an item, and the sous re-marks it (a cook sends `[gate] <ID> isn't a <bug|chore>: <why>`).
-- The WHAT is crisp: a lane A ticket, or a `kind: bug` or `kind: chore` backlog item → `/bk:create-plan <ID>`.
+- **A backlog item (`BKLG-*`, or `lane:B` on a tracker) that is none of `kind: bug`, `kind: chore` or `kind: precedent`** → first ask whether the code settles it: if the item reads like "another X", send the commis *"is there a precedent for <the item>?"* (Contract 5). A `precedent` verdict (two or more agreeing instances, and the record for the why) → recommend the sous mark it `kind: precedent` with the instances (solo: do it through `/bk:rail`), then `/bk:create-plan <ID>`. Otherwise → `/bk:grill-me <ID>`, then `/bk:spec` (Contract 4): it still has to become a spec and tickets, however small it looks. Offer no claim: the item stays `backlog` until `/bk:spec` closes it into the spec. If the head chef says build this one directly anyway, do, and note in the plan that it has no spec.
+- **A `kind: bug`, `kind: chore` or `kind: precedent` that isn't one**: doing it means deciding *what* the behaviour should be, not restoring or carrying out what was already decided, or following a pattern the code already holds. For a precedent, check the instances in `precedent:` still exist at `origin/<trunk>` and still agree on the point this item raises. Say so with the evidence, and stop: it's an item, and the sous re-marks it (a cook sends `[gate] <ID> isn't a <bug|chore|precedent>: <why>`).
+- The WHAT is crisp: a lane A ticket, or a `kind: bug`, `kind: chore` or `kind: precedent` backlog item → `/bk:create-plan <ID>`.
 - **Lane C (`HYG-*`)** → `/bk:implement <ID>`. Hygiene tickets have no plan and no checklist (Contract 9); the ticket body is the spec and the counter is the proof.
 
 **(b) Claim it — on a yes (solo), on the head chef's "fire it" (sous), or straight away on a brief (cook).** The claim for lane A/B is `todo` (it's set again by `create-plan`, harmlessly); for lane C it's `in-progress`, because nothing comes between picking and implementing.
@@ -151,5 +151,5 @@ Close, body rewrite and comment offers follow the same rule: show the text, wait
 - Don't claim a ticket in `todo`, `in-progress` or `rfr` that isn't yours.
 - Don't write the rail from a cook session. Ask the sous.
 - Don't produce a verdict without evidence; that's what `Unclear` is for.
-- Don't send a backlog item that is neither `kind: bug` nor `kind: chore` to `/bk:create-plan`, and don't claim it.
+- Don't send a backlog item that is none of `kind: bug`, `kind: chore` or `kind: precedent` to `/bk:create-plan`, and don't claim it.
 - Don't run the next skill yourself. The human (or, in a station, the brief) fires it.

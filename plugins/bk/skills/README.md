@@ -28,9 +28,9 @@ skill has a bug.
 | Role | Who | Does | Never does |
 |---|---|---|---|
 | **Head Chef** | the human | talks to **one** session, the sous: makes the decisions nobody has made yet (new features and flows, real forks), merges, deploys | relays messages between sessions, watches the cooks' terminals, or answers what the record already answers |
-| **Sous Chef** | one Claude Code session in the **main checkout**, running `/bk:sous-chef` | assigns tickets, answers every gate the record or routine can settle, signs off bug, chore and hygiene plans, brings feature plans and real forks to the head chef with a recommendation and relays the answer, keeps the record (Contract 12), reviews every diff before commit, **is the only writer of the rail** | writes code in a station, merges, deploys, decides a fork the record doesn't settle |
+| **Sous Chef** | one Claude Code session in the **main checkout**, running `/bk:sous-chef` | assigns tickets, answers every gate the record or routine can settle, signs off bug, chore, precedent and hygiene plans, brings feature plans and real forks to the head chef with a recommendation and relays the answer, keeps the record (Contract 12), reviews every diff before commit, **is the only writer of the rail** | writes code in a station, merges, deploys, decides a fork the record doesn't settle |
 | **Line Cook** | one Claude Code session per **station** (started by `kitchen open`, or any session in a station) | works one ticket from plan to PR; sends the commis before it sends a question | edits ticket files, touches another station, empties the walk-in without asking, settles a design fork on its own |
-| **Commis** | the `commis` sub-agent, spawned by a cook or the sous before any question goes up | searches the record for a decision already made or a fact already written, and returns a short verdict with its sources (the junior who fetches for the line) | holds any tool that can write; decides anything |
+| **Commis** | the `commis` sub-agent, spawned by a cook or the sous before any question goes up | searches the record for a decision already made, the code for a precedent (the same kind of thing, done twice already), or a fact already written, and returns a short verdict with its sources (the junior who fetches for the line) | holds any tool that can write; decides anything |
 | **Inspector** | the `inspector` sub-agent | reads a diff and reports what shouldn't be there (the health inspector: looks, never cooks) | holds any tool that can write |
 | **Taster** | the `taster` sub-agent, spawned by the sous at the pass | reads a cook's diff, re-runs the check, walks "Done when", returns a verdict and numbered findings, so the sous doesn't read whole diffs | edits, commits, or messages anyone |
 | **Runner** | the `runner` sub-agent, anyone may spawn it | runs one noisy command (the check, a test suite, a scan) and returns only pass/fail plus the failing lines | decides anything, or edits |
@@ -86,6 +86,7 @@ gates:
     feature: head-chef                   # lane A tickets, and items built without a spec: always head-chef
     bug: sous-chef                       # kind: bug
     chore: sous-chef                     # kind: chore
+    precedent: sous-chef                 # kind: precedent (the code already does this twice; the record says why)
     hygiene: sous-chef                   # HYG tickets (the ticket is the plan)
   pre_commit: sous-chef
   merge: head-chef
@@ -218,7 +219,7 @@ ticket is fired or later, and written by the sous like any other rail change.
 
 **What's next.** A ticket is **ready** when its status is `backlog` or `blocked`, every
 ticket in its `blocked_by` is `done`, and it isn't a backlog item that still needs a spec
-(Contract 4: every `BKLG` item that isn't `kind: bug` or `kind: chore`). `kitchen.sh rail` works all of
+(Contract 4: every `BKLG` item that isn't `kind: bug`, `kind: chore` or `kind: precedent`). `kitchen.sh rail` works all of
 that out itself: the `RDY` column says `yes`, `no` (a blocker is open) or `spec` (a backlog
 item that has to become a spec and tickets first), and a ticket's still-open blockers are
 printed after its title. A blocker id that
@@ -308,7 +309,9 @@ title: One line
 lane: B                  # A | B | C
 status: backlog          # backlog | todo | in-progress | rfr | done | blocked
 cook: null               # station name once claimed
-kind: item               # BKLG only: item (becomes a spec and tickets) | bug | chore (both planned and built directly)
+kind: item               # BKLG only: item (becomes a spec and tickets) | bug | chore | precedent (all three planned and built directly)
+precedent: []            # kind: precedent only: the instances in the code it follows (paths), two at least
+precedent_why: null      # kind: precedent only: where the record says why the pattern exists (a spec, an ADR, a knowledge doc)
 spec: null               # lane A: the parent spec. BKLG: the spec it became
 priority: normal         # high | normal | low (optional; Contract 3)
 blocked_by: []
@@ -334,16 +337,27 @@ item is further back. Its `kind:` says which way it leaves the backlog:
   dependency bump, a rename, a missing checklist item, a follow-up a reviewer asked for, a
   doc that has to say what the code already does. No behaviour changes. Like a bug, it is
   its own ticket: `create-plan`, then build.
+- **`kind: precedent`**: a new instance of something the code already does **twice or
+  more**, where the record says why the pattern exists: a third payment provider when two
+  are integrated the same way, another report in a reporting module, one more adapter
+  behind an interface. The *how* is in the code and the *why* is written down, so there is
+  nothing left for the head chef to decide; the first of its kind (the first provider, a bus
+  operator in a kitchen that only knows airlines) has no precedent and is an item. The
+  commis finds the precedent (Contract 5); the sous sets the kind as a rail change, with
+  `precedent:` listing the instances and `precedent_why:` the record, and tells the head
+  chef in one line **before** the brief, so they can say "that one is new". Like a bug, it
+  is its own ticket: `create-plan`, then build; the plan names the precedent it follows.
 
-**Bug, chore or item is a fact about the work, not a size.** A "small" new behaviour is
+**Bug, chore, precedent or item is a fact about the work, not a size.** A "small" new behaviour is
 still an item. A fix that turns out to need a decision about *what* the behaviour should be
-was never a bug, and a chore that turns out to need one was never a chore: say so, and it
-becomes an item. The sous sets or corrects `kind:` as a rail change, with one line of why.
+was never a bug, a chore that turns out to need one was never a chore, and a precedent whose
+instances differ from each other in the very point the new one has to settle was never a
+precedent: say so, and it becomes an item. The sous sets or corrects `kind:` as a rail change, with one line of why.
 The one way an item is built without a spec is the head chef saying so for that item; the
 plan then notes that it has none, and its sign-off is the head chef's (Contract 5).
 
-On a github or jira rail a backlog item is an issue labelled `lane:B` (plus `bug` or
-`chore`), and "closed into a spec" shows as its closing comment (`Became spec SNNN: <path>`)
+On a github or jira rail a backlog item is an issue labelled `lane:B` (plus `bug`,
+`chore` or `precedent`; the instances go in a comment), and "closed into a spec" shows as its closing comment (`Became spec SNNN: <path>`)
 rather than a `spec:` field.
 
 **Plans don't move between folders.** A plan's lifecycle is its `status:` field,
@@ -398,14 +412,21 @@ whoever holds it works out which kind it is:
    the code is its source and a copy would rot.
 2. **A decision already made**: the head chef (or a spec they approved) has answered this,
    somewhere in the record (Contract 12). Found, it is answered with its source and the
-   head chef is never asked twice. The commis exists to find these.
+   head chef is never asked twice. The commis exists to find these. **A precedent is a
+   decision already made about *how*:** the code does this same kind of thing in two or
+   more places, and the record says why the pattern exists. "How do we add the third
+   provider" is settled by the first two and the spec that introduced them. A precedent
+   never settles *whether* to build something, and the instances must agree on the point in
+   question: two providers that each handle refunds differently settle nothing about
+   refunds.
 3. **A decision nobody has made**, and that changes what gets built: product behaviour,
    visibility, a metric's meaning, scope, a new flow. The head chef's, however confident
    anyone feels. Once answered it becomes kind 2 and is written down.
 
 **The chain**: a cook with a question spawns the **commis** first. *Settled* with a source
-→ the cook logs `An (commis): <answer>, per <source>` and goes on. *A fact* → the cook reads
-the `file:line` and goes on. *Blocked* (an open question file already asks this) → the cook
+→ the cook logs `An (commis): <answer>, per <source>` and goes on. *Precedent* → the cook
+logs `An (commis): precedent in <paths>, why in <source>` and follows it. *A fact* → the cook
+reads the `file:line` and goes on. *Blocked* (an open question file already asks this) → the cook
 sends `[gate] <ID> Qn, see journal. commis: blocked on <question file>`; the sous may have
 the answer by now, else the cook's ticket waits like the file's. *Nothing*, or *conflict*
 (two records disagree) → the cook sends the `[gate]`, with the commis's result in it
@@ -414,8 +435,9 @@ sous doesn't search again. The sous answers if it is routine or the record settl
 (it may send the commis once more, wider), and tells the head chef in one line whenever its
 answer came from the record. Otherwise it is kind 3: the sous asks the head chef with a
 recommendation, relays the answer marked `(head chef)`, and the answer is recorded.
-**A commis result settles a question only when it cites a decision.** A related fact never
-closes a design fork in a cook's hands; it goes up with the fact attached. When the sous
+**A commis result settles a question only when it cites a decision or a precedent.** A
+related fact never closes a design fork in a cook's hands; it goes up with the fact
+attached. A precedent with one instance, or whose instances disagree, is a fact. When the sous
 can't tell which kind a question is, it's kind 3.
 
 **The sous assigns the work.** With `gates.assign: sous-chef` (the default), the sous puts
@@ -439,6 +461,7 @@ every commit made under it (after the sous's pass). No separate "approve?" quest
 | a lane A ticket (`SNNN-NN`), or an item the head chef said to build without a spec | **head chef** | a feature or a new flow: a decision about what the product does |
 | `kind: bug` | sous | the intended behaviour is already decided; the plan only restores it |
 | `kind: chore` | sous | the outcome is already fixed; nothing to decide |
+| `kind: precedent` | sous | the how is in the code twice already and the why in the record; the `[approved]` names the precedent |
 | a `HYG` ticket (lane C) | sous | the counter is the whole intent; the ticket is the plan |
 
 Whatever the kind, a plan goes to the **head chef** when it carries a migration, touches a
@@ -447,6 +470,9 @@ Whatever the kind, a plan goes to the **head chef** when it carries a migration,
 was a feature in disguise). The head chef can also say "show me every plan" for a while, and
 the sous does.
 
+- **A precedent plan must follow its precedent.** The sous checks the plan against the
+  instances named in `precedent:`; a plan that departs from them in a way the record doesn't
+  settle has found a fork, and that fork goes to the head chef like any other.
 - **Solo:** the human types `/bk:implement`, or says in plain words to build the plan.
   A solo session never chains into `implement` from `create-plan` by itself.
 - **In a kitchen:** the cook sends `[plan] <ID> ready: <path>`. The sous reads the plan and
@@ -470,11 +496,11 @@ other skill is model-invocable, or cooks would stall waiting for a human to type
 
 | Gate | Solo session | Line cook |
 |---|---|---|
-| Plan approval (the **sign-off**) | human types `/bk:implement`, or says to build the plan | by `gates.plan_approval`: **the sous** for a bug, chore or hygiene plan (it tells the head chef); **the head chef, in the sous's terminal**, for a feature or any plan with a migration, a walk-in resource, a production write or an unrecorded decision. Either way the sous relays `[approved]` and the cook starts `/bk:implement`. That authorises every commit made under the plan |
+| Plan approval (the **sign-off**) | human types `/bk:implement`, or says to build the plan | by `gates.plan_approval`: **the sous** for a bug, chore, precedent or hygiene plan (it tells the head chef); **the head chef, in the sous's terminal**, for a feature or any plan with a migration, a walk-in resource, a production write or an unrecorded decision. Either way the sous relays `[approved]` and the cook starts `/bk:implement`. That authorises every commit made under the plan |
 | Which ticket a free cook takes next | human | the sous (`gates.assign`), from the ready tickets in Contract 3's order |
-| A question about how things work, or one the record already answers | the session looks it up (the commis) | the cook sends the **commis** first; settled with a source → answered, no gate |
+| A question about how things work, one the record already answers, or one a precedent in the code settles | the session looks it up (the commis) | the cook sends the **commis** first; settled with a source, or a precedent with its instances → answered, no gate |
 | Design fork, contradiction between ticket and code, nothing recorded | human | cook sends `[gate]` with the commis result; the sous sends the commis wider if useful, answers from the record (and tells the head chef), or takes it to the human with a recommendation and relays the answer |
-| Grilling (`/bk:grill-me`) | human | a cook never starts one unasked: it sends `[gate] <ID> needs grilling`. The sous grills the human itself, or **hands the grilling to a free cook** with a `[brief]` and tells the human which station is waiting. The human may also type `/bk:grill-me` in a station. The cook then grills the human in its own terminal, logs every decision (a backlog item that needs a spec: in the spec draft it writes; an existing spec or ticket: sent to the sous, who writes them in), tells the sous, and is cleared before it takes a ticket. Every grilling round passes through the commis first: settled questions are shown as settled, not asked |
+| Grilling (`/bk:grill-me`) | human; a round the record or a precedent settles is shown as settled, not asked | a cook never starts one unasked: it sends `[gate] <ID> needs grilling`. The sous grills the human itself, or **hands the grilling to a free cook** with a `[brief]` and tells the human which station is waiting. The human may also type `/bk:grill-me` in a station. The cook then grills the human in its own terminal, logs every decision (a backlog item that needs a spec: in the spec draft it writes; an existing spec or ticket: sent to the sous, who writes them in), tells the sous, and is cleared before it takes a ticket. Every grilling round passes through the commis first: settled questions are shown as settled, not asked |
 | Brainstorming (`/bk:brainstorm`) | human | the sous's and the human's: the sous never hands one to a cook. Only the human typing `/bk:brainstorm` in a station starts one there |
 | Every other confirmation ("confirm scope?", "continue to phase 2?", "which of these two helpers?") | human | **sous chef, by `SendMessage`**, never a dialog nobody is watching |
 | Pre-commit review (**the pass**) | human | sous spawns the `taster`, questions its verdict, checks across stations, then says `[go]` |
@@ -508,7 +534,7 @@ Keep messages short and typed. The first line is the kind, in brackets:
 | `[hello]` | sous → cook | "I'm the sous, check in": sent at start-up to cooks that were already waiting |
 | `[brief]` | sous → cook | the ticket's absolute path, why it matters, constraints from other stations, the loop. Or a **grilling brief**: the item to grill the head chef on, and where its decisions go |
 | `[check-in]` | cook → sous | station, model, branch, dirty or clean, ticket, whether the session is **fresh or spent** (spent: this conversation itself has served a ticket or held a grilling, so it needs clearing; a session just started or just cleared is fresh, whatever the station's journal or branch says), and **what it's waiting on** (a question id, the plan's sign-off, the pass, a walk-in clearance, or nothing) |
-| `[gate]` | cook → sous | the question, the options, the cook's recommendation, and the commis's result (`commis: nothing recorded in <places>`, `commis: conflict between <a> and <b>`, or `commis: blocked on <question file>`) |
+| `[gate]` | cook → sous | the question, the options, the cook's recommendation, and the commis's result (`commis: nothing recorded in <places>`, `commis: conflict between <a> and <b>`, `commis: blocked on <question file>`, or `commis: precedent in <paths>, but <why it doesn't settle this>`) |
 | `[rail]` | cook → sous | a rail change request: `claim BKLG-004 todo`, `BKLG-004 → rfr`. Also a file for the sous to record in the main checkout, by absolute path: a spec draft, grilling decisions, a brainstorm doc |
 | `[walk-in]` | cook → sous | "about to run `<command>` on `<resource>`, OK?" |
 | `[status]` | anyone | a state change that needs no answer: "the head chef told me directly to …", "implement started (signed off)", a lane-C counter before/after |
@@ -607,7 +633,7 @@ A lane is defined by **where its tickets come from**.
 | Lane | Name | Source | Path through the skills |
 |---|---|---|---|
 | **A** | Specials | a spec, sliced into tickets. The spec starts from a brainstorm or from a backlog item that needs one | (brainstorm or pick-ticket) → grill-me → spec → file-tickets → create-plan → implement → review-task → open-pr |
-| **B** | À la carte | bugs and chores: backlog items marked `kind: bug` or `kind: chore`. Every backlog item is filed `lane: B`; one that is neither leaves for lane A through a spec | pick-ticket → (grill-me) → create-plan → implement → review-task → open-pr |
+| **B** | À la carte | bugs, chores and precedents: backlog items marked `kind: bug`, `kind: chore` or `kind: precedent`. Every backlog item is filed `lane: B`; one that is none of the three leaves for lane A through a spec | pick-ticket → (grill-me) → create-plan → implement → review-task → open-pr |
 | **C** | Clean as you go | the kitchen generates them: `/bk:clean around` / `scan` | pick-ticket → implement → clean check → the pass → on `[go]`: clean around → handoff → open-pr |
 
 **Lane C skips the plan, the checklist and `review-task`.** Its claim goes straight from
@@ -782,7 +808,7 @@ treats the sous recording the head chef's quoted words as that human's writing; 
 config's notes say so if the repo wants it otherwise.
 
 **The commis's model.** It runs on Opus by default: its one judgement, "a related decision
-is not this decision", is where a smaller model stretches a near miss into a false
+is not this decision" (and "a similar piece of code is not a precedent"), is where a smaller model stretches a near miss into a false
 *settled*, and that failure is silent. It is also the most-spawned sub-agent in the
 kitchen. A repo that wants the trade sets `commis_model: sonnet` in the config; every
 skill that spawns the commis passes that value as the `Agent` call's `model`.
@@ -810,8 +836,8 @@ guardrails against a slip, not a wall; both stay out of the way in a repo with n
 | `/bk:brainstorm` | A | explore what to build and why |
 | `/bk:grill-me` | A, B | question a plan or idea until there's one shared picture |
 | `/bk:spec` | A | write the numbered spec, and close the backlog item it came from |
-| `/bk:file-tickets` | A, B | slice a spec into tickets, or add one backlog item (an item, a bug or a chore) |
-| `/bk:pick-ticket` | A, B, C | pick a ticket up cold: context, staleness, what the record already decided, whether a backlog item is a bug or chore or still needs a spec, claim |
+| `/bk:file-tickets` | A, B | slice a spec into tickets, or add one backlog item (an item, a bug, a chore or a precedent) |
+| `/bk:pick-ticket` | A, B, C | pick a ticket up cold: context, staleness, what the record already decided, whether a backlog item is a bug, chore or precedent or still needs a spec, claim |
 | `/bk:create-plan` | A, B | write the plan for one ticket |
 | `/bk:implement` | A, B, C | carry out the plan, phase by phase, check after each |
 | `/bk:review-task` | A, B | acceptance checklist from intent plus diff, with evidence |

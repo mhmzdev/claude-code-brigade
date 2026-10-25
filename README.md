@@ -221,7 +221,7 @@ Three lanes, one loop:
 | Lane | Starts from | Path |
 |---|---|---|
 | **A, Specials** | an idea, grilled into a spec, sliced into tickets | brainstorm → grill-me → spec → file-tickets → create-plan → implement → review-task → open-pr |
-| **B, À la carte** | a bug or chore on the backlog | pick-ticket → create-plan → implement → review-task → open-pr |
+| **B, À la carte** | a bug, chore or precedent (another of what the code already does) on the backlog | pick-ticket → create-plan → implement → review-task → open-pr |
 | **C, Clean as you go** | mess the kitchen finds itself (`bk run clean scan`) | pick-ticket → implement → open-pr |
 
 The rules the kitchen runs on:
@@ -229,7 +229,7 @@ The rules the kitchen runs on:
 1. **One cook, one ticket, one shift.** Clear the session before the next ticket.
 2. **If it's on the rail, it's taken.** The plan is in another station.
 3. **Nobody empties the walk-in without calling it.** Shared resources (a database, a docker stack) go through the sous.
-4. **The chef signs the specials, the sous checks every plate.** Feature plans need your yes; bugs, chores and hygiene the sous signs and tells you. Every diff is reviewed before it is committed.
+4. **The chef signs the specials, the sous checks every plate.** Feature plans need your yes; bugs, chores, precedents (another of what the code already does) and hygiene the sous signs and tells you. Every diff is reviewed before it is committed.
 5. **Call for decisions, not ceremony.** Before any question reaches you, the `commis` has searched the record. Answer once and it is written down; you are never asked twice.
 
 Test logins live in `.claude/brigade.local.md`, gitignored; a cook gets an account's name
