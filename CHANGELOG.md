@@ -20,9 +20,22 @@ the rest). Hovering a character reads "Cook 2: Sonnet" (the role, then the model
 ticket and branch underneath. The status ring under each character is its shadow now (the
 drawn shadow that sat beside it is gone). The head chef's question badge is lifted in front
 of the back wall like the bubble already was. The runner's name label hides while it is at
-the machine (the beacon names it), and it waits on the open floor past the machine instead
-of in front of it. The walk-in's name sits at the top of its door, clear of the handle.
-What you must do: nothing.
+the machine (the beacon names it), it paces the front of the mat end to end while a run is
+in, and waits at the mat's end. The walk-in's name sits at the top of its door, clear of the
+handle. Everything on a character's head (bubble, badge, glyph, name) now stacks in one
+column, the name closest to the head, and the hover tip sits above the whole stack instead
+of over the bubble. The figures' feet stand on the ring.
+
+**And the fix behind "the runner is working but the Window shows nothing".** Claude Code
+2.1.x writes the transcript line that holds an Agent call only once the result is in, so a
+helper's start and end used to arrive together and a run of a minute lasted a second on
+screen. The live reader now watches the sub-agent's own files beside the transcript (the
+`agent-<id>.meta.json` Claude Code writes when a sub-agent starts, with `finished` once it
+is done), so a runner, taster, commis or inspector is seen leaving the moment it leaves. It
+also follows a session across `/clear` (a new transcript under the same pid) instead of
+staying on the old one, and a helper that left before the Window attached is still shown as
+out. A new test suite, `tests/window.test.sh`, covers it. What you must do: nothing; restart
+the Window (`bk live` twice) to pick it up.
 
 ## [0.27.4] - 2026-10-25
 

@@ -51,7 +51,7 @@ export function layout(n) {
     stations.push({ x: cx + r * 0.5 + (c - (per - 1) / 2) * sp, y: y0 + r * dy, w: sw });
   }
   const D = Math.max(10.4, y0 + (rows - 1) * dy + 3.1);
-  return { stations, D, homes: { commis: [2.1, 5], taster: [11.8, 3.1], inspector: [2.1, D + 0.2], runner: [20.6, 7.0] }, sous: [8, 2.9], chef: [14.2, 0.9], record: [1.5, 4.2], check: [14.9, 6.9] };
+  return { stations, D, homes: { commis: [2.1, 5], taster: [11.8, 3.1], inspector: [2.1, D + 0.2], runner: [18.2, 8.3] }, sous: [8, 2.9], chef: [14.2, 0.9], record: [1.5, 4.2], check: [14.9, 6.9] };
 }
 
 // A box: top, south, north, east, west faces around a floor rectangle. Labels sit on the
@@ -84,7 +84,7 @@ const pg = (pts, fill) => `<polygon points="${pts}" fill="${fill}"/>`;
 const face = (x, y, r) => `<g class="face" transform="translate(${x} ${y})"><g class="eyes">${ci(-r * .38, -r * .05, r * .14, '#2a2520')}${ci(r * .38, -r * .05, r * .14, '#2a2520')}</g><path d="M-2.5 ${r * .35} Q0 ${r * .5} 2.5 ${r * .35}" fill="none" stroke="#8a5a4a" stroke-width="1.2"/></g>`;
 function chefSVG(role) {
   const R = ROLE[role], coat = role === 'head' ? '#2b2b2b' : WHITE;
-  let s = `<svg class="chef" viewBox="-26 -118 52 136" width="52" height="136">`;
+  let s = `<svg class="chef" viewBox="-26 -118 52 122" width="52" height="122">`;
   s += rr(-10, -24, 8, 22, 3, '#2b2b2b') + rr(2, -24, 8, 22, 3, '#2b2b2b') + rr(-12, -5, 11, 6, 2, '#1a1a1a') + rr(1, -5, 11, 6, 2, '#1a1a1a');
   s += rr(-17, -64, 34, 44, 9, coat, OUT);
   if (role === 'head') {
@@ -109,7 +109,7 @@ function chefSVG(role) {
 }
 function helperSVG(kind) {
   const cap = HELPER[kind].cap;
-  let s = `<svg class="helper" viewBox="-17 -56 34 74" width="34" height="74">`;
+  let s = `<svg class="helper" viewBox="-17 -56 34 60" width="34" height="60">`;
   s += `<g class="leg l" transform="translate(-3 -12)">${rr(-2, 0, 4, 12, 2, '#2b2b2b')}${rr(-3, 9, 6, 3.5, 1.5, '#1a1a1a')}</g><g class="leg r" transform="translate(3 -12)">${rr(-2, 0, 4, 12, 2, '#2b2b2b')}${rr(-3, 9, 6, 3.5, 1.5, '#1a1a1a')}</g>`;
   s += rr(-9, -34, 18, 24, 6, WHITE, OUT) + rr(-7, -22, 14, 11, 2, cap) + ci(-3, -29, 1.2, '#c9c2b2') + ci(3, -29, 1.2, '#c9c2b2');
   s += ci(0, -40, 7, SKIN, OUT) + rr(-8, -50, 16, 8, 3, cap, OUT) + rr(-9, -44, 18, 3, 1.5, cap);
@@ -355,8 +355,9 @@ export function createScene(stage) {
   // resident is already out.
   const helpers = new Map();
   const posOf = (who) => who === 'sous' ? L.sous : (who === 'headchef' || who === 'head-chef') ? L.chef : stations.get(who)?.pos ? [stations.get(who).pos.x, stations.get(who).pos.y - 0.6] : L.sous;
-  function walk(f, [x, y], then) {
-    const d = Math.hypot(x - f.x, y - f.y), secs = Math.max(.4, d / 4);
+  const MAT_FRONT = [[13.7, 8.3], [18.2, 8.3]];   // the two ends of the check's mat, along its front edge
+  function walk(f, [x, y], then, speed = 4) {
+    const d = Math.hypot(x - f.x, y - f.y), secs = Math.max(.4, d / speed);
     f.root.style.transition = `left ${secs}s linear, top ${secs}s linear`;
     f.root.classList.add('walking'); f.place(x, y);
     clearTimeout(f.walkT); f.walkT = setTimeout(() => { f.root.classList.remove('walking'); then?.(); }, secs * 1000);
@@ -373,7 +374,11 @@ export function createScene(stage) {
       : at;
     f.glyph.hidden = false; f.glyph.textContent = GLYPH.running;
     f.bb.classList.toggle('atwork', h.kind === 'runner');   // the beacon over the machine names it; a label there would sit on the machine
-    walk(f, target, () => { f.bb.dataset.activity = 'running'; });
+    if (h.kind === 'runner') {
+      // the runner paces the front of the mat, end to end, for as long as the run is in
+      const pace = () => { if (!f.busy) return; const end = Math.abs(f.x - MAT_FRONT[0][0]) < 0.5 ? MAT_FRONT[1] : MAT_FRONT[0]; walk(f, end, pace, 2.2); };
+      walk(f, MAT_FRONT[1], () => { f.bb.dataset.activity = 'running'; pace(); });
+    } else walk(f, target, () => { f.bb.dataset.activity = 'running'; });
     helpers.set(h.id, f);
   }
   function endHelper(id) {
