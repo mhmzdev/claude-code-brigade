@@ -28,7 +28,8 @@ the kitchen built from precedent; the board treats the kind as ready and `doctor
 precedent with no instances. What you must do: nothing. The sous tells you in one line
 before it briefs anyone, so you can say "that one is new": the first of its kind is still
 yours. Add `precedent: sous-chef` under `gates.plan_approval` in `.claude/brigade.md` if
-you spell the whole table out.
+you spell the whole table out. Also fixed: the budget's duration for a ticket still open never
+goes negative (a test that ran before the fixture's clock failed in CI).
 
 ## [0.23.0] - 2026-10-24
 
