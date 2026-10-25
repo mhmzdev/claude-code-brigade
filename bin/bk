@@ -36,7 +36,8 @@
 #   bk version | help
 #
 # Profiles (several Claude Code logins on one machine, ~/.claude, ~/.claude-work, …):
-#   --profile NAME picks ~/.claude-NAME (`default` is ~/.claude; a path works too). Without
+#   --profile NAME picks ~/.claude-NAME (`default` is ~/.claude, run with CLAUDE_CONFIG_DIR
+#   unset, the same login as a plain `claude`; a path works too). Without
 #   it: CLAUDE_CONFIG_DIR already in the shell, else the one this repo recorded in
 #   .claude/bk-profile, else the only ~/.claude* dir there is; with several and nothing
 #   recorded, `bk open` asks once. `bk open` records the choice in .claude/bk-profile (kept
@@ -115,25 +116,35 @@ exclude_locally() {  # exclude_locally <checkout> <relative path>: out of git th
   [[ -s "$excl" && -n "$(tail -c1 "$excl")" ]] && echo "" >> "$excl"
   echo "$2" >> "$excl"
 }
-# resolve_profile ask|need|soft → exports CLAUDE_CONFIG_DIR and sets PROFILE_FROM. With several
-# profiles and nothing recorded: `ask` asks at a terminal, `need` refuses (the command reads the
-# registry, so a guess would be wrong), `soft` goes without one (the command doesn't care).
+# resolve_profile ask|need|soft → sets PROFILE_DIR (always a path) and PROFILE_FROM, and
+# applies it: CLAUDE_CONFIG_DIR exported for a named profile, **unset for the default**.
+# To Claude Code, CLAUDE_CONFIG_DIR=~/.claude is not the default: it reads
+# ~/.claude/.claude.json and its own keychain entry, a second login, where a plain `claude`
+# reads ~/.claude.json and the first. The default profile has to be the plain one. With
+# several profiles and nothing recorded: `ask` asks at a terminal, `need` refuses (the
+# command reads the registry, so a guess would be wrong), `soft` goes without one.
+PROFILE_DIR=""
+apply_profile() {  # apply_profile <dir> <from>
+  PROFILE_DIR="$1"; PROFILE_FROM="$2"
+  if [[ "$(cd "$1" 2>/dev/null && pwd -P)" == "$(cd "$HOME/.claude" 2>/dev/null && pwd -P)" ]]; then unset CLAUDE_CONFIG_DIR
+  else export CLAUDE_CONFIG_DIR="$1"; fi
+}
 resolve_profile() {
   local recorded dirs=() d n answer
   if [[ -n "$PROFILE_OPT" ]]; then
     d="$(profile_dir_of "$PROFILE_OPT")"
     [[ -d "$d" ]] || die "no profile '$PROFILE_OPT': $d doesn't exist (profiles: $(profile_dirs | while read -r x; do profile_label "$x"; printf ' '; done))"
-    export CLAUDE_CONFIG_DIR="$d"; PROFILE_FROM="--profile"; return 0
+    apply_profile "$d" "--profile"; return 0
   fi
-  if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then PROFILE_FROM="the shell (CLAUDE_CONFIG_DIR)"; return 0; fi
+  if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then apply_profile "$CLAUDE_CONFIG_DIR" "the shell (CLAUDE_CONFIG_DIR)"; return 0; fi
   recorded="$(head -1 "$ROOT/.claude/bk-profile" 2>/dev/null | tr -d '[:space:]')"
   if [[ -n "$recorded" ]]; then
-    if [[ -d "$recorded" ]]; then export CLAUDE_CONFIG_DIR="$recorded"; PROFILE_FROM=".claude/bk-profile"; return 0; fi
+    if [[ -d "$recorded" ]]; then apply_profile "$recorded" ".claude/bk-profile"; return 0; fi
     say "The recorded profile $recorded is gone; picking again." >&2
   fi
   while IFS= read -r d; do [[ -n "$d" ]] && dirs+=("$d"); done < <(profile_dirs)
   if (( ${#dirs[@]} <= 1 )); then
-    export CLAUDE_CONFIG_DIR="${dirs[0]:-$HOME/.claude}"; PROFILE_FROM="the only profile"; return 0
+    apply_profile "${dirs[0]:-$HOME/.claude}" "the only profile"; return 0
   fi
   if [[ "$1" == soft ]]; then PROFILE_FROM="none recorded (bk open records one)"; return 0; fi
   if [[ "$1" == ask && -t 0 && -t 1 ]]; then
@@ -143,7 +154,7 @@ resolve_profile() {
       printf 'Profile [1-%s]: ' "$n"; read -r answer
       [[ "$answer" =~ ^[0-9]+$ ]] && (( answer >= 1 && answer <= n )) && break
     done
-    export CLAUDE_CONFIG_DIR="${dirs[$((answer-1))]}"; PROFILE_FROM="your answer"; return 0
+    apply_profile "${dirs[$((answer-1))]}" "your answer"; return 0
   fi
   say "bk: several Claude Code profiles on this machine and none recorded for $REPO_NAME:" >&2
   for d in "${dirs[@]}"; do say "  --profile $(profile_label "$d")   ($d)" >&2; done
@@ -152,7 +163,7 @@ resolve_profile() {
 record_profile() {
   mkdir -p "$ROOT/.claude"
   exclude_locally "$ROOT" .claude/bk-profile
-  printf '%s\n' "$CLAUDE_CONFIG_DIR" > "$ROOT/.claude/bk-profile"
+  printf '%s\n' "$PROFILE_DIR" > "$ROOT/.claude/bk-profile"
 }
 
 # --- tmux helpers
@@ -188,7 +199,7 @@ kitchen_sessions() {
   local panes f pid where
   panes="$(tmux list-panes -s -t "$SESS" -F '#{pane_pid} #{pane_id} #{window_name}' 2>/dev/null)"
   [[ -n "$panes" ]] || return 0
-  for f in "$CLAUDE_CONFIG_DIR"/sessions/*.json; do
+  for f in "$PROFILE_DIR"/sessions/*.json; do
     [[ -f "$f" ]] || continue
     pid="$(json_num "$f" pid)"; [[ -n "$pid" ]] && alive "$pid" || continue
     where="$(pane_of "$pid" "$panes")" || continue
@@ -207,7 +218,7 @@ cmd_run() {  # cmd_run <skill> [words…]: one Claude session here, already runn
   shift; words="$*"
   need_claude
   resolve_profile ask
-  say "Profile: $(profile_label "$CLAUDE_CONFIG_DIR") · /bk:$skill${words:+ $words}"
+  say "Profile: $(profile_label "$PROFILE_DIR") · /bk:$skill${words:+ $words}"
   exec claude --plugin-dir "$PLUGIN" "/bk:$skill${words:+ $words}"
 }
 
@@ -219,7 +230,7 @@ cmd_open() {
   need_claude; need_tmux
   resolve_profile ask
   record_profile
-  say "Profile: $(profile_label "$CLAUDE_CONFIG_DIR") ($CLAUDE_CONFIG_DIR, from $PROFILE_FROM)"
+  say "Profile: $(profile_label "$PROFILE_DIR") ($PROFILE_DIR, from $PROFILE_FROM)"
   if $fresh; then
     rm -f "$ROOT/.claude/sous-session"
     for s in $(git -C "$ROOT" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p') "$ROOT"/stations/station-*; do
@@ -275,7 +286,7 @@ cmd_stop() {
   }
 
   if (( ${#rows[@]} == 0 )); then
-    say "No Claude session is running in '$SESS' (profile $(profile_label "$CLAUDE_CONFIG_DIR")); closing the tmux session."
+    say "No Claude session is running in '$SESS' (profile $(profile_label "$PROFILE_DIR")); closing the tmux session."
   else
     # 1. handoff: every session writes where it is (the sous its note, each cook its journal)
     t0="$(now_ms)"; label=""
@@ -329,7 +340,7 @@ cmd_stop() {
 
 cmd_status() {
   resolve_profile soft
-  if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then say "Profile:  $(profile_label "$CLAUDE_CONFIG_DIR") ($CLAUDE_CONFIG_DIR, from $PROFILE_FROM)"
+  if [[ -n "$PROFILE_DIR" ]]; then say "Profile:  $(profile_label "$PROFILE_DIR") ($PROFILE_DIR, from $PROFILE_FROM)"
   else say "Profile:  $PROFILE_FROM"; fi
   if command -v tmux >/dev/null 2>&1 && kitchen_up; then
     say "Kitchen:  open in tmux '$SESS', windows: $(tmux list-windows -t "$SESS" -F '#W' | tr '\n' ' ')"

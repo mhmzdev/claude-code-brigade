@@ -12,6 +12,19 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.27.3] - 2026-10-25
+
+**The default profile is your plain login again.** `bk` used to start the kitchen with
+`CLAUDE_CONFIG_DIR=~/.claude` exported for the default profile. To Claude Code that is not
+the same as leaving it unset: it reads a second state file inside the folder and a second
+keychain entry, so the kitchen could come up logged in as another account than a plain
+`claude` in the same terminal. Now the default profile runs with the variable unset, the way
+you run `claude` yourself; `CLAUDE_CONFIG_DIR=~/.claude` in the shell counts as the default
+too; and `bk open` drops a stale value from the tmux server before opening any window, so
+panes can't inherit one from an earlier shell. Named profiles (`--profile work`,
+`~/.claude-work`) are unchanged. What you must do: if your kitchen came up on the wrong
+account, `bk stop` and `bk open --fresh`.
+
 ## [0.27.2] - 2026-10-25
 
 **A first `bk open` creates the stations itself.** Opening a kitchen that has no stations
