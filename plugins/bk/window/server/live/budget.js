@@ -113,7 +113,7 @@ export function scanTranscript(file, st = null) {
         if (b.type !== 'tool_use') continue;
         const inp = b.input || {};
         if (b.name === 'Agent') st.pendingAgents.set(b.id, { kind: String(inp.subagent_type || 'agent').replace(/^bk:/, ''), note: `${inp.description || ''} ${inp.prompt || ''}` });
-        else if (b.name === 'SendMessage') { const text = String(inp.message || inp.content || inp.summary || ''); st.marks.push({ t, dir: 'out', kind: (text.match(KIND) || [])[1] || 'note', ticket: (text.match(TICKET) || [])[1]?.toUpperCase() || null, text: text.slice(0, 200) }); }
+        else if (b.name === 'SendMessage') { const text = String(inp.message || inp.content || inp.summary || ''); st.marks.push({ t, dir: 'out', kind: (text.match(KIND) || [])[1] || 'note', ticket: (text.match(TICKET) || [])[1]?.toUpperCase() || null, text: text.slice(0, 400) }); }
       }
     } else {
       for (const b of content) {
@@ -125,10 +125,34 @@ export function scanTranscript(file, st = null) {
       // A message from another session arrives wrapped: "Another Claude session sent a message:\n<cross-session-message …>\n[kind] …".
       const raw = typeof msg.content === 'string' ? msg.content : content.filter((b) => b.type === 'text').map((b) => b.text).join(' ');
       const typed = raw.replace(/^[^<]*<cross-session-message[^>]*>\s*/, '');
-      if (typed && !content.some((b) => b.type === 'tool_result')) { const k = (typed.match(KIND) || [])[1]; if (k) st.marks.push({ t, dir: 'in', kind: k, ticket: (typed.match(TICKET) || [])[1]?.toUpperCase() || null, text: typed.slice(0, 200) }); }
+      if (typed && !content.some((b) => b.type === 'tool_result')) { const k = (typed.match(KIND) || [])[1]; if (k) st.marks.push({ t, dir: 'in', kind: k, ticket: (typed.match(TICKET) || [])[1]?.toUpperCase() || null, text: typed.slice(0, 400) }); }
     }
   }
   return st;
+}
+
+// ---------- asks ----------
+// A cook's question is a [gate] to the sous; the answer comes back as [heard] (Contract 6). Who
+// answered is read from the answer's words: "(head chef)" means it was relayed, "settled in <path>"
+// (or "per <path>") means the record had it, anything else is the sous's own call. The commis's
+// verdict rides in the gate ("commis: nothing recorded in …").
+export const commisOf = (text) => (String(text).match(/commis:\s*(nothing|precedent|blocked|conflict|settled|fact)/i) || [])[1]?.toLowerCase() || null;
+export const answeredBy = (text) => /\(head chef\)/i.test(text) ? 'head chef' : /\bsettled in\b|\bper (docs|\.claude|[\w-]+\/)|\bfrom the record\b|\(commis\)/i.test(text) ? 'record' : 'sous';
+// The sous's own questions to the head chef: .claude/asks.md (kitchen.sh asks, Contract 12), one
+// line per ask "- A3 · <when> · <ticket> · <gap> · Q: …", answers and fixes as lines of their own.
+export function readAskLog(root) {
+  const file = path.join(root, '.claude', 'asks.md');
+  let text; try { text = fs.readFileSync(file, 'utf8'); } catch { return new Map(); }
+  const byId = new Map();
+  for (const line of text.split('\n')) {
+    let m = line.match(/^- (A\d+) · ([^·]+?) · ([^·]+?) · ([^·]+?) · Q: (.*)$/);
+    if (m) { byId.set(m[1], { id: m[1], when: m[2].trim(), ticket: m[3].trim() === '-' ? null : m[3].trim().toUpperCase(), gap: m[4].trim() === '?' ? null : m[4].trim(), text: m[5].trim(), answered: false, filed: false }); continue; }
+    m = line.match(/^- (A\d+) (answered|filed) · /);
+    if (m && byId.has(m[1])) byId.get(m[1])[m[2]] = true;
+  }
+  const byTicket = new Map();
+  for (const a of byId.values()) if (a.ticket) (byTicket.get(a.ticket) || byTicket.set(a.ticket, []).get(a.ticket)).push(a);
+  return byTicket;
 }
 
 // ---------- the kitchen's sessions ----------
@@ -199,12 +223,18 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
     const out = []; let cur = null;
     const marks = [...s._marks].sort((a, b) => (a.t || 0) - (b.t || 0));
     for (const m of marks) {
-      if (m.ticket && (!cur || (cur.id !== m.ticket && cur.servedAt))) { cur = { id: m.ticket, cook: s.role, session: s.id, from: m.t, servedAt: null, marks: {} }; out.push(cur); }
+      if (m.ticket && (!cur || (cur.id !== m.ticket && cur.servedAt))) { cur = { id: m.ticket, cook: s.role, session: s.id, from: m.t, servedAt: null, marks: {}, _asks: [] }; out.push(cur); }
       if (!cur) continue;
       if (m.kind === 'brief' && m.dir === 'in' && (!m.ticket || m.ticket === cur.id)) cur.marks.brief ||= m.t;
       if (['plan', 'handoff', 'served'].includes(m.kind) && m.dir === 'out') cur.marks[m.kind] ||= m.t;
       if (['approved', 'go'].includes(m.kind) && m.dir === 'in') cur.marks[m.kind] ||= m.t;
       if (m.kind === 'served' && m.dir === 'out') cur.servedAt = m.t;
+      if (m.kind === 'gate' && m.dir === 'out') cur._asks.push({ t: m.t, q: (m.text.match(/\bQ\d+\b/) || [])[0] || null, commis: commisOf(m.text), text: m.text.replace(/^\[gate\]\s*/i, '').slice(0, 160), answeredAt: null, by: null, secs: null });
+      if (m.kind === 'heard' && m.dir === 'in') {
+        const open = cur._asks.filter((a) => !a.answeredAt);
+        const a = open.find((x) => x.q && new RegExp(`\\b${x.q}\\b`).test(m.text)) || open[0];
+        if (a) { a.answeredAt = m.t; a.by = answeredBy(m.text); a.secs = Math.max(0, Math.round((m.t - a.t) / 1000)); }
+      }
     }
     for (const sp of out) {
       const start = sp.marks.brief || sp.from, end = sp.servedAt || null;
@@ -223,7 +253,7 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
   const merge = (a, b) => {
     const [x, y] = (a.startedAt || 0) <= (b.startedAt || 0) ? [a, b] : [b, a];
     const marks = { ...y.marks, ...x.marks }; if (y.marks.served) marks.served = y.marks.served;
-    const m = { ...x, marks, session: y.session, servedAt: y.servedAt || x.servedAt, status: y.servedAt || x.servedAt ? 'served' : 'open', tokens: add(zero(), x.tokens), total: x.total + y.total, cost: round(x.cost + y.cost), _runs: [...x._runs, ...y._runs], _turns: [...x._turns, ...y._turns], model: y.model || x.model };
+    const m = { ...x, marks, session: y.session, servedAt: y.servedAt || x.servedAt, status: y.servedAt || x.servedAt ? 'served' : 'open', tokens: add(zero(), x.tokens), total: x.total + y.total, cost: round(x.cost + y.cost), _runs: [...x._runs, ...y._runs], _turns: [...x._turns, ...y._turns], _asks: [...(x._asks || []), ...(y._asks || [])], model: y.model || x.model };
     add(m.tokens, y.tokens);
     m.secs = Math.max(0, Math.round(((m.servedAt || now()) - m.startedAt) / 1000));
     m.phases = Object.fromEntries(PHASES.map(([name, p, q]) => [name, marks[p] && marks[q] ? Math.max(0, Math.round((marks[q] - marks[p]) / 1000)) : null]));
@@ -249,6 +279,14 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
     steps.sort((a, b) => (a.t || 0) - (b.t || 0));
     for (const st of steps) { const g = stages[st.stage]; g.cost = round(g.cost + st.cost); g.total += st.total; g.secs += st.secs; g.steps++; }
     sp.stages = stages; sp.steps = steps;
+    // Asks: the cook's gates, who answered each, how long it waited; plus the sous's own asks to
+    // the head chef about this ticket from the ask log. "head chef" is the larger of the two
+    // readings (a relayed answer and a logged ask are usually the same question).
+    const items = [...(sp._asks || [])].sort((a, b) => (a.t || 0) - (b.t || 0));
+    const logged = askLog.get(sp.id) || [];
+    const by = (k) => items.filter((a) => a.by === k).length;
+    const gaps = {}; for (const a of logged) if (a.gap) gaps[a.gap] = (gaps[a.gap] || 0) + 1;
+    sp.asks = { gates: items.length, answered: items.filter((a) => a.answeredAt).length, open: items.filter((a) => !a.answeredAt).length, sous: by('sous'), record: by('record'), headChef: Math.max(by('head chef'), logged.length), logged: logged.length, unanswered: logged.filter((a) => !a.answered).length, gaps, waitedSecs: items.reduce((s, a) => s + (a.secs || 0), 0), items };
     const red = steps.find((s) => s.kind === 'runner' && s.ok === false);
     if (red) {
       const green = steps.find((s) => s.kind === 'runner' && s.ok === true && s.t > red.t);
@@ -270,8 +308,9 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
 
   // The whole picture since `since` (ms epoch; 0 for everything). `write` appends newly served
   // tickets to the ledger.
+  let askLog = new Map();
   function compute({ since = startOfToday(), write = false } = {}) {
-    unknown.clear();
+    unknown.clear(); askLog = readAskLog(root);
     const all = kitchenTranscripts({ root, stations: stations() }).map(session);
     const ledger = readLedger();
     const sessions = all.filter((s) => s.lastAt && s.lastAt >= since).sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
@@ -297,7 +336,7 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
     return { asOf: PRICES_AS_OF, since, computedAt: now(), shift, sessions: sessions.map(pub), tickets, actors, unknownModels: [...unknown], windows, caps: readCaps(root) };
   }
   const pub = (s) => { const { _turns, _marks, _agents, file, ...rest } = s; return rest; };
-  const strip = (sp) => { const { marks, fromLedger, _runs, _turns, ...rest } = sp; return rest; };
+  const strip = (sp) => { const { marks, fromLedger, _runs, _turns, _asks, ...rest } = sp; return rest; };
 
   // CI minutes for one ticket's branch, through gh; written to the ledger. Returns the record or null.
   function ci(ticket, { branch = null, gh = runGh } = {}) {
@@ -344,8 +383,20 @@ export function journalLine(t, session = '') {
   const when = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${hhmm(d)}`;
   const u = t.tokens || zero();
   const ph = Object.entries(t.phases || {}).filter(([, v]) => v != null).map(([k, v]) => `${k} ${fmtSecs(v)}`).join(', ');
-  return `- ${when} · ${session || t.session || t.cook} · cost: ${fmtUsd(t.allCost ?? t.cost)} · ${fmtTokens(t.total)} tokens (in ${fmtTokens(u.in)}, out ${fmtTokens(u.out)}, cache read ${fmtTokens(u.read)}, cache write ${fmtTokens(u.w5 + u.w1)}) · ${t.status === 'served' ? 'brief→served' : 'brief→PR'} ${fmtSecs(t.secs)}${ph ? ` (${ph})` : ''} · helpers: ${helpersLine(t.helpers)}${t.ci ? ` · CI ${t.ci.minutes} min (${fmtUsd(t.ci.cost)})` : ''}`;
+  return `- ${when} · ${session || t.session || t.cook} · cost: ${fmtUsd(t.allCost ?? t.cost)} · ${fmtTokens(t.total)} tokens (in ${fmtTokens(u.in)}, out ${fmtTokens(u.out)}, cache read ${fmtTokens(u.read)}, cache write ${fmtTokens(u.w5 + u.w1)}) · ${t.status === 'served' ? 'brief→served' : 'brief→PR'} ${fmtSecs(t.secs)}${ph ? ` (${ph})` : ''} · helpers: ${helpersLine(t.helpers)}${t.ci ? ` · CI ${t.ci.minutes} min (${fmtUsd(t.ci.cost)})` : ''} · ${asksLine(t.asks)}`;
 }
+// "asks: 2 (1 to the head chef, waited 3m)", or "asks: none". The gaps come from the ask log.
+export const asksLine = (a) => {
+  if (!a || (!a.gates && !a.logged)) return 'asks: none';
+  const parts = [];
+  if (a.headChef) parts.push(`${a.headChef} to the head chef`);
+  if (a.record) parts.push(`${a.record} from the record`);
+  if (a.open) parts.push(`${a.open} unanswered`);
+  if (a.waitedSecs) parts.push(`waited ${fmtSecs(a.waitedSecs)}`);
+  const gaps = Object.entries(a.gaps || {}).map(([k, n]) => `${k} ${n}`).join(', ');
+  if (gaps) parts.push(`gaps: ${gaps}`);
+  return `asks: ${Math.max(a.gates, a.logged)}${parts.length ? ` (${parts.join(', ')})` : ''}`;
+};
 
 export function report(b, { ticket = null } = {}) {
   const lines = [];
@@ -359,6 +410,8 @@ export function report(b, { ticket = null } = {}) {
     lines.push(`  phases    ${Object.entries(t.phases).map(([k, v]) => `${k} ${fmtSecs(v)}`).join(' · ')}`);
     lines.push(`  helpers   ${helpersLine(t.helpers)}`);
     lines.push(`  CI        ${t.ci ? `${t.ci.minutes} min over ${t.ci.runs} runs on ${t.ci.branch} (${t.ci.public ? 'public repo, free' : fmtUsd(t.ci.cost)})` : 'not fetched (kitchen.sh budget --ci)'}`);
+    lines.push(`  ${asksLine(t.asks).replace(/^asks: /, 'asks      ')}`);
+    for (const a of t.asks?.items || []) lines.push(`    ${hhmm(a.t)} ${a.q || '-'} ${a.answeredAt ? `→ ${a.by}, ${fmtSecs(a.secs)}` : '→ unanswered'}${a.commis ? ` · commis: ${a.commis}` : ''} · ${a.text}`);
     return lines.join('\n');
   }
   const sinceLabel = `since ${new Date(b.since).toDateString() === new Date().toDateString() ? hhmm(b.since) + ' today' : new Date(b.since).toISOString().slice(0, 10)}`;
@@ -371,8 +424,8 @@ export function report(b, { ticket = null } = {}) {
   if (!b.sessions.length) lines.push('  (no sessions in this window)');
   lines.push('');
   lines.push('Tickets');
-  lines.push(`  ${'ID'.padEnd(9)} ${'COOK'.padEnd(10)} ${'STATUS'.padEnd(7)} ${'B→S'.padEnd(7)} ${'PLAN'.padEnd(6)} ${'WAIT'.padEnd(6)} ${'BUILD'.padEnd(6)} ${'PASS'.padEnd(6)} ${'SHIP'.padEnd(6)} ${'TOKENS'.padEnd(7)} ${'COST'.padEnd(7)} CI`);
-  for (const t of b.tickets) lines.push(`  ${t.id.padEnd(9)} ${String(t.cook).padEnd(10)} ${t.status.padEnd(7)} ${fmtSecs(t.secs).padEnd(7)} ${['plan', 'wait', 'build', 'pass', 'ship'].map((k) => fmtSecs(t.phases?.[k]).padEnd(6)).join(' ')} ${fmtTokens(t.total).padEnd(7)} ${fmtUsd(t.allCost).padEnd(7)} ${t.ci ? `${t.ci.minutes}m` : '–'}`);
+  lines.push(`  ${'ID'.padEnd(9)} ${'COOK'.padEnd(10)} ${'STATUS'.padEnd(7)} ${'B→S'.padEnd(7)} ${'PLAN'.padEnd(6)} ${'WAIT'.padEnd(6)} ${'BUILD'.padEnd(6)} ${'PASS'.padEnd(6)} ${'SHIP'.padEnd(6)} ${'TOKENS'.padEnd(7)} ${'COST'.padEnd(7)} ${'ASKS'.padEnd(5)} CI`);
+  for (const t of b.tickets) lines.push(`  ${t.id.padEnd(9)} ${String(t.cook).padEnd(10)} ${t.status.padEnd(7)} ${fmtSecs(t.secs).padEnd(7)} ${['plan', 'wait', 'build', 'pass', 'ship'].map((k) => fmtSecs(t.phases?.[k]).padEnd(6)).join(' ')} ${fmtTokens(t.total).padEnd(7)} ${fmtUsd(t.allCost).padEnd(7)} ${String(t.asks ? `${Math.max(t.asks.gates, t.asks.logged)}${t.asks.headChef ? `/${t.asks.headChef}` : ''}` : '–').padEnd(5)} ${t.ci ? `${t.ci.minutes}m` : '–'}`);
   if (!b.tickets.length) lines.push('  (none)');
   return lines.join('\n');
 }
