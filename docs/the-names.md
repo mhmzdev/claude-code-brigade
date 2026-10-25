@@ -30,6 +30,8 @@ here and from the plugin contract. Renaming stays a one-line change.
 | **Commis** | the junior who fetches for the line | the `commis` sub-agent: searches the record before any question goes up |
 | **The Record** | the kitchen's book: recipes, standards, what the chef decided | everything written down that a session reads instead of asking: the `docs:` map, `CLAUDE.md`, the journals |
 | **The Inbox** | the order spike: notes stuck up during service, dealt with after | `.claude/inbox.md`: what the head chef said in passing, filed at the sous's handoff |
+| **The Ask Log** | the chits the sous sends up to the chef, kept on the spike until answered | `.claude/asks.md`: every question the sous put to the head chef, logged as it is asked; the open ones are a fresh sous's first words |
+| **A Gap** | a dish the kitchen couldn't plate without calling the chef over | what the kitchen lacked whenever a question reached the head chef: `context`, `ruling`, `harness` or `access`. The answer settles the ticket; the fix (a doc, a decision, a chore, an issue, an access) stops the next cook asking |
 | **Health Inspector** | looks, reports, never cooks | the `inspector` sub-agent |
 | **"Heard!"** | the line's call and response | `SendMessage` |
 | **86'd** | "we're out" | `blocked` |

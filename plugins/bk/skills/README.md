@@ -711,8 +711,8 @@ what cooks are waiting on: `grep` across `<kitchen>/*/docs/journal/`.
   handoff is in the reviewed PR (the journal is the one file allowed to change after the
   pass). The human can also run it any time, e.g. before clearing a cook between plan and
   implement. A fresh cook reads its ticket's journal and resumes from the last handoff.
-- **Sous:** files the record, fetches CI minutes for the week's tickets into the budget's
-  ledger, then overwrites the gitignored `.claude/sous-handoff.md` with only what lives nowhere
+- **Sous:** files the record (the decisions, the open questions and asks, the gaps, the
+  inbox), fetches CI minutes for the week's tickets into the budget's ledger, then overwrites the gitignored `.claude/sous-handoff.md` with only what lives nowhere
   else: the head chef's standing instructions, what it meant to fire next, walk-in holds it
   granted, and which session is which cook. A fresh `/bk:sous-chef` reads it first, then
   checks it against the rail, stations and journals; **reality wins over the note**.
@@ -728,7 +728,7 @@ journal, written at handoff:
 ```
 
 - **When:** only at the **sous's handoff**, the one checkpoint for it (the same pass files
-  decisions, questions and the inbox, Contract 12).
+  decisions, questions and asks, gaps and the inbox, Contract 12).
 - **Count:** `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" lessons` counts distinct tickets per key
   across trunk's and every station's journals, and marks each key `watch`, `DUE` or `promoted`.
   It reads every `*.md` at any depth under `docs.journal`, so a journal that moves when its
@@ -767,7 +767,13 @@ commis searches, and nothing outside the map counts as recorded.
    The inbox is `.claude/inbox.md`, kept out of git, so a session cleared without a handoff
    has still written the line down. Cooks don't feed the inbox: what a cook learns, it
    learns from the code, and a cook's gotcha is a `lesson(repo)`.
-3. **The sous's handoff is the one checkpoint that files.** Three mechanical lists, one
+   The same at the other end: **every question the sous puts to the head chef goes into the
+   ask log the moment it is asked**, `kitchen.sh asks --add "<the question>" --ticket <ID>
+   --gap <kind>` (`.claude/asks.md`, out of git). A question asked in the sous's terminal
+   lives nowhere else, and one the head chef never got round to would vanish at `/clear`.
+   When they answer, `kitchen.sh asks --answer A3 "<their words>"`. A grilling's rounds are
+   the exception: its decisions land in the artifact, not the log.
+3. **The sous's handoff is the one checkpoint that files.** Four mechanical lists, one
    pass:
    - `kitchen.sh decisions` lists every `(head chef)` answer across trunk's and the
      stations' journals that no file under the map cites and the register doesn't list.
@@ -778,15 +784,36 @@ commis searches, and nothing outside the map counts as recorded.
      the register so it isn't listed again. The head chef's words go in verbatim under
      their own heading; the sous's structured version (decision, why, applies to,
      supersedes) goes under it.
-   - `kitchen.sh questions` lists the journals' unanswered `Qn` lines and the open question
-     files. A question the head chef hasn't answered by this handoff, or that blocks a
-     ticket, becomes a file in `docs.questions` (template `question.md`): status `open`,
+   - `kitchen.sh questions` lists the open question files first, then the journals'
+     unanswered `Qn` lines; `kitchen.sh asks` lists the sous's own open asks. A question the
+     head chef hasn't answered by this handoff (a journal `Qn` or an open ask), or that
+     blocks a ticket, becomes a file in `docs.questions` (template `question.md`): status `open`,
      asked date, who's blocked, what the commis searched, the options and the
      recommendation; the ticket goes to `blocked` with a link. The commis searches
      `docs.questions`, so the next cook that hits the same wall reports "blocked on
      <question>" instead of asking again. When the head chef answers, the file gets
      `status: answered`, their words verbatim and the structured answer, and it is a
      decision like any other. Grillings are the exception: there the frontier waits.
+     Open question files sort first on the board and in the sous's Step 0, so the oldest
+     debt is the first thing a fresh sous puts in front of the head chef.
+   - `kitchen.sh gaps` lists what has been answered but not fixed. **Every question that
+     reached the head chef is a gap**: something the kitchen lacked, or it would not have
+     had to ask. Each answered ask and each answered question file names its gap kind
+     (`gap:`) and, once closed, its fix (`fix:` on the file, `kitchen.sh asks --filed A3
+     "<where>"` on an ask). Four kinds, each with the fix it takes:
+
+     | `gap:` | The kitchen lacked | The fix |
+     |---|---|---|
+     | `context` | the record didn't hold it | a knowledge, convention or decision doc (the lists above) |
+     | `ruling` | no rule covered it | a decision in `docs.decisions`, citing the ask |
+     | `harness` | a tool, hook, skill or script | a chore ticket in this repo, which the sous signs off itself; or, when the Brigade itself is what lacked it, a `lesson(plugin)` that `/bk:feedback` turns into an issue on the head chef's yes |
+     | `access` | a credential, a CLI, a permission | the head chef provides it; it goes in `brigade.local.md` with a one-line note in the config so the next session knows it exists |
+
+     A gap is closed by a fix, not by its answer: the answer settles this ticket, the fix
+     stops the next one asking. The board counts open asks and gaps to fix next to the
+     decisions and the inbox, so a kitchen that keeps asking the same kind of question
+     shows it as a number. The measure of a kitchen getting better is asks per ticket
+     falling.
    - `kitchen.sh inbox` lists the unfiled lines. Each goes into the doc type it belongs to
      (knowledge, convention, decision), then the line is removed. The board shows the
      count, so forgotten knowledge is a number, not a memory.
@@ -795,6 +822,9 @@ commis searches, and nothing outside the map counts as recorded.
    editing a vendored file), else a new folder with an `INDEX.md`; then the key under
    `docs:` so the commis finds it; then the doc; then the repo's docs check. It tells the
    head chef in one line. It doesn't ask: the change is reviewed in the PR that carries it.
+   The one exception is a change that breaks the schema other docs already follow:
+   renaming or removing a type, changing a required field, or editing a vendored schema
+   file. That goes to the head chef first, as a `ruling` gap would.
 
 **A decision that the domain has moved past** is caught by showing, not hiding: a grilling
 lists settled questions as *"already settled: <answer> (<source>), say if that changed"*,
@@ -829,7 +859,7 @@ guardrails against a slip, not a wall; both stay out of the way in a repo with n
 | Skill | Lane | Does |
 |---|---|---|
 | `/bk:setup [--worktree \| --clone]` | — | set up the Brigade in a repo: config, rail folders, `CLAUDE.md` section. Refuses a workspace root |
-| `/bk:kitchen` | — | stations: setup, open, sync, status, files, rail board, `board` (all of it in one snapshot, also written to `.claude/board.md`), `sous` (the sous's session name, for cooks), `leaks` (test-account secrets copied into a checkout), `questions`, `decisions`, `inbox` (the record's three lists, Contract 12) and `doctor` (tickets and the docs map, checked) |
+| `/bk:kitchen` | — | stations: setup, open, sync, status, files, rail board, `board` (all of it in one snapshot, also written to `.claude/board.md`), `sous` (the sous's session name, for cooks), `leaks` (test-account secrets copied into a checkout), `questions`, `asks`, `decisions`, `gaps`, `inbox` (the record's four lists, Contract 12) and `doctor` (tickets and the docs map, checked) |
 | `/bk:sous-chef` | — | take the lead role for the rest of the session |
 | `/bk:line-cook` | — | take a station's worker role for the rest of the session |
 | `/bk:rail` | — | the six rail operations on any adapter |

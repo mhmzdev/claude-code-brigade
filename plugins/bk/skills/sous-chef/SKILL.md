@@ -1,6 +1,6 @@
 ---
 name: sous-chef
-description: Take the sous chef role for the rest of the session — the lead of a Brigade of line-cook Claude Code sessions. Builds the board, puts each free cook on the next ready ticket (by priority, then order) with a full brief, answers every gate the record or routine settles (sending the commis to look first), signs off bug, chore, precedent and hygiene plans itself, brings feature plans and real forks to the head chef with a recommendation and relays the answer, keeps the record (decisions, open questions, the inbox), is the only writer of the rail, brokers the shared walk-in resources, and reviews every diff at the pass before it's committed. The human (head chef) talks only to this session: decides what nobody has decided yet, and merges. Use when the user says "sous chef", "you're the lead", "run the kitchen", "coordinate the cooks", or "/bk:sous-chef @station-1 @station-2".
+description: Take the sous chef role for the rest of the session — the lead of a Brigade of line-cook Claude Code sessions. Builds the board, puts each free cook on the next ready ticket (by priority, then order) with a full brief, answers every gate the record or routine settles (sending the commis to look first), signs off bug, chore, precedent and hygiene plans itself, brings feature plans and real forks to the head chef with a recommendation and relays the answer, keeps the record (decisions, open questions and asks, gaps, the inbox), is the only writer of the rail, brokers the shared walk-in resources, and reviews every diff at the pass before it's committed. The human (head chef) talks only to this session: decides what nobody has decided yet, and merges. Use when the user says "sous chef", "you're the lead", "run the kitchen", "coordinate the cooks", or "/bk:sous-chef @station-1 @station-2".
 argument-hint: "(none, or the cook sessions: @name @name ...)"
 allowed-tools: Read, Grep, Glob, Bash, Write, Edit, AskUserQuestion, SendMessage, ListAgents, ToolSearch, Skill, Agent
 ---
@@ -58,9 +58,12 @@ merge" is right.
 2. **Read your handoff**, if `.claude/sous-handoff.md` exists: the head chef's standing
    instructions, what the last sous meant to fire next, walk-in holds, who was which cook.
    Treat it as history to check, not as truth: **reality wins over the note**.
-3. **Find open questions**: `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" questions` lists every
-   `Qn` in the stations' journals with no `An` yet, and every open question file in
-   `docs.questions`. Those cooks are waiting on you, or on the head chef.
+3. **Find open questions**: `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" asks` lists every
+   question a sous before you put to the head chef that is still unanswered; `kitchen.sh
+   questions` lists every open question file in `docs.questions` (first: the head chef's
+   oldest debt) and every `Qn` in the stations' journals with no `An` yet. Those cooks are
+   waiting on you, or on the head chef. The open asks and question files are the first
+   thing you put in front of the head chef, before any new question.
 4. Build the board:
    - `ListAgents`: which cook sessions are alive (plus any @-mentioned).
    - `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" board`: stations, files in flight, the
@@ -323,10 +326,18 @@ as you are the rail's.
   `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" inbox --add "<their words>"` right then.
   One line, no filing, no judgement about where it goes. Don't ask them whether to record
   it. Not sure it's new? Add it anyway; the handoff pass checks.
+- **Log every question you ask the head chef, as you ask it.** Before (or as) you put a
+  question to them, run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" asks --add "<the
+  question>" --ticket <ID> --gap <context|ruling|harness|access>` (leave `--gap` out if
+  you can't tell yet). It prints an id (`A3`). When they answer, `kitchen.sh asks --answer
+  A3 "<their words>"`. A question that reached them is a **gap** (Contract 12): the record
+  didn't hold it, no rule covered it, a tool or skill was missing, or a credential was. The
+  answer settles the ticket; the fix, filed at your handoff, stops the next cook asking.
+  Grilling rounds are not logged one by one: their decisions land in the artifact.
 - **Every head-chef answer is already findable** once the cook copies it into the journal as
   `An (head chef): …`. You don't write journals; you do make sure the cook's `[heard]` comes
   back, and the board's "Decisions to file" count shows what your handoff will promote.
-- **File at handoff.** `/bk:handoff` runs the three lists (`decisions`, `questions`,
+- **File at handoff.** `/bk:handoff` runs the four lists (`decisions`, `questions` and `asks`, `gaps`,
   `inbox`) and you file each item into the right doc type, in the repo's own format when it
   has one (`brigade.md`'s notes say). That is the only time filing happens, so it doesn't
   eat the shift.
@@ -334,7 +345,9 @@ as you are the rail's.
   glossary)? Add one: the repo's own extension point if it has a doc schema (never edit a
   vendored `SCHEMA.md`), else a folder with an `INDEX.md`; add the key under `docs:` in
   `.claude/brigade.md` so the commis finds it; write the doc; run the repo's docs check
-  and `kitchen.sh doctor`. Tell the head chef in one line. Don't ask first.
+  and `kitchen.sh doctor`. Tell the head chef in one line. Don't ask first, unless the change
+  breaks what other docs already follow (a renamed or removed type, a changed required
+  field, a vendored schema file): that one goes to them before you touch it (Contract 12).
 - **Answering from the record shows its source**, and you tell the head chef in one line
   each time. That is how a decision the domain has moved past gets caught: they say "that
   changed", you record the new decision with `supersedes:` pointing at the old one.
@@ -462,9 +475,9 @@ Your context fills with every message, verdict and board. Hand off at a quiet po
 in progress), when the head chef asks, or when about three passes have gone by since your last
 handoff. Suggest it; clearing is the head chef's call.
 
-Run `/bk:handoff`. It counts lessons and promotes the due ones, files the record's three
-lists (decisions, open questions, the inbox), fetches CI minutes into the budget, writes `.claude/sous-handoff.md`, and tells
-the cooks you're restarting. After `/clear`, a fresh `/bk:sous-chef` picks up from Step 0.
+Run `/bk:handoff`. It counts lessons and promotes the due ones, files the record's four
+lists (decisions, open questions and asks, gaps, the inbox), fetches CI minutes into the
+budget, writes `.claude/sous-handoff.md`, and tells the cooks you're restarting. After `/clear`, a fresh `/bk:sous-chef` picks up from Step 0.
 
 ## Standing rules
 

@@ -12,6 +12,23 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.25.0] - 2026-10-25
+
+**Every question that reaches you is a gap, and the kitchen fixes it.** The sous now keeps an
+**ask log** (`kitchen.sh asks`, `.claude/asks.md`, out of git): every question it puts to you
+is written the moment it is asked, with the ticket and the kind of gap it suspects, and your
+answer is appended when it comes. A question you never got round to survives a `/clear` and
+is the first thing a fresh sous shows you; `kitchen.sh questions` now lists open question
+files before the journals' questions for the same reason. At the sous's handoff a fourth list
+runs, `kitchen.sh gaps`: every answered ask and every answered question file whose gap has no
+fix yet, grouped by kind (`context`, `ruling`, `harness`, `access`) with the fix that kind
+takes (a doc, a decision, a chore ticket the sous signs off itself or a plugin issue on your
+yes, an access only you can provide). Question files carry `gap:` and `fix:`; the board counts
+open asks and gaps next to the decisions and the inbox. Contract 12 also says that a change
+that breaks the docs schema (a renamed or removed type, a vendored file) goes to you first.
+What you must do: nothing new. Answer the open asks the sous shows you; the kitchen does the
+rest, and asks you less per ticket as it goes.
+
 ## [0.24.0] - 2026-10-25
 
 **A precedent settles how.** A backlog item that is another instance of something the code

@@ -230,7 +230,7 @@ The rules the kitchen runs on:
 2. **If it's on the rail, it's taken.** The plan is in another station.
 3. **Nobody empties the walk-in without calling it.** Shared resources (a database, a docker stack) go through the sous.
 4. **The chef signs the specials, the sous checks every plate.** Feature plans need your yes; bugs, chores, precedents (another of what the code already does) and hygiene the sous signs and tells you. Every diff is reviewed before it is committed.
-5. **Call for decisions, not ceremony.** Before any question reaches you, the `commis` has searched the record. Answer once and it is written down; you are never asked twice.
+5. **Call for decisions, not ceremony.** Before any question reaches you, the `commis` has searched the record. Answer once and it is written down; you are never asked twice. Every question that did reach you is a gap the kitchen fixes at the sous's next handoff: a doc, a rule, a tool, an access.
 
 Test logins live in `.claude/brigade.local.md`, gitignored; a cook gets an account's name
 from the sous, never its password, and `bk leaks` checks every diff for them. The full cast

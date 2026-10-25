@@ -323,7 +323,7 @@ before `/clear`, and no skill ever clears a session; `/clear` is always yours.
 | Where | Writes | When |
 |---|---|---|
 | a station (cook) | a `## Handoff` section appended to the ticket's journal: stage, uncommitted files, next step, pending questions, follow-ups, lessons | automatically on `[go]`, before the PR. Any other time, you ask for it, for example before clearing a cook that is waiting on a sign-off |
-| the main checkout (sous) | first it files the record (decisions you made into ADRs, questions you haven't answered into question files, the inbox into the docs) and fetches CI minutes into the budget, then `.claude/sous-handoff.md`, gitignored, overwritten each time: your standing instructions, what it meant to assign next, walk-in holds, which session is which cook | when you say "handoff" before clearing the sous |
+| the main checkout (sous) | first it files the record (decisions you made into ADRs, questions you haven't answered into question files, every answered question's gap into its fix, the inbox into the docs) and fetches CI minutes into the budget, then `.claude/sous-handoff.md`, gitignored, overwritten each time: your standing instructions, what it meant to assign next, walk-in holds, which session is which cook | when you say "handoff" before clearing the sous |
 
 A cook cleared before `[go]` without being asked for a handoff leaves none. The journal
 still has its questions, answers and decisions, and the station still has the files.
@@ -381,12 +381,22 @@ reaches you.
   Brigade doesn't add a second home. Any other key the sous adds is one more place searched.
 - **How it fills.** Every answer you give lands in the cook's journal marked `(head chef)`.
   Anything you say in passing that nothing records ("the cache invalidates on every deploy") the
-  sous drops into the **inbox** right then, one line. At the sous's handoff three lists run:
-  `kitchen.sh decisions` (your answers nothing cites yet: the sous writes the ones that
-  outlive their ticket as decisions, your words verbatim plus a structured version),
-  `kitchen.sh questions` (what you haven't answered: parked as a question file that blocks
-  its ticket, so nobody asks it again while it waits), `kitchen.sh inbox` (filed into the
-  right doc). The board shows the counts.
+  sous drops into the **inbox** right then, one line. Every question the sous puts to you
+  goes into its **ask log** the moment it asks (`kitchen.sh asks`), so a question you never
+  got round to survives a `/clear` and is the first thing a fresh sous shows you. At the
+  sous's handoff four lists run: `kitchen.sh decisions` (your answers nothing cites yet: the
+  sous writes the ones that outlive their ticket as decisions, your words verbatim plus a
+  structured version), `kitchen.sh questions` and `asks` (what you haven't answered: parked
+  as a question file that blocks its ticket, so nobody asks it again while it waits),
+  `kitchen.sh gaps` (below), `kitchen.sh inbox` (filed into the right doc). The board shows
+  the counts.
+- **Every question that reaches you is a gap.** If the kitchen had to ask, it lacked
+  something: the record didn't hold it (`context`), no rule covered it (`ruling`), a tool,
+  hook or skill was missing (`harness`), or a credential or CLI was (`access`). Your answer
+  settles the ticket; the gap's **fix** stops the next cook asking: a doc, a decision, a
+  chore ticket the sous fires and signs off itself, a plugin issue on your yes, or something
+  only you can provide. Each answered question carries its gap kind and its fix, and the
+  board counts the gaps still open. A kitchen getting better asks you less per ticket.
 - **How it's read.** Before a cook sends any question, it spawns the **commis**, which
   searches all of it and returns `settled` with a source, `fact` with a `file:line`,
   `blocked` (an open question already asks this), `conflict` (two records disagree) or
@@ -408,7 +418,9 @@ reaches you.
 **What if I don't answer?** The ticket goes to `blocked`, the question becomes a file at
 the sous's handoff with the options and its recommendation, and the cook takes another
 ticket. When you answer, the file records your words, the ticket comes back, and the
-answer is a decision like any other.
+answer is a decision like any other. A question the sous asked you in its own terminal
+is kept the same way: the ask log holds it until you answer, and a fresh sous lists the
+open ones before anything else.
 
 **Can the sous add a doc type?** Yes, when nothing in the map fits: through the repo's own
 extension point if it has a doc schema, else a folder with an `INDEX.md`, then the key under
