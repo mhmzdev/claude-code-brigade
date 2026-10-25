@@ -46,7 +46,8 @@
 #                                         (markdown rail only): priority, whether each
 #                                         free ticket is ready (or still needs a spec),
 #                                         and its open blockers
-#   kitchen.sh board                      status, files, rail and open questions in one
+#   kitchen.sh board                      status, files, rail, open questions and the
+#                                         record's counts (decisions, inbox, asks, gaps) in one
 #                                         go; from the main checkout it also writes them
 #                                         to .claude/board.md (kept out of git)
 #   kitchen.sh leaks [--dir D] [--also F] search a checkout's changed files and branch
@@ -68,14 +69,26 @@
 #   kitchen.sh inbox [--add "<text>"]     the inbox, .claude/inbox.md: things the head chef
 #                                         said that the record doesn't hold yet. --add
 #                                         appends one dated line; without it, list them
+#   kitchen.sh asks [--add "<question>" [--ticket ID] [--gap KIND]]
+#                   [--answer A3 "<the head chef's words>"] [--filed A3 "<where the fix went>"]
+#                                         the ask log, .claude/asks.md: every question the
+#                                         sous put to the head chef, written the moment it
+#                                         is asked. Without options: the open ones, then
+#                                         the answered ones whose gap is not fixed yet.
+#                                         KIND: context | ruling | harness | access
+#   kitchen.sh gaps                       what the handoff still has to fix: every answered
+#                                         ask not yet filed, and every answered question
+#                                         file with no fix:, grouped by gap kind with the
+#                                         fix each kind takes
 #   kitchen.sh doctor                     check ticket files (fields, statuses, blockers,
 #                                         ids) and the docs map (folders exist, have an
 #                                         INDEX.md, nothing under docs/ is unmapped)
 #                                         (any depth under docs.journal, so finished
 #                                         ones moved to a subfolder still count) and
 #                                         say which are due for promotion
-#   kitchen.sh questions                  every unanswered question (Qn with no An) in
-#                                         the stations' ticket journals
+#   kitchen.sh questions                  every open question file under docs.questions,
+#                                         then every unanswered question (Qn with no An)
+#                                         in the stations' ticket journals
 #   kitchen.sh sessions [--dir D]         the Claude Code session transcripts saved for
 #                                         this checkout (or D, e.g. a station), newest
 #                                         first, from $CLAUDE_CONFIG_DIR (else ~/.claude)
@@ -190,8 +203,13 @@ SESSIONS_DIR=""   # --dir, for sessions and leaks
 ALSO=""           # --also, one extra file for leaks
 SET_SOUS=false    # --set, for sous
 SOUS_NAME=""
-ADD_GIVEN=false   # --add, for inbox
+ADD_GIVEN=false   # --add, for inbox and asks
 ADD_TEXT=""
+GAP=""            # --gap, for asks --add
+ANSWER_ID=""      # --answer, for asks
+ANSWER_TEXT=""
+FILED_ID=""       # --filed, for asks
+FILED_TEXT=""
 MODELS=()
 LIVE_WORD=""    # stop | status, for live
 LIVE_PORT="${BRIGADE_WINDOW_PORT:-4747}"
@@ -220,6 +238,9 @@ while [[ $# -gt 0 ]]; do
     --also) ALSO="$2"; shift 2 ;;
     --set) SET_SOUS=true; SOUS_NAME="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
     --add) ADD_TEXT="${2:-}"; ADD_GIVEN=true; shift; [[ $# -gt 0 ]] && shift ;;
+    --gap) GAP="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
+    --answer) ANSWER_ID="${2:-}"; ANSWER_TEXT="${3:-}"; shift; [[ $# -gt 0 ]] && shift; [[ $# -gt 0 ]] && shift ;;
+    --filed) FILED_ID="${2:-}"; FILED_TEXT="${3:-}"; shift; [[ $# -gt 0 ]] && shift; [[ $# -gt 0 ]] && shift ;;
     --ticket) TICKET="$2"; shift 2 ;;
     --since) SINCE="$2"; shift 2 ;;
     --ci) CI=true; shift ;;
@@ -905,7 +926,7 @@ cmd_board() {
     cmd_status; cmd_files
     echo ""; echo "The rail:"; cmd_rail
     echo ""; echo "Open questions:"; cmd_questions
-    echo ""; echo "Decisions to file: $(cmd_decisions | grep -c ' DUE ' || true) · Inbox: $(inbox_count) unfiled"
+    echo ""; echo "Decisions to file: $(cmd_decisions | grep -c ' DUE ' || true) · Inbox: $(inbox_count) unfiled · Asks open: $(asks_count open) · Gaps to fix: $(cmd_gaps | grep -c '^  ' || true)"
     echo '```')"
   printf '%s\n' "$text"
   here_real="$(cd "$HERE" && pwd -P)"
@@ -1035,7 +1056,7 @@ cmd_lessons() {
 }
 
 # ---------------------------------------------------------------------------
-# questions — what the kitchen is waiting on. Two sources: a cook's journal line
+# questions — what the kitchen is waiting on, open question files first. Two sources: a cook's journal line
 # "- <when> · <session> · Qn: …" with no "An" line after it in the same journal,
 # and an open question file under docs.questions (frontmatter status: open), which
 # is where the sous parks a question the head chef hasn't answered by a handoff.
@@ -1054,18 +1075,7 @@ cmd_questions() {
   qdir="$(docs_path questions)"
   kitchen_real="$(cd "$KITCHEN" 2>/dev/null && pwd -P || printf '%s' "$KITCHEN")"
   {
-    while IFS= read -r f; do
-      # the station is the first path segment under the kitchen; a trunk journal says so
-      case "$f" in
-        "$KITCHEN"/*) st="${f#"$KITCHEN"/}"; st="${st%%/*}" ;;
-        "$kitchen_real"/*) st="${f#"$kitchen_real"/}"; st="${st%%/*}" ;;
-        *) st="(trunk)" ;;
-      esac
-      awk -v st="$st" -v fn="$(basename "$f")" '
-        /^- .* · Q[0-9]+:/ { match($0, /Q[0-9]+:/); q=substr($0, RSTART+1, RLENGTH-2); ask[q]=$0; order[++n]=q }
-        /^- .* · A[0-9]+/  { match($0, /A[0-9]+/);  a=substr($0, RSTART+1, RLENGTH-1); answered[a]=1 }
-        END { for (i=1; i<=n; i++) if (!(order[i] in answered)) { line=ask[order[i]]; sub(/^- /, "", line); printf "%-11s %-28s %s\n", st, fn, line } }' "$f"
-    done < <(journal_files)
+    # open question files first: those are the head chef's, and the oldest debt
     if [[ "$qdir" != none && -d "$ROOT/$qdir" ]]; then
       for f in "$ROOT/$qdir"/*.md; do
         [[ -f "$f" && "$(basename "$f")" != INDEX.md ]] || continue
@@ -1078,6 +1088,18 @@ cmd_questions() {
           END { if (status == "open") printf "%-11s %-28s %s%s\n", "(record)", fn, title, (blocks == "" ? "" : "  (blocks: " blocks ")") }' "$f"
       done
     fi
+    while IFS= read -r f; do
+      # the station is the first path segment under the kitchen; a trunk journal says so
+      case "$f" in
+        "$KITCHEN"/*) st="${f#"$KITCHEN"/}"; st="${st%%/*}" ;;
+        "$kitchen_real"/*) st="${f#"$kitchen_real"/}"; st="${st%%/*}" ;;
+        *) st="(trunk)" ;;
+      esac
+      awk -v st="$st" -v fn="$(basename "$f")" '
+        /^- .* · Q[0-9]+:/ { match($0, /Q[0-9]+:/); q=substr($0, RSTART+1, RLENGTH-2); ask[q]=$0; order[++n]=q }
+        /^- .* · A[0-9]+/  { match($0, /A[0-9]+/);  a=substr($0, RSTART+1, RLENGTH-1); answered[a]=1 }
+        END { for (i=1; i<=n; i++) if (!(order[i] in answered)) { line=ask[order[i]]; sub(/^- /, "", line); printf "%-11s %-28s %s\n", st, fn, line } }' "$f"
+    done < <(journal_files)
   } | { if read -r first; then any=true; printf '%-11s %-28s %s\n' STATION JOURNAL QUESTION; echo "$first"; cat; fi; $any || echo "No open questions."; }
 }
 
@@ -1181,6 +1203,129 @@ cmd_inbox() {
   if (( n == 0 )); then echo "Inbox empty."; return 0; fi
   echo "Inbox: $n unfiled line(s) in .claude/inbox.md"
   grep '^- ' "$file"
+}
+
+# ---------------------------------------------------------------------------
+# asks — the ask log (Contract 12). Every question the sous puts to the head chef
+# is one line in .claude/asks.md, written the moment it is asked, so a question the
+# head chef never got round to is still there after a /clear. Its answer and its
+# fix are appended as lines of their own, like Qn/An in a journal, so the file is
+# append-only and the status is derived:
+#   - A3 · <when> · <ticket or -> · <gap kind or ?> · Q: <the question>
+#   - A3 answered · <when> · <the head chef's words>
+#   - A3 filed · <when> · <where the fix went>
+# A question that reached the head chef is a gap: something the kitchen lacked.
+#   context  the record didn't hold it      → knowledge, convention or decision doc
+#   ruling   no rule covered it             → a decision (ADR) in docs.decisions
+#   harness  a tool, hook, skill or script  → a chore ticket here, or lesson(plugin) → /bk:feedback
+#   access   a credential, CLI or permission → brigade.local.md, and a note in the config
+# Local to this machine (.git/info/exclude), like the inbox.
+# ---------------------------------------------------------------------------
+GAP_KINDS="context ruling harness access"
+gap_fix() {
+  case "$1" in
+    context) echo "the record: a knowledge, convention or decision doc (handoff step 2 or 5)" ;;
+    ruling) echo "a decision in docs.decisions, citing the ask" ;;
+    harness) echo "a chore ticket in this repo, or lesson(plugin) → /bk:feedback" ;;
+    access) echo "brigade.local.md, plus a one-line note in the config so the next session knows" ;;
+    *) echo "decide the gap kind first (context | ruling | harness | access)" ;;
+  esac
+}
+# asks_rows → one row per ask: "<id>\t<when>\t<ticket>\t<gap>\t<status>\t<question>\t<answer>\t<where filed>"
+asks_rows() {
+  local f="$ROOT/.claude/asks.md"
+  [[ -f "$f" ]] || return 0
+  awk -F' · ' '
+    /^- A[0-9]+ · / { id=$1; sub(/^- /, "", id); q=""; for (i=5; i<=NF; i++) q = q (i>5 ? " · " : "") $i; sub(/^Q: /, "", q)
+                      if (!(id in seen)) { seen[id]=1; order[++n]=id }; when[id]=$2; tk[id]=$3; gap[id]=$4; text[id]=q; next }
+    /^- A[0-9]+ answered · / { id=$1; sub(/^- /, "", id); sub(/ answered$/, "", id); a=""; for (i=3; i<=NF; i++) a = a (i>3 ? " · " : "") $i; ans[id]=a; next }
+    /^- A[0-9]+ filed · /    { id=$1; sub(/^- /, "", id); sub(/ filed$/, "", id); w=""; for (i=3; i<=NF; i++) w = w (i>3 ? " · " : "") $i; filed[id]=w; next }
+    END { for (i=1; i<=n; i++) { id=order[i]; st = (id in filed) ? "filed" : (id in ans) ? "answered" : "open"
+          printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, when[id], tk[id], gap[id], st, text[id], ans[id], filed[id] } }' "$f"
+}
+asks_count() { asks_rows | awk -F'\t' -v st="$1" '$5==st { n++ } END { print n+0 }'; }
+
+cmd_asks() {
+  local file="$ROOT/.claude/asks.md" here_real id n writing=false
+  if $ADD_GIVEN || [[ -n "$ANSWER_ID" || -n "$FILED_ID" ]]; then
+    writing=true
+    here_real="$(cd "$HERE" && pwd -P)"
+    if [[ "$here_real" != "$ROOT_REAL" ]]; then
+      echo "Only the sous keeps the ask log, from the main checkout ($ROOT_REAL). A cook's question is a [gate] to the sous." >&2; return 1
+    fi
+  fi
+  if $ADD_GIVEN; then
+    if [[ -z "$ADD_TEXT" || "$ADD_TEXT" == -* ]]; then
+      echo "Usage: kitchen.sh asks --add \"<the question, as put to the head chef>\" [--ticket ID] [--gap context|ruling|harness|access]" >&2; return 1
+    fi
+    if [[ -n "$GAP" && " $GAP_KINDS " != *" $GAP "* ]]; then
+      echo "Unknown gap kind \"$GAP\": one of $GAP_KINDS (or leave it out until you know)." >&2; return 1
+    fi
+    mkdir -p "$ROOT/.claude"
+    exclude_locally .claude/asks.md
+    if [[ ! -f "$file" ]]; then
+      printf '# Asks\n\nEvery question the sous put to the head chef, written the moment it was asked (`kitchen.sh asks --add`).\nAn answer and a fix are appended as lines of their own (`--answer`, `--filed`). A question that reached the\nhead chef is a gap; the handoff files its fix. Local to this machine.\n\n' > "$file"
+    fi
+    n="$(grep -c '^- A[0-9]* · ' "$file" || true)"; id="A$((n+1))"
+    printf -- '- %s · %s · %s · %s · Q: %s\n' "$id" "$(date '+%Y-%m-%d %H:%M')" "${TICKET:--}" "${GAP:-?}" "$ADD_TEXT" >> "$file"
+    echo "$id"
+  fi
+  if [[ -n "$ANSWER_ID" ]]; then
+    [[ -n "$ANSWER_TEXT" && "$ANSWER_TEXT" != -* ]] || { echo "Usage: kitchen.sh asks --answer A3 \"<the head chef's words>\"" >&2; return 1; }
+    [[ -f "$file" ]] && grep -q "^- $ANSWER_ID · " "$file" || { echo "No ask $ANSWER_ID in .claude/asks.md." >&2; return 1; }
+    printf -- '- %s answered · %s · %s\n' "$ANSWER_ID" "$(date '+%Y-%m-%d %H:%M')" "$ANSWER_TEXT" >> "$file"
+  fi
+  if [[ -n "$FILED_ID" ]]; then
+    [[ -n "$FILED_TEXT" && "$FILED_TEXT" != -* ]] || { echo "Usage: kitchen.sh asks --filed A3 \"<where the fix went: a path, a ticket, an issue>\"" >&2; return 1; }
+    [[ -f "$file" ]] && grep -q "^- $FILED_ID · " "$file" || { echo "No ask $FILED_ID in .claude/asks.md." >&2; return 1; }
+    # an unanswered ask may only be "filed" into a question file (parked at the handoff); a fix needs the answer first
+    if ! grep -q "^- $FILED_ID answered · " "$file"; then
+      local qdir; qdir="$(docs_path questions)"
+      case "$FILED_TEXT" in *"$qdir"/*) ;; *) echo "$FILED_ID has no answer yet: --answer first, then --filed (or file it into $qdir/ as an open question)." >&2; return 1 ;; esac
+    fi
+    printf -- '- %s filed · %s · %s\n' "$FILED_ID" "$(date '+%Y-%m-%d %H:%M')" "$FILED_TEXT" >> "$file"
+  fi
+  $writing && return 0
+  local open answered
+  open="$(asks_count open)"; answered="$(asks_count answered)"
+  if (( open + answered == 0 )); then echo "No asks waiting: nothing open, nothing answered and unfiled."; return 0; fi
+  echo "Asks: $open open (the head chef still owes an answer) · $answered answered, gap not fixed yet"
+  printf '%-4s %-16s %-9s %-8s %-9s %s\n' ASK WHEN TICKET GAP STATUS QUESTION
+  asks_rows | awk -F'\t' '$5!="filed" { printf "%-4s %-16s %-9s %-8s %-9s %s%s\n", $1, $2, $3, $4, $5, $6, ($7=="" ? "" : "  → " $7) }'
+}
+
+# gaps — the handoff's fourth list: every answered ask not yet filed, and every
+# answered question file under docs.questions with no fix:, grouped by gap kind.
+cmd_gaps() {
+  local qdir any=false
+  qdir="$(docs_path questions)"
+  {
+    asks_rows | awk -F'\t' '$5=="answered" { printf "%s\t%s\t%s\t%s\n", $4, $1, $3, $6 }'
+    if [[ "$qdir" != none && -d "$ROOT/$qdir" ]]; then
+      for f in "$ROOT/$qdir"/*.md; do
+        [[ -f "$f" && "$(basename "$f")" != INDEX.md ]] || continue
+        awk -v fn="$(basename "$f")" '
+          NR==1 && $0=="---" { fm=1; next }
+          fm && $0=="---" { exit }
+          fm && /^status:/ { s=$0; sub(/^status:[ ]*/, "", s); sub(/[ ]+#.*$/, "", s); status=s }
+          fm && /^title:/ { t=$0; sub(/^title:[ ]*/, "", t); gsub(/^"|"$/, "", t); title=t }
+          fm && /^gap:/ { g=$0; sub(/^gap:[ ]*/, "", g); sub(/[ ]+#.*$/, "", g); gap=g }
+          fm && /^fix:/ { x=$0; sub(/^fix:[ ]*/, "", x); sub(/[ ]+#.*$/, "", x); fix=x }
+          END { if (status == "answered" && (fix == "" || fix == "null")) printf "%s\t%s\t%s\t%s\n", (gap == "" || gap == "null" ? "?" : gap), fn, "-", title }' "$f"
+      done
+    fi
+  } | sort -t$'\t' -k1,1 -s | {
+    local kind item ticket text last=""
+    while IFS=$'\t' read -r kind item ticket text; do
+      any=true
+      if [[ "$kind" != "$last" ]]; then
+        [[ -n "$last" ]] && echo ""
+        echo "$kind → $(gap_fix "$kind")"; last="$kind"
+      fi
+      printf '  %-28s %-9s %s\n' "$item" "$ticket" "$text"
+    done
+    $any || echo "No gaps to fix: every answered ask is filed, every answered question has its fix."
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -1394,6 +1539,6 @@ case "$CMD" in
   setup) cmd_setup ;; open) cmd_open ;; sync) cmd_sync ;; status) cmd_status ;;
   files) cmd_files ;; rail) cmd_rail ;; board) cmd_board ;; leaks) cmd_leaks ;; remove) cmd_remove ;;
   role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
-  decisions) cmd_decisions ;; inbox) cmd_inbox ;; doctor) cmd_doctor ;;
+  decisions) cmd_decisions ;; inbox) cmd_inbox ;; asks) cmd_asks ;; gaps) cmd_gaps ;; doctor) cmd_doctor ;;
   sessions) cmd_sessions ;; live) cmd_live ;; budget) cmd_budget ;; *) usage ;;
 esac

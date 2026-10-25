@@ -460,6 +460,7 @@ EOF2
 printf '# Questions\n' > "$C/docs/questions/INDEX.md"
 out=$("$K" questions)
 ok "an open question file is listed as (record), with what it blocks" has "$out" "\(record\) +2026-10-01-refund-window.md +How long is the refund window\?  \(blocks: BKLG-001\)"
+ok "…and before the journals' questions: the head chef's debt comes first" test "$(printf '%s' "$out" | sed -n 2p | cut -d' ' -f1)" = "(record)"
 ok "an answered question file isn't" bash -c '! printf "%s" "$1" | grep -q "Already answered"' _ "$out"
 ok "…and the journals' open questions still are" has "$out" "station-1 +BKLG-001-open.md +.*Q2: new column"
 mkdir -p "$S1/docs/journal/completed"
@@ -517,6 +518,68 @@ ok "…with one exclude line" test "$(grep -c '^\.claude/inbox\.md$' "$C/.git/in
 out=$("$K" board)
 ok "the board shows the record's counts" has "$out" "Decisions to file: 3 · Inbox: 2 unfiled"
 rm "$C/.claude/inbox.md"
+
+section "asks and gaps"
+before=$(git -C "$C" status --porcelain)
+# the answered question file from the questions section carries a fix, so it is not a gap
+cat > "$C/docs/questions/2026-09-01-old.md" <<'EOF2'
+---
+type: question
+title: Already answered
+status: answered
+gap: ruling
+fix: docs/decisions/001-agents-see-refunds.md
+---
+EOF2
+ok "no asks says so" has "$("$K" asks)" "No asks waiting"
+ok "no gaps says so" has "$("$K" gaps)" "No gaps to fix"
+ok "asks --add is refused from a station" bash -c '! (cd "$1" && "$2" asks --add "from a cook" 2>/dev/null)' _ "$S1" "$K"
+ok "…and says a cook's question is a [gate]" has "$(cd "$S1" && "$K" asks --add "from a cook" 2>&1)" "\[gate\]"
+ok "asks --add refuses an unknown gap kind" bash -c '! "$1" asks --add "x" --gap vibes 2>/dev/null' _ "$K"
+ok "asks --add refuses an empty question" bash -c '! "$1" asks --add 2>/dev/null' _ "$K"
+id=$("$K" asks --add "Which currency do refunds show in?" --ticket BKLG-001 --gap ruling)
+ok "asks --add prints the new id" test "$id" = A1
+ok "…a second one counts up" test "$("$K" asks --add "Can I get a staging DB login?" --gap access)" = A2
+ok "…and one without a ticket or kind is allowed" test "$("$K" asks --add "Do we support bus operators?")" = A3
+out=$("$K" asks)
+ok "asks lists the open ones with ticket, gap and question" has "$out" "A1 +20[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} +BKLG-001 +ruling +open +Which currency do refunds show in\?"
+ok "…a missing ticket is - and a missing kind is ?" has "$out" "A3 +.* +- +\? +open +Do we support bus"
+ok "…with the counts" has "$out" "Asks: 3 open .* · 0 answered"
+ok "asks --filed before --answer is refused" bash -c '! "$1" asks --filed A1 "docs/decisions/002.md" 2>/dev/null' _ "$K"
+ok "…unless it is parked as an open question file" "$K" asks --filed A3 "docs/questions/2026-10-03-bus-operators.md"
+ok "…which takes the ask off the list: the file carries it now" bash -c '! "$1" asks | grep -q "^A3 "' _ "$K"
+"$K" asks --add "Do we support bus operators?" >/dev/null   # A4: stands in for A3 below
+ok "asks --answer of an unknown id is refused" bash -c '! "$1" asks --answer A9 "x" 2>/dev/null' _ "$K"
+ok "asks --answer with no words is refused" bash -c '! "$1" asks --answer A1 2>/dev/null' _ "$K"
+"$K" asks --answer A1 "PKR only; we never show a foreign currency"
+out=$("$K" asks)
+ok "an answered ask shows its answer and stays listed: its gap is not fixed yet" has "$out" "A1 +.* +BKLG-001 +ruling +answered +Which currency do refunds show in\?  → PKR only"
+ok "…and the counts move" has "$out" "Asks: 2 open .* · 1 answered"
+out=$("$K" gaps)
+ok "gaps groups the answered ask under its kind, with the fix that kind takes" has "$out" "^ruling → a decision in docs.decisions"
+ok "…naming the ask, its ticket and the question" has "$out" "^  A1 +BKLG-001 +Which currency do refunds show in\?"
+ok "…an open ask is not a gap yet" bash -c '! printf "%s" "$1" | grep -q "A2"' _ "$out"
+ok "…a question file with a fix: is not one either" bash -c '! printf "%s" "$1" | grep -q "2026-09-01-old.md"' _ "$out"
+cat > "$C/docs/questions/2026-10-02-cache.md" <<'EOF2'
+---
+type: question
+title: Does the fare cache survive a deploy?
+status: answered
+gap: context
+fix: null
+---
+EOF2
+out=$("$K" gaps)
+ok "an answered question file with no fix: is a gap, under its kind" has "$out" "^context → the record"
+ok "…listed by file name" has "$out" "^  2026-10-02-cache.md +- +Does the fare cache survive a deploy\?"
+out=$("$K" board)
+ok "the board counts open asks and gaps to fix" has "$out" "Asks open: 2 · Gaps to fix: 2"
+"$K" asks --filed A1 "docs/decisions/002-pkr-only.md"
+ok "a filed ask leaves the asks list" bash -c '! "$1" asks | grep -q "^A1 "' _ "$K"
+ok "…and the gaps list" bash -c '! "$1" gaps | grep -q "A1"' _ "$K"
+ok ".claude/asks.md stays out of git without touching a tracked file" test "$before" = "$(git -C "$C" status --porcelain)"
+ok "…with one exclude line" test "$(grep -c '^\.claude/asks\.md$' "$C/.git/info/exclude")" = 1
+rm "$C/.claude/asks.md" "$C/docs/questions/2026-10-02-cache.md"
 
 section "doctor"
 rm -rf "$C/docs/questions" "$C/docs/decisions"

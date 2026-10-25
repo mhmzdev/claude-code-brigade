@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Write this session's handoff so it can be cleared and a fresh session carries on — the role comes from where it runs. In a station (a line cook) it appends a Handoff section to the ticket's journal (stage, what's uncommitted, next step, pending questions, follow-ups, lessons). In the main checkout (the sous chef) it runs the lesson count, files the record (head-chef decisions into ADRs, unanswered questions into question files, the inbox into the docs), fetches CI minutes into the budget's ledger, and overwrites the gitignored .claude/sous-handoff.md with what lives nowhere else. Cooks run it on [go] before open-pr; anyone can run it before a /clear. Use when the user says "handoff", "hand over", "write a handoff", "I'm going to clear you", "/bk:handoff".
+description: Write this session's handoff so it can be cleared and a fresh session carries on — the role comes from where it runs. In a station (a line cook) it appends a Handoff section to the ticket's journal (stage, what's uncommitted, next step, pending questions, follow-ups, lessons). In the main checkout (the sous chef) it runs the lesson count, files the record (head-chef decisions into ADRs, unanswered questions and asks into question files, every answered question's gap into its fix, the inbox into the docs), fetches CI minutes into the budget's ledger, and overwrites the gitignored .claude/sous-handoff.md with what lives nowhere else. Cooks run it on [go] before open-pr; anyone can run it before a /clear. Use when the user says "handoff", "hand over", "write a handoff", "I'm going to clear you", "/bk:handoff".
 argument-hint: "(none: the role comes from the station check)"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, SendMessage, ListAgents, ToolSearch
 ---
@@ -56,8 +56,8 @@ Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`.
 
 ## Sous handoff
 
-This is the one checkpoint that files the record (Contract 12), so steps 1 to 4 come before
-the note, and step 5 tops up the budget. They're mechanical lists; the judgement is only
+This is the one checkpoint that files the record (Contract 12), so steps 1 to 5 come before
+the note, and step 6 tops up the budget. They're mechanical lists; the judgement is only
 *where* each item goes.
 
 1. **The lesson count** (Contract 11, the only time it runs):
@@ -86,22 +86,45 @@ the note, and step 5 tops up the budget. They're mechanical lists; the judgement
    only settled this ticket's own detail) → add `` | `<ID> An` | kept | — | `` to the
    register, `docs.lessons`, so it isn't listed again. Several answers that together make
    one decision → one file, several sources. Commit per `rail.commit`.
-3. **Open questions**:
+3. **Open questions and asks**:
    ```bash
    "${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" questions
+   "${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" asks
    ```
    A journal `Qn` that is the head chef's to answer and still open, or whose ticket you've
-   had to mark `blocked` → write it as a file in `docs.questions` from
+   had to mark `blocked`, or an **open ask** (a question you or a sous before you put to the
+   head chef, still unanswered) → write it as a file in `docs.questions` from
    `${CLAUDE_SKILL_DIR}/../../templates/question.md`: `status: open`, the date, `blocks:
-   [<ID>]`, `source: <ID> Qn`, the options, your recommendation, and what the commis
-   searched (from the journal's `commis:` line). Add its INDEX row; set the ticket
+   [<ID>]`, `source: <ID> Qn` (or the ask's id, `A3`), `gap:` your best guess at the kind,
+   the options, your recommendation, and what the commis searched (from the journal's
+   `commis:` line). An ask turned into a file is closed in the log with `kitchen.sh asks
+   --filed A3 "<the file>"` so it isn't listed twice (the one `--filed` allowed before an
+   answer, because the path is under `docs.questions`); the file now carries the question. Add its INDEX row; set the ticket
    `blocked` through `/bk:rail` if it isn't. Tell the head chef in one line what's waiting on
    them. A question the head chef **has** answered since the file was written → `status:
    answered`, their words under *Head chef said*, the structured answer under *Answer*,
    `answered: <date>`; it now counts as a decision (promote it as in step 2 if it
    generalises), and the ticket it blocked goes back to `backlog`. Routine questions that
    are yours stay in the journal: answer them.
-4. **The inbox**:
+4. **Gaps** (Contract 12): every question that reached the head chef is something the
+   kitchen lacked, and the answer alone doesn't stop the next cook asking.
+   ```bash
+   "${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" gaps
+   ```
+   Each row is an answered ask not yet filed, or an answered question file with no `fix:`,
+   grouped by kind with the fix that kind takes. **context** → the knowledge, convention or
+   decision doc (you may have just written it in step 2 or will in step 5: cite it).
+   **ruling** → a decision in `docs.decisions`, citing the ask or the file. **harness** →
+   fire a `BKLG` chore ("add a script / hook / check so that <the question> never needs
+   asking"), which you sign off yourself; when the Brigade itself lacked it, write a
+   `lesson(plugin)` line into the ticket's journal instead (send the cook holding the
+   ticket the line to append; in a solo session, run `/bk:feedback` with it now), and step 1
+   carries it to `/bk:feedback` at the next handoff.
+   **access** → the head chef provides it; record where it lives in `brigade.local.md` and
+   a one-line note in the config's notes. Then close each: `kitchen.sh asks --filed A3
+   "<path, ticket or issue>"`, or set `fix:` in the question file. Tell the head chef in one
+   line per gap you couldn't close (an `access` gap is always theirs to provide).
+5. **The inbox**:
    ```bash
    "${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" inbox
    ```
@@ -111,13 +134,13 @@ the note, and step 5 tops up the budget. They're mechanical lists; the judgement
    `docs.decisions`; already in the record after all → nowhere. No type fits → add one
    (Contract 12, rule 4) and say so. Then delete the line from `.claude/inbox.md`. The
    inbox should be empty when you finish.
-5. **CI minutes** (Contract 2), so each ticket's budget is complete:
+6. **CI minutes** (Contract 2), so each ticket's budget is complete:
    ```bash
    "${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" budget --ci --since 7d
    ```
    It asks `gh` for the runs on the PR branch of every ticket worked on this week and keeps
    the minutes in `.claude/budget.jsonl`. No `gh`, or no PR yet → it says so per ticket; go on.
-6. **Overwrite** `.claude/sous-handoff.md` (make sure `.gitignore` lists it) with only what
+7. **Overwrite** `.claude/sous-handoff.md` (make sure `.gitignore` lists it) with only what
    lives nowhere else:
    ```markdown
    # Sous handoff — <YYYY-MM-DD HH:MM> · <session name>
@@ -139,7 +162,7 @@ the note, and step 5 tops up the budget. They're mechanical lists; the judgement
    ```
    Don't copy the rail, the station status or the PR list into it: a fresh sous reads those
    live, and a copy would only drift.
-7. **Tell the cooks** in one line each: `[status] sous restarting; re-send anything pending
+8. **Tell the cooks** in one line each: `[status] sous restarting; re-send anything pending
    after my [hello]`.
 
 ## Reading a handoff on start

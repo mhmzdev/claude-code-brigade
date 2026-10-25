@@ -87,6 +87,9 @@ the record is corrected when the decisions are filed.
 
 Each set of answers reshapes the tree. Settled decisions push the frontier outward. Recompute it and ask the next round. A question that depends on another question still open in *this* round belongs to a later round.
 
+A grilling's rounds are not entered in the sous's ask log one by one (Contract 12): the
+decisions go into the artifact, and that is their record.
+
 **Finding facts is your job, never the human's.** When a question needs a fact from the repo (a file, a caller, what a test covers), send `Explore` or the repo's own `codebase-*` agents for it, with real paths and a request for `file:line`. **Don't block on it.** Only the questions downstream of a running lookup wait; ask the rest now.
 
 Push hardest where the artifact is vague:
