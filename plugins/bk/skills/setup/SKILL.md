@@ -205,14 +205,16 @@ Append (create the file if needed). Keep it this short; the detail lives in the 
 
 This repo can run several Claude Code sessions at once. Config: `.claude/brigade.md`.
 
-- **Head Chef** (the human) talks to the sous only: signs off feature plans there, decides
+- **Head Chef** (the human) talks to the sous only (bar a grilling, and an edit a cook's
+  permissions refuse, which they lift in that cook's terminal): signs off feature plans there, decides
   what nobody has decided yet, merges, deploys. **Sous Chef** (`/bk:sous-chef`, in this
   checkout) assigns tickets, answers every question the record or routine settles, signs
   off bug, chore, precedent and hygiene plans, keeps the record (`docs:` map in the config), reviews
   every diff before commit, and is the **only session that writes the rail**. **Line Cooks**
   (`/bk:line-cook`) work one ticket each in `<stations path>/station-N`, send the `commis`
   sub-agent to search the record before any question, and ask the sous, never the human
-  (except a grilling the sous hands them).
+  (except a grilling the sous hands them; a refused edit is a `[gate]` to the sous, which
+  the head chef lifts in the cook's terminal).
 - **A decision the head chef made once is in the record** (`docs/decisions/`,
   `docs/questions/`, the journals). Look there before asking; `kitchen.sh doctor` checks
   the map.

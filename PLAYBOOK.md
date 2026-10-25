@@ -205,8 +205,9 @@ and only one station carries a database migration at a time.
 
 ## Who you talk to
 
-**The sous, and only the sous.** A cook never asks you anything and never opens a question
-dialog; nobody is watching its terminal. What a cook needs goes to the sous as a message:
+**The sous, and only the sous** (two planned exceptions, below). A cook never asks you
+anything and never opens a question dialog; nobody is watching its terminal. What a cook
+needs goes to the sous as a message:
 
 | The cook needs | It sends | Who answers |
 |---|---|---|
@@ -215,11 +216,12 @@ dialog; nobody is watching its terminal. What a cook needs goes to the sous as a
 | a real design fork the record doesn't settle | `[gate]`, with what the commis searched | you, in the sous's terminal; the sous adds a recommendation and relays your answer marked `(head chef)`, and it's written down |
 | a bug, chore or precedent plan approved | `[plan]` | the sous, which tells you in one line (a precedent plan has to follow its precedent) |
 | a hygiene ticket approved | nothing: it has no plan; the sous's `[approved]` rides in the `[brief]` | the sous, which tells you in one line |
-| a feature plan approved, or any plan with a migration, a shared resource, a production write or an unrecorded decision | `[plan]` | you, in the sous's terminal; the sous relays `[approved]` with your words |
+| a feature plan approved, or any plan with a migration, a shared resource, a production write, a protected path (`.claude/`, `CLAUDE.md`) or an unrecorded decision | `[plan]` | you, in the sous's terminal; the sous relays `[approved]` with your words |
 | a ticket changed | `[rail]` | the sous (the only writer of tickets) |
 | a destructive command on a shared resource | `[walk-in]` | the sous |
 | a login for testing | `[gate] … need a test account` | the sous, with an account name |
 | a write on production | `[gate] … production write` | you, for that exact action |
+| an edit auto mode refuses (under `.claude/`, sometimes `CLAUDE.md`) | `[gate] … edit denied` | you, in that cook's terminal; the sous can't lift it |
 | merge or deploy | nothing | you do these yourself; no session does, and a relayed "go" is refused |
 
 The sous never approves a **feature** plan itself. Those need your own yes, in the sous's
@@ -237,7 +239,7 @@ If you do type in a cook's terminal, the cook does as told and tells the sous in
 3. `/bk:create-plan` writes the plan. The cook sends `[plan]` and waits.
 4. The sous reads the plan and checks it against the other stations. A bug, chore or
    precedent plan it signs itself and tells you in one line. A feature plan (or one with a migration, a shared
-   resource, a production write or a decision the record doesn't hold) it shows you in a
+   resource, a production write, a protected path or a decision the record doesn't hold) it shows you in a
    short summary with a recommendation: you approve, change something, or ask to grill it
    first.
 5. On `[approved]`, the cook starts `/bk:implement` itself. It runs every phase, running
@@ -301,7 +303,8 @@ you.
 - The sous can grill you itself, or **hand the grilling to a free cook**. A long grilling
   fills the context the sous needs for the passes, and the cook has the code in front of
   it. The sous tells you which station is waiting; you answer the questions there. This is
-  the one planned time you use a cook's terminal.
+  one of the two planned times you use a cook's terminal (the other is an edit auto mode
+  refuses, see [When something looks wrong](#when-something-looks-wrong)).
 - Before every round, the commis checks the record. Questions you already answered, in a
   spec, a decision file or an earlier grilling, are shown as *already settled* with their
   source, not asked; you only say so if one has changed.
@@ -474,9 +477,17 @@ and gets its grilling. The sous tells you before it briefs anyone for exactly th
 **A station is dirty and no cook did it.** Usually the install step or a project hook wrote
 into it. See [Setting up](#setting-up).
 
+**A plan edits `.claude/` (or `CLAUDE.md`).** Claude Code won't let a cook in auto mode edit
+those, and an allow rule in settings doesn't change that. The sous brings that plan to you
+whatever its kind, saying which station and phase. When the cook reaches the edit it sends
+`edit denied` and waits; the sous can't do it for the cook and your yes in the sous's
+terminal doesn't lift it. Go to that cook's terminal, make the edit yourself or move that
+session to a mode that prompts, then tell the sous.
+
 **A cook is waiting and nothing is happening.** Look at "waiting on" in the board. A feature
 plan's sign-off waits for you; the sous won't approve that for you. A question nobody has
-answered waits for you too: `kitchen.sh questions` lists it.
+answered waits for you too: `kitchen.sh questions` lists it. So does an `edit denied` (the
+paragraph above).
 
 **The sous and a cook can't see each other.** Both must run under the same
 `CLAUDE_CONFIG_DIR`. `kitchen open` passes the current one through.
