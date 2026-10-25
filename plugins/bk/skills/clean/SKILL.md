@@ -49,9 +49,10 @@ fixed now, never filed. Only pre-existing mess becomes a ticket.
 End of shift, after the sous's `[go]` and before `open-pr`. Your station is where you
 cooked; this reports the mess you worked next to, without widening your PR.
 
-1. The files your branch touched: `git diff --name-only origin/<trunk>` plus untracked files.
+1. The files your branch touched: `git diff --name-only "$BASE"` plus untracked files, with
+   `BASE=$(git merge-base HEAD origin/<trunk>)` (`git fetch origin --quiet` first).
 2. Run each `clean.counters` command and keep only findings in those files.
-3. Drop findings in lines your branch added (`git diff -U0 origin/<trunk> -- <file>` gives
+3. Drop findings in lines your branch added (`git diff -U0 "$BASE" -- <file>` gives
    the added ranges). Those should already be fixed by `check`; if one isn't, fix it now and
    tell the sous, since it changes what the pass approved.
 4. What's left is pre-existing. Cluster it into PR-sized drafts exactly as in `scan` step 3,
@@ -115,14 +116,15 @@ Stop filing new HYG tickets when every counter is **zero, or unchanged for two s
 
 A pre-review hygiene pass on the current branch. Report-only: it never edits.
 
-1. Build the inputs. Use the **two-dot** diff: in a station nothing is committed before the sous's `[go]`, so a three-dot diff would read empty and pass by accident.
+1. Build the inputs from the **merge base**, not the trunk tip: trunk moves while you cook, and a diff against its tip shows other stations' merged work reversed. One ref after `diff`, not `origin/<trunk>...HEAD`: in a station nothing is committed before the sous's `[go]`, so the three-dot form would read empty and pass by accident.
    ```bash
    git fetch origin --quiet
+   BASE=$(git merge-base HEAD origin/<trunk>)
    DIFF=$(mktemp); FILES=$(mktemp)
-   { git diff origin/<trunk> --
+   { git diff "$BASE" --
      git ls-files --others --exclude-standard | while read -r f; do git diff --no-index /dev/null "$f"; done
    } > "$DIFF"
-   { git diff origin/<trunk> --name-only; git ls-files --others --exclude-standard; } > "$FILES"
+   { git diff "$BASE" --name-only; git ls-files --others --exclude-standard; } > "$FILES"
    ```
 2. Find the repo's own "what not to add" list. First match wins: `.claude/rules/*.md`, then conventions docs under `docs/`, then the root `CLAUDE.md`. None → the inspector uses its bundled list.
 3. Optionally, run the first `clean.counters` command that is a dead-code tool into a tempfile, so the inspector can keep only findings in changed files.
