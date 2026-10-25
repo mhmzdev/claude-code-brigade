@@ -61,3 +61,12 @@ Covers #26 too (same defect, sharper fix): one PR, "Closes #13, closes #26".
 - **Follow-ups:** none drafted.
 - lesson(repo): kitchen-tests-bk-env | in a session opened by `bk`, run the gate as `env -u BRIGADE_CLAUDE_ARGS -u BRIGADE_VIA_BK -u TMUX -u TMUX_PANE scripts/check.sh` or 7 kitchen tests fail (until #50 lands) | #13
 - 2026-10-25 · claude-code-brigade-cook-1 · [brief] #52 (sous): main moved again, #54 (Window model select) took 0.27.6. Merged origin/main 1852116 in (a merge commit, no force-push); bumped to 0.27.7 (plugin.json, Formula url, CHANGELOG [0.27.7] over #54's [0.27.6], #49's [0.27.5], #48's [0.27.4]); plan and checklist version mentions updated. Release files and docs only, no new pass.
+
+## Handoff — 2026-10-25 14:12 · claude-code-brigade-cook-1
+
+- **Stage:** served. PR #52 is open at head 4fd99b0 (0.27.7), LGTM'd again by the sous (`[heard]`) after #54 took 0.27.6 and the branch was re-bumped. This section supersedes the 13:00 one's "0.27.6".
+- **Uncommitted:** only this section (the station was clean before it). Not pushed: the sous verified 4fd99b0, so the journal rides along with whatever next touches the branch, or the sous says to push it.
+- **Next step:** none for this ticket. A fresh session in station-1 does `git switch --detach origin/main` and checks in as fresh with no ticket. Only if the head chef asks for changes to the PR: branch `issue-13-merge-base-diff`, plan `docs/plans/13-merge-base-diff.md`, checklist `docs/checklists/13-merge-base-diff.md`. If main moves again before merge, re-bump above it (plugin.json, Formula url, CHANGELOG heading, plan and checklist version mentions).
+- **Pending:** none. Kitchen tests 131/132 (`live --demo`, port 47471) did not flake in the gate run on 4fd99b0, which ran alone; the cause of the earlier one is still unfound and is probably station-2's check sharing the fixed port (#50).
+- **Follow-ups:** none drafted.
+- No new lesson; `kitchen-tests-bk-env` above still stands.
