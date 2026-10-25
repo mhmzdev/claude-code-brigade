@@ -51,7 +51,7 @@ export function layout(n) {
     stations.push({ x: cx + r * 0.5 + (c - (per - 1) / 2) * sp, y: y0 + r * dy, w: sw });
   }
   const D = Math.max(10.4, y0 + (rows - 1) * dy + 3.1);
-  return { stations, D, homes: { commis: [2.1, 5], taster: [11.8, 3.1], inspector: [2.1, D + 0.2], runner: [15.75, 7.2] }, sous: [8, 2.9], chef: [14.5, 0.62], record: [1.5, 4.2], check: [15.75, 7.2] };
+  return { stations, D, homes: { commis: [2.1, 5], taster: [11.8, 3.1], inspector: [2.1, D + 0.2], runner: [15.75, 7.2] }, sous: [8, 2.9], chef: [14.5, 1.0], record: [1.5, 4.2], check: [15.75, 7.2] };
 }
 
 // A box: top, south, north, east, west faces around a floor rectangle. Labels sit on the
@@ -216,7 +216,8 @@ export function createScene(stage) {
     const add = (b) => { const n = box(b); layers.boxes.appendChild(n); fixed.push(n); return n; };
     // the head chef's office: a glass corner top-right, with a striped floor and a desk
     const pad = el('pad'); pad.style.cssText = `left:${px(12.5)};top:0;width:${px(3.5)};height:${px(2.1)}`; layers.pads.appendChild(pad); fixed.push(pad);
-    for (const b of [...desk(13.6, 1.15, 1.8, 0.55, 28), { x: 13.75, y: 1.52, w: 0.3, d: 0.14, h: 29, ...PAPER }]) add(b);
+    // the head chef stands a step off the back wall (a figure drawn against it sinks into it), the desk in front
+    for (const b of [...desk(13.6, 1.4, 1.8, 0.5, 28), { x: 13.75, y: 1.74, w: 0.3, d: 0.14, h: 29, ...PAPER }]) add(b);
     // the commis's desk, by the record, and the inspector's, at the bottom of the room: each in front of where they stand
     for (const b of [...desk(L.homes.commis[0] - 0.45, L.homes.commis[1] + 0.3, 0.9, 0.42, 22), ...desk(L.homes.inspector[0] - 0.45, L.homes.inspector[1] + 0.3, 0.9, 0.42, 22)]) add(b);
     add({ x: 12.5, y: 2.0, w: 3.5, d: 0.12, h: 26, ...BASE, label: 'HEAD CHEF', ink: '#efe6d6', fs: '9px' });
