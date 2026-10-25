@@ -36,7 +36,7 @@ function showResult(el, out, ttl = 2500) {
 }
 
 // ---------- state ----------
-let state = null, focus = null, controlsFor = null;
+let state = null, focus = null, controlsFor = null, modelMenu = null, modelShown = null;
 let ui = { line: true, sheet: null, insp: false, gateX: false, answered: {} };
 const actorOf = (s, id) => id === 'sous' ? s.sous : s.stations.find((x) => x.id === id)?.cook;
 const stationOf = (s, id) => s.stations.find((x) => x.id === id);
@@ -178,7 +178,7 @@ function renderInspector(s) {
       $('#d-controls').innerHTML = `<div class="row"><div class="menu" id="c-model"><button type="button" aria-haspopup="listbox"><span class="val">${esc(a.model || models[0])}</span></button><ul role="listbox" hidden>${models.map((m) => `<li role="option" data-v="${esc(m)}" aria-selected="${m === a.model}">${esc(m)}</li>`).join('')}<li role="option" class="other" data-v="__other">other…</li></ul></div><button type="button" id="c-model-go">Change model</button></div>
         <div class="row"><button type="button" id="c-handoff" class="gold">Handoff <small>/bk:handoff</small></button><button type="button" id="c-clear" class="danger">/clear <small>end of shift</small></button><span class="pill">${esc(s.kitchen.control || 'none')}</span></div>
         <p class="hint" id="c-shift"></p><p class="hint">${how}</p><div id="c-note" class="note" hidden></div>`;
-      const menu = makeMenu($('#c-model'), a.model || models[0]);
+      const menu = makeMenu($('#c-model'), a.model || models[0]); modelMenu = menu; modelShown = a.model;
       $('#c-model-go').onclick = async () => {
         let v = menu.value();
         if (v === '__other') v = await dialog({ title: 'Another model', text: 'The name as /model accepts it, for example claude-sonnet-5-5.', input: 'model name', ok: 'Change' });
@@ -193,6 +193,8 @@ function renderInspector(s) {
         showResult($('#c-note'), await control({ who: id, action: 'clear' }));
       };
     }
+    // The model follows the session: a /model typed in the pane (or sent from here) shows as soon as the reader sees it.
+    if (a.model !== modelShown) { modelShown = a.model; if (a.model) modelMenu.set(a.model); }
     // End of shift: /clear opens only once the handoff is written (the sous) or the ticket is served (a cook).
     const sh = shiftOf(s, id);
     $('#c-clear').classList.toggle('dim', !sh.ok); $('#c-handoff').classList.toggle('due', !sh.ok && sh.needsHandoff);
@@ -222,8 +224,9 @@ function makeMenu(root, initial) {
   const away = (e) => { if (!root.contains(e.target)) close(); };
   const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
   btn.onclick = () => { if (!list.hidden) return close(); list.hidden = false; root.classList.add('open'); document.addEventListener('pointerdown', away, true); document.addEventListener('keydown', key, true); };
-  list.onclick = (e) => { const li = e.target.closest('li'); if (!li) return; value = li.dataset.v; for (const o of list.children) o.setAttribute('aria-selected', String(o === li)); val.textContent = value === '__other' ? 'other…' : value; close(); };
-  return { value: () => value };
+  const set = (v) => { value = v; for (const o of list.children) o.setAttribute('aria-selected', String(o.dataset.v === v)); val.textContent = v === '__other' ? 'other…' : v; };
+  list.onclick = (e) => { const li = e.target.closest('li'); if (!li) return; set(li.dataset.v); close(); };
+  return { value: () => value, set };
 }
 // In-page dialog in the Window's own style. Resolves true/false, or the typed string when `input` is set.
 function dialog({ title, text, input, ok = 'OK', cancel = 'Cancel', danger = false }) {

@@ -18,7 +18,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 let n = 0, failed = 0;
 const ok = (name, pass) => { n++; if (!pass) failed++; console.log(`${pass ? 'ok' : 'not ok'} ${n} - ${name}`); };
 let started = [], ended = [], verdict = null;
-const store = { setActor() {}, say() {}, message() {}, ask() {}, answer() {}, helperStart: (h) => started.push(h.id + ':' + h.kind), helperEnd: (id, v) => { ended.push(id); verdict = v; }, state: {} };
+let model = null;
+const store = { setActor(who, p) { if (p.model !== undefined) model = p.model; }, say() {}, message() {}, ask() {}, answer() {}, helperStart: (h) => started.push(h.id + ':' + h.kind), helperEnd: (id, v) => { ended.push(id); verdict = v; }, state: {} };
 const POLL = 2600; // the tail polls every 2s
 
 console.log('# the older line shape: the Agent call written as it goes out');
@@ -66,6 +67,34 @@ fs.writeFileSync(path.join(sub3, 'agent-now.meta.json'), JSON.stringify({ agentT
 started = []; ended = [];
 t = tailTranscript({ file: f3, who: 'station-2', store, resolve: () => null });
 ok('a finished meta is ignored; an unfinished one is already out', started.join() === 'tu2:commis');
+t.close();
+
+console.log('# the model: the assistant line, and a typed /model before the next turn');
+// A typed /model (in the pane, or from the Window's own control) writes two user lines and no
+// assistant line until the next turn: <command-name>/model</command-name> with the argument,
+// then <local-command-stdout>Set model to `Sonnet 5.5`…</local-command-stdout>.
+const cmd = (name, args) => line({ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content: `<command-name>${name}</command-name>\n<command-message>${name.slice(1)}</command-message>\n<command-args>${args}</command-args>` } });
+const out = (text) => line({ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content: `<local-command-stdout>${text}</local-command-stdout>` } });
+const f4 = path.join(dir, 's4.jsonl');
+fs.writeFileSync(f4, asst([{ type: 'text', text: 'hi' }]) + line({ type: 'assistant', timestamp: new Date().toISOString(), message: { id: 'm-op', model: 'claude-opus-5-5', content: [{ type: 'text', text: 'now on opus' }] } }));
+model = null;
+t = tailTranscript({ file: f4, who: 'station-1', store, resolve: () => null });
+ok('on attach, the model is the last assistant line’s', model === 'opus');
+fs.appendFileSync(f4, cmd('/model', 'sonnet'));
+await wait(POLL);
+ok('a typed /model sonnet sets the model at once, before any assistant line', model === 'sonnet');
+fs.appendFileSync(f4, out('Set model to `Haiku 5.5` and saved as your default for new sessions'));
+await wait(POLL);
+ok('the command’s own output names the model that was actually set', model === 'haiku');
+fs.appendFileSync(f4, cmd('/clear', '') + out('cleared'));
+await wait(POLL);
+ok('another command leaves it alone', model === 'haiku');
+t.close();
+model = null;
+const f5 = path.join(dir, 's5.jsonl');
+fs.writeFileSync(f5, asst([{ type: 'text', text: 'hi' }]) + cmd('/model', 'opus') + out('Set model to `Opus 5.5`'));
+t = tailTranscript({ file: f5, who: 'station-2', store, resolve: () => null });
+ok('on attach, a /model after the last assistant line wins', model === 'opus');
 t.close();
 
 fs.rmSync(dir, { recursive: true, force: true });
