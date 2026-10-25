@@ -92,6 +92,14 @@
 #   kitchen.sh sessions [--dir D]         the Claude Code session transcripts saved for
 #                                         this checkout (or D, e.g. a station), newest
 #                                         first, from $CLAUDE_CONFIG_DIR (else ~/.claude)
+#   kitchen.sh debrief [--json]           the kitchen's own friction over the last week,
+#                                         read from the budget: the check red three times
+#                                         on a ticket, rework over a third of its spend,
+#                                         ten CI minutes or more, a gate the record had
+#                                         after the commis said nothing, a session carrying
+#                                         too much context. One row per rule tripped, DUE
+#                                         at two tickets, promoted once the register
+#                                         (docs.lessons) lists its key; each with its fix
 #   kitchen.sh budget [--ticket ID] [--since today|7d] [--ci] [--json]
 #                                         what the kitchen spends: tokens (input, output,
 #                                         cache read, cache write), money at Anthropic's
@@ -1224,7 +1232,7 @@ cmd_inbox() {
 GAP_KINDS="context ruling harness access"
 gap_fix() {
   case "$1" in
-    context) echo "the record: a knowledge, convention or decision doc (handoff step 2 or 5)" ;;
+    context) echo "the record: a knowledge, convention or decision doc (handoff step 3 or 6)" ;;
     ruling) echo "a decision in docs.decisions, citing the ask" ;;
     harness) echo "a chore ticket in this repo, or lesson(plugin) → /bk:feedback" ;;
     access) echo "brigade.local.md, plus a one-line note in the config so the next session knows" ;;
@@ -1450,6 +1458,19 @@ cmd_budget() {
   node "$dir/server/live/budget.js" "${args[@]}"
 }
 
+# debrief — the budget's rules over the week (Contract 11): the mechanical half of the
+# kitchen fixing its own friction. The sous runs it at handoff next to lessons and fires a
+# chore per DUE row.
+cmd_debrief() {
+  local dir args=()
+  dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../window" 2>/dev/null && pwd -P)"
+  [[ -f "$dir/server/live/budget.js" ]] || { echo "The budget reader isn't in this plugin install ($dir)." >&2; return 1; }
+  command -v node >/dev/null 2>&1 || { echo "The debrief needs node 20 or newer on your PATH (brew install node, or nodejs.org)." >&2; return 1; }
+  args=(--root "$ROOT" --since 7d --debrief --register "$ROOT/$(cfg_docs lessons docs/lessons.md)")
+  $JSON && args+=(--json)
+  node "$dir/server/live/budget.js" "${args[@]}"
+}
+
 # ---------------------------------------------------------------------------
 # live — the Window. One node process (plugins/bk/window/server) serving the kitchen on
 # localhost; pid and port in .claude/window.pid, output in .claude/window.log, both kept
@@ -1540,5 +1561,5 @@ case "$CMD" in
   files) cmd_files ;; rail) cmd_rail ;; board) cmd_board ;; leaks) cmd_leaks ;; remove) cmd_remove ;;
   role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   decisions) cmd_decisions ;; inbox) cmd_inbox ;; asks) cmd_asks ;; gaps) cmd_gaps ;; doctor) cmd_doctor ;;
-  sessions) cmd_sessions ;; live) cmd_live ;; budget) cmd_budget ;; *) usage ;;
+  sessions) cmd_sessions ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; *) usage ;;
 esac

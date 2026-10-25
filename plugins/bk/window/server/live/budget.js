@@ -177,6 +177,7 @@ export function kitchenTranscripts({ root, stations }) {
 
 // ---------- the budget itself ----------
 const IDLE_GAP = 5 * 60 * 1000; // a gap longer than this is the session waiting, not working
+export const CONTEXT_LINE = 150000; // cache-read tokens per turn above which a session is carrying too much
 const PHASES = [['plan', 'brief', 'plan'], ['wait', 'plan', 'approved'], ['build', 'approved', 'handoff'], ['pass', 'handoff', 'go'], ['ship', 'go', 'served']];
 
 export function createBudget({ root, stations = () => [], ledgerFile = path.join(root, '.claude', 'budget.jsonl'), now = Date.now } = {}) {
@@ -214,10 +215,14 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
       tokens: own.tokens, total: own.total, cost: own.cost, priced: own.priced,
       helpers, helperCost: round(helperCost), helperTotal, allCost: round(own.cost + helperCost), allTotal: own.total + helperTotal,
       secs: st.first && st.last ? Math.round((st.last - st.first) / 1000) : 0, activeSecs: activeSecs(st.turns),
+      context: contextOf(st.turns),
       _turns: st.turns, _marks: st.marks, _agents: agentRuns,
     };
   }
 
+  // How heavy a session's turns have become: the cache read per turn is the context it carries. The
+  // last ten turns' average, and how many turns sat above the line a session should have been cleared at.
+  const contextOf = (turns) => { const last = turns.slice(-10); const avg = last.length ? Math.round(last.reduce((a, t) => a + t.u.read, 0) / last.length) : 0; return { lastRead: avg, over: turns.filter((t) => t.u.read > CONTEXT_LINE).length, turns: turns.length }; };
   // A cook's ticket spans: from the brief (or the first message naming the ticket) to [served].
   function spans(s) {
     const out = []; let cur = null;
@@ -363,6 +368,51 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
 }
 
 const round = (n) => Math.round(n * 10000) / 10000;
+
+// ---------- the debrief ----------
+// The kitchen's own friction, read mechanically from a week of tickets and sessions (Contract 11).
+// Each rule has a key like a lesson's; a key is DUE once two tickets (or sessions) trip it, and
+// promoted once the register (docs.lessons) lists it. Every finding names a fix the sous can fire
+// as a chore without asking anyone. Nothing here is judgement: the thresholds are the rules.
+export const DEBRIEF_RULES = [
+  { key: 'check-red-repeat', scope: 'repo', unit: 'ticket', about: 'the check went red three times or more on one ticket',
+    fix: 'a faster or narrower local check, or a pre-commit hook, so a cook sees the red before the full check runs',
+    test: (t) => { const reds = (t.steps || []).filter((s) => s.kind === 'runner' && s.ok === false).length; return reds >= 3 ? `${reds} red runs` : null; } },
+  { key: 'rework-heavy', scope: 'repo', unit: 'ticket', about: 'more than a third of a ticket\'s spend was rework after a red check',
+    fix: 'a check that runs per phase (the plan\'s "Check:" lines) or a lint the editor can run, so a mistake is caught before the full check',
+    test: (t) => t.rework && t.allCost && t.rework.cost / t.allCost > 1 / 3 ? `rework ${fmtUsd(t.rework.cost)} of ${fmtUsd(t.allCost)}` : null },
+  { key: 'ci-heavy', scope: 'repo', unit: 'ticket', about: 'a ticket\'s PR burned ten CI minutes or more',
+    fix: 'run the slow part of the check locally (a pre-push hook, or the runner before open-pr), or split the workflow so a doc change skips the test matrix',
+    test: (t) => t.ci && t.ci.minutes >= 10 ? `${t.ci.minutes} CI min over ${t.ci.runs} runs` : null },
+  { key: 'record-missed', scope: 'repo', unit: 'ticket', about: 'a gate the commis reported "nothing" on was answered from the record by the sous',
+    fix: 'the record holds it in a place the commis does not search, or under other words: add the folder to the docs: map, or a line in CLAUDE.md pointing at it',
+    test: (t) => { const n = (t.asks?.items || []).filter((a) => a.commis === 'nothing' && a.by === 'record').length; return n ? `${n} gate${n > 1 ? 's' : ''} the record had after all` : null; } },
+  { key: 'context-bloat', scope: 'plugin', unit: 'session', about: `a session's last turns averaged more than ${CONTEXT_LINE / 1000}k cache-read tokens each`,
+    fix: 'hand off and clear sooner: the sous after about three passes, a cook between the plan and implement when the plan took long',
+    test: (s) => s.context && s.context.lastRead > CONTEXT_LINE ? `${fmtTokens(s.context.lastRead)} per turn over the last ${Math.min(10, s.context.turns)}, ${s.context.over} turns over the line` : null },
+];
+// Which keys the register already lists (as `key` in backticks), the same reading as kitchen.sh lessons.
+export function readRegister(file) { let text = ''; try { text = fs.readFileSync(file, 'utf8'); } catch { return new Set(); } return new Set([...text.matchAll(/`([a-z0-9-]+)`/g)].map((m) => m[1])); }
+export function debrief(b, { promoted = new Set() } = {}) {
+  const out = [];
+  for (const r of DEBRIEF_RULES) {
+    const subjects = r.unit === 'ticket' ? b.tickets : b.sessions;
+    const hits = subjects.map((x) => ({ id: r.unit === 'ticket' ? x.id : `${x.role} ${hhmm(x.startedAt)}`, evidence: r.test(x) })).filter((h) => h.evidence);
+    if (!hits.length) continue;
+    out.push({ key: r.key, scope: r.scope, unit: r.unit, about: r.about, fix: r.fix, count: hits.length, status: promoted.has(r.key) ? 'promoted' : hits.length >= 2 ? 'DUE' : 'watch', hits });
+  }
+  return out;
+}
+export function debriefReport(findings) {
+  if (!findings.length) return 'Nothing to debrief: no rule tripped this week.';
+  const lines = [`${'SCOPE'.padEnd(7)} ${'KEY'.padEnd(18)} ${'HITS'.padEnd(5)} ${'STATUS'.padEnd(9)} WHAT`];
+  for (const f of findings) {
+    lines.push(`${f.scope.padEnd(7)} ${f.key.padEnd(18)} ${String(f.count).padEnd(5)} ${f.status.padEnd(9)} ${f.about}`);
+    for (const h of f.hits) lines.push(`${''.padEnd(42)} ${h.id}: ${h.evidence}`);
+    lines.push(`${''.padEnd(42)} fix: ${f.fix}`);
+  }
+  return lines.join('\n');
+}
 // A runner's reply says pass or fail; the same reading as the Window's check machine.
 export const verdict = (v) => { v = String(v || ''); return /\b(fail|failed|failing|error|errors|red|not ok|✕|✗)\b/i.test(v) ? false : /\b(pass|passed|passing|ok|green|clean|✓|success)\b/i.test(v) ? true : null; };
 const parse = (s) => { try { return JSON.parse(s); } catch { return null; } };
@@ -449,7 +499,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     for (const id of ids) { const r = budget.ci(id); if (!r) console.error(`${id}: no PR found, so no CI runs to count.`); }
   }
   const b = budget.compute({ since: ticket ? 0 : since, write: true });
-  if (args.includes('--json')) console.log(JSON.stringify(ticket ? b.tickets.find((t) => t.id === ticket.toUpperCase()) || null : b, null, 2));
+  if (args.includes('--debrief')) { const f = debrief(b, { promoted: readRegister(flag('--register', path.join(cfg.root, 'docs', 'lessons.md'))) }); console.log(args.includes('--json') ? JSON.stringify(f, null, 2) : debriefReport(f)); }
+  else if (args.includes('--json')) console.log(JSON.stringify(ticket ? b.tickets.find((t) => t.id === ticket.toUpperCase()) || null : b, null, 2));
   else if (args.includes('--journal-line')) { const t = b.tickets.find((x) => x.id === String(ticket).toUpperCase()); if (!t) { console.error(`No spend recorded for ${ticket}.`); process.exit(1); } console.log(journalLine(t, flag('--session', ''))); }
   else console.log(report(b, { ticket }));
 }

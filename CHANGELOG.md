@@ -12,6 +12,19 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.27.0] - 2026-10-25
+
+**The debrief: the kitchen fixes friction nobody wrote down.** `kitchen.sh debrief` runs a
+fixed set of rules over the last week's budget: the check red three times or more on one
+ticket, rework over a third of a ticket's spend, ten CI minutes or more on one PR, a gate the
+commis reported nothing on that the sous then answered from the record, and a session whose
+last ten turns average more than 150k cache-read tokens. Each row names the tickets or sessions
+that tripped it and the fix it takes (a pre-push hook, a narrower check, a folder added to the
+docs map, clearing sooner). A key is due at two tickets, like a repo lesson, and promoted once
+the register lists it. The sous runs it at its handoff, right after the lesson count, and fires
+a chore per due row, which it signs off itself; a due plugin row goes to `/bk:feedback` on your
+yes. What you must do: nothing. You'll see a chore's PR now and then whose why cites the debrief's evidence.
+
 ## [0.26.0] - 2026-10-25
 
 **The budget counts the asks.** Each ticket's line in the ledger, the `kitchen.sh budget

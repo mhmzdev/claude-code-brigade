@@ -323,7 +323,7 @@ before `/clear`, and no skill ever clears a session; `/clear` is always yours.
 | Where | Writes | When |
 |---|---|---|
 | a station (cook) | a `## Handoff` section appended to the ticket's journal: stage, uncommitted files, next step, pending questions, follow-ups, lessons | automatically on `[go]`, before the PR. Any other time, you ask for it, for example before clearing a cook that is waiting on a sign-off |
-| the main checkout (sous) | first it files the record (decisions you made into ADRs, questions you haven't answered into question files, every answered question's gap into its fix, the inbox into the docs) and fetches CI minutes into the budget, then `.claude/sous-handoff.md`, gitignored, overwritten each time: your standing instructions, what it meant to assign next, walk-in holds, which session is which cook | when you say "handoff" before clearing the sous |
+| the main checkout (sous) | first it counts the lessons and runs the debrief (due ones become chores or plugin issues), files the record (decisions you made into ADRs, questions you haven't answered into question files, every answered question's gap into its fix, the inbox into the docs) and fetches CI minutes into the budget, then `.claude/sous-handoff.md`, gitignored, overwritten each time: your standing instructions, what it meant to assign next, walk-in holds, which session is which cook | when you say "handoff" before clearing the sous |
 
 A cook cleared before `[go]` without being asked for a handoff leaves none. The journal
 still has its questions, answers and decisions, and the station still has the files.
@@ -390,6 +390,15 @@ reaches you.
   as a question file that blocks its ticket, so nobody asks it again while it waits),
   `kitchen.sh gaps` (below), `kitchen.sh inbox` (filed into the right doc). The board shows
   the counts.
+- **The debrief.** What no cook noticed, the budget did: at the sous's handoff
+  `kitchen.sh debrief` runs a fixed set of rules over the week (the check red three times
+  on a ticket, rework over a third of its spend, ten CI minutes or more on one PR, a gate
+  the record had after the commis said nothing, a session carrying too much context). A
+  rule tripped by two tickets (or two sessions) is due: for the repo's own friction the
+  sous fires a chore with the rule's fix (a pre-commit hook, a narrower check, a folder
+  added to the docs map), signs it off itself, and tells you in one line; for the one rule
+  about the Brigade itself (a session kept too long) it drafts a plugin issue you say yes
+  to. You see the chore's PR, nothing else.
 - **Every question that reaches you is a gap.** If the kitchen had to ask, it lacked
   something: the record didn't hold it (`context`), no rule covered it (`ruling`), a tool,
   hook or skill was missing (`harness`), or a credential or CLI was (`access`). Your answer
