@@ -12,6 +12,18 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.27.5] - 2026-10-25
+
+**Six small things in the Window, from the first shift.** A speech bubble is now clickable:
+one click opens it whole and keeps it up, another lets it go (the three-line cut stays for
+the rest). Hovering a character reads "Cook 2: Sonnet" (the role, then the model), with the
+ticket and branch underneath. The status ring under each character is its shadow now (the
+drawn shadow that sat beside it is gone). The head chef's question badge is lifted in front
+of the back wall like the bubble already was. The runner's name label hides while it is at
+the machine (the beacon names it), and it waits on the open floor past the machine instead
+of in front of it. The walk-in's name sits at the top of its door, clear of the handle.
+What you must do: nothing.
+
 ## [0.27.4] - 2026-10-25
 
 **`bk open` says when a token would beat the profile.** A `CLAUDE_CODE_OAUTH_TOKEN` or
