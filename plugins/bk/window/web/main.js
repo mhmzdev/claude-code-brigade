@@ -205,9 +205,11 @@ function renderInspector(s) {
     $('#c-shift').textContent = sh.why;
     // Facts: the session and what it has cost, then the role.
     const facts = id === 'sous'
-      ? [['session', a.session || 'not running'], ['model', a.model], ['where', 'the main checkout'], ['pid', a.pid], ['attach', a.tmux ? `tmux attach -t ${a.tmux}` : null], ...spendFacts(s, id, null)]
-      : [['session', a.session || 'not running'], ['model', a.model], ['ticket', st.ticket], ['station', st.path || st.id], ['branch', st.branch || 'detached at trunk'], ['tree', st.dirty ? 'dirty' : 'clean'], ['ahead', st.ahead ? `+${st.ahead} commits` : null], ['pid', a.pid], ['peek', a.tmux ? `tmux attach -t ${a.tmux}` : null], ...spendFacts(s, id, st.ticket)];
-    $('#d-facts').innerHTML = `<dl>${facts.filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl><p class="about">${esc(id === 'sous' ? ABOUT.sous : ABOUT.cook)}</p>`;
+      ? [['session', a.session || 'not running'], ['model', a.model], ['where', 'the main checkout'], ['pid', a.pid], ['attach', a.tmux ? `tmux attach -t ${a.tmux}` : null]]
+      : [['session', a.session || 'not running'], ['model', a.model], ['ticket', st.ticket], ['station', st.path || st.id], ['branch', st.branch || 'detached at trunk'], ['tree', st.dirty ? 'dirty' : 'clean'], ['ahead', st.ahead ? `+${st.ahead} commits` : null], ['pid', a.pid], ['peek', a.tmux ? `tmux attach -t ${a.tmux}` : null]];
+    const spend = spendFacts(s, id, id === 'sous' ? null : st.ticket);
+    // The spend rows stack (label over value): their values are long and their labels do not fit a narrow column.
+    $('#d-facts').innerHTML = `<dl>${facts.filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${spend.length ? `<div class="h">Spend</div><dl class="spend">${spend.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}<p class="about">${esc(id === 'sous' ? ABOUT.sous : ABOUT.cook)}</p>`;
   }
   $('#d-heard').innerHTML = heard.length ? heard.map((m) => `<li><div class="row"><span class="k">${esc(m.kind)}</span><span class="who">${esc(who(m.from))} → ${esc(who(m.to))}</span><span class="sp"></span><span class="t">${hhmm(m.t)}</span></div><p>${linkify(m.text)}</p></li>`).join('') : '<li class="none">Nothing heard yet.</li>';
 }
@@ -218,7 +220,7 @@ function spendFacts(s, id, ticket) {
   const sp = spent(s, id); if (!sp) return [];
   const c = sp.current, u = c?.tokens, t = ticket && ticketSpend(s, ticket);
   return [
-    ['spent today', `${fmtUsd(sp.cost)} · ${fmtTok(sp.total)} tokens · ${fmtSecs(sp.activeSecs)} working${sp.sessions > 1 ? ` · ${sp.sessions} conversations` : ''}`],
+    ['today', `${fmtUsd(sp.cost)} · ${fmtTok(sp.total)} tokens · ${fmtSecs(sp.activeSecs)} working${sp.sessions > 1 ? ` · ${sp.sessions} conversations` : ''}`],
     ['this conversation', c ? `${fmtUsd(c.allCost)} · in ${fmtTok(u.in)} · out ${fmtTok(u.out)} · cache read ${fmtTok(u.read)} · write ${fmtTok(u.w5 + u.w1)}` : null],
     ['helpers today', Object.keys(sp.helpers || {}).length ? helpersLine(sp.helpers) : null],
     [t ? `on ${t.id}` : null, t ? `${fmtUsd(t.allCost)} · ${fmtTok(t.total)} tokens · ${fmtSecs(t.secs)} since the brief${t.ci ? ` · CI ${t.ci.minutes} min` : ''}` : null],
