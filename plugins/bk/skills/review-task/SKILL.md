@@ -41,11 +41,12 @@ exactly what to look at.
 
 ## Flow
 
-1. **Read the whole diff.** Committed, staged, unstaged and untracked work together. In a station nothing is committed until the sous says go, so the three-dot form (`origin/<trunk>...HEAD`) would read empty and look like a clean pass.
+1. **Read the whole diff.** Committed, staged, unstaged and untracked work together, measured from the merge base with trunk so another station's merged work never shows as this branch's deletions. In a station nothing is committed until the sous says go, so the three-dot form (`origin/<trunk>...HEAD`) would read empty and look like a clean pass.
    ```bash
    git fetch origin --quiet
-   git diff origin/<trunk> --stat
-   git diff origin/<trunk>
+   BASE=$(git merge-base HEAD origin/<trunk>)
+   git diff "$BASE" --stat
+   git diff "$BASE"
    git ls-files --others --exclude-standard
    ```
 2. **Run the inspector** (skip with `--no-inspector`). Do exactly what `/bk:clean check` does: write the diff and file list to tempfiles, find the repo's own "what not to add" list, spawn `bk:inspector` by its namespaced name, print its report verbatim. Findings are hygiene, not acceptance. They never become `[!]` items. Carry them into the report as work to fix before the handoff.

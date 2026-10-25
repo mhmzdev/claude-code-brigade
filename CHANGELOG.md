@@ -12,6 +12,16 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.27.5] - 2026-10-25
+
+**Reviews show a station's own work again, however far trunk has moved.** `/bk:clean check`,
+`/bk:clean around`, `/bk:review-task` and the taster diffed a station against the tip of
+`origin/main`. Once another station's PR merged, that diff held the merged work, backwards, as
+the cook's deletions, and the inspector and taster reviewed code the branch never touched. They
+now diff from the branch's merge base with trunk (`git merge-base HEAD origin/<trunk>`), which
+covers committed and uncommitted work and nothing else. Nothing to do: restart your sessions to
+load the new skills. Closes #13 and #26.
+
 ## [0.27.3] - 2026-10-25
 
 **The default profile is your plain login again.** `bk` used to start the kitchen with
