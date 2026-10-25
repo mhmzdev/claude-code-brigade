@@ -28,6 +28,44 @@ when the sous says a plan edits a protected path, be at that cook's terminal whe
 reaches the edit, then make the edit yourself or move that session to a mode that prompts
 (`default` or `acceptEdits`), and tell the sous.
 
+## [0.27.9] - 2026-10-25
+
+**Reviews show a station's own work again, however far trunk has moved.** `/bk:clean check`,
+`/bk:clean around`, `/bk:review-task` and the taster diffed a station against the tip of
+`origin/main`. Once another station's PR merged, that diff held the merged work, backwards, as
+the cook's deletions, and the inspector and taster reviewed code the branch never touched. They
+now diff from the branch's merge base with trunk (`git merge-base HEAD origin/<trunk>`), which
+covers committed and uncommitted work and nothing else. Nothing to do: restart your sessions to
+load the new skills. Closes #13 and #26.
+
+## [0.27.8] - 2026-10-25
+
+**The Window's floor, after the design pass.** The check has a billboard on a post beside the
+machine: who is in, for how long, the last ten results, who is next, and the shift's runs and
+reds; the runner paces the mat in front of the machine, not the floor below it. The head
+chef, the commis and the inspector each stand behind a desk until called. A tooltip or
+popover hangs from the character's hat (or whatever stands above it), not from the empty
+margin of the drawing. The details panel is the designed one: name, chips (ticket, model,
+clean or dirty, commits ahead), a strip of what it spent (today, this conversation, working
+time), then Activity (the latest words and what was heard), Cost (each token kind at the
+model's list price, the ticket since the brief, the helpers), and Session (the facts with a
+Copy button each, the tmux line to peek at the pane, the role); the model select, Handoff
+and /clear sit at the foot. The composer takes the whole width left at the bottom, and the
+top toggles have a Ledger link. For the cost rows the budget now sends each session's price
+table. Nothing to do: restart the Window after updating.
+
+## [0.27.7] - 2026-10-25
+
+**The details panel is three tabs, with Heard first.** The panel used to open on a long
+list of facts (session, pid, attach line, three rows of spend) with the controls under it
+and what the character said and heard squeezed into the bottom. Now the head carries only
+the name, its state and one line (ticket, model, branch, or the session), with its last
+words; under it, tabs: **Heard** (the default, and it gets the whole height), **Controls**
+(the model select, Handoff, /clear) and **Facts** (the session, the spend rows, the role).
+The head chef's panel has **Needs you**, with a count, and Heard; a helper's has Heard and
+About. The panel is as tall as its tab needs, not always the full height. Nothing to do:
+restart the Window after updating.
+
 ## [0.27.6] - 2026-10-25
 
 **The Window's model select no longer goes stale after `/model`.** Typing `/model sonnet`

@@ -648,6 +648,14 @@ set of branches, one `git fetch` for everyone. Stations cost only their checked-
 switches. Running the check command or the inspector inside a station is fine. A finding
 goes to the owning cook.
 
+**A station's own changes** are the diff from its merge base with trunk, never from trunk's
+tip: `BASE=$(git merge-base HEAD origin/<trunk>)`, then `git diff "$BASE"` (tracked files,
+committed or not) plus `git ls-files --others --exclude-standard`. Trunk moves while a cook
+works, and `git diff origin/<trunk>` then shows the other stations' merged commits reversed as
+this branch's deletions. The three-dot `origin/<trunk>...HEAD` alone is no better: before the
+sous's `[go]` nothing is committed, so it reads empty. `/bk:clean check` and `around`,
+`/bk:review-task` and the taster all use this form.
+
 ## Contract 9 — The three lanes
 
 A lane is defined by **where its tickets come from**.

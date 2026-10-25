@@ -10,7 +10,6 @@
 <!-- The room: a 2.5D floor you can turn (drag) and zoom (wheel). Everything else floats over it. -->
 <div id="stage"></div>
 <div id="tip" hidden></div>
-<div id="pop" hidden></div>
 
 <!-- Top: who this kitchen is · what needs you · the toggles and the frame rate -->
 <header id="hud-top">
@@ -24,6 +23,7 @@
   <div class="chip toggles">
     <button type="button" data-t="line">Line <kbd>L</kbd></button>
     <button type="button" data-t="heard">Heard <kbd>H</kbd></button>
+    <a data-t="ledger" href="/ledger" title="The Ledger ($)">Ledger <kbd>$</kbd></a>
     <span id="fps" class="mono muted"></span>
   </div>
 </header>
@@ -62,10 +62,9 @@
 
 <!-- Right: the inspector for the selected figure (I) -->
 <aside id="inspector" hidden>
-  <section id="d-head"></section>
-  <section id="d-controls"></section>
-  <div class="h heard">Heard</div>
-  <ol id="d-heard" class="heard"></ol>
+  <div id="d-head"></div>
+  <div id="d-body"></div>
+  <div id="d-foot" hidden></div>
 </aside>
 <script type="module" src="/main.js"></script>
 </body>

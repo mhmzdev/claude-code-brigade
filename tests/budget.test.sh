@@ -186,6 +186,7 @@ ok "the 1-hour cache write is priced at 2x, the 5-minute at 1.25x" [ "$(field "$
 # the runner: 100k output on haiku 5.5 at $0.50 → $0.05, on the cook's session as a helper
 ok "a sub-agent is priced on its own model and charged to its session" [ "$(field "$J" 'b.sessions.find(s=>s.id==="cook1").helpers.runner.cost')" = 0.05 ]
 ok "a session's all-in cost adds its helpers" [ "$(field "$J" 'b.sessions.find(s=>s.id==="cook1").allCost')" = 0.659 ]
+ok "a session carries its model's price table, for the Window's cost rows" [ "$(field "$J" 'b.sessions.find(s=>s.id==="cook1").price.out')" = 20 ]
 ok "an unpriced model counts its tokens and costs nothing" [ "$(field "$J" 'b.sessions.find(s=>s.id==="sous1").priced')" = false ]
 ok "the sous conversation's priced turns still add up" [ "$(field "$J" 'b.sessions.find(s=>s.id==="sous1").cost')" = 0.04 ]
 ok "the shift sums every session and helper" [ "$(field "$J" 'b.shift.cost')" = "$(field "$J" 'Math.round(b.sessions.reduce((a,s)=>a+s.allCost,0)*10000)/10000')" ]

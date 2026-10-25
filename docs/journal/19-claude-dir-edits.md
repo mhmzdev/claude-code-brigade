@@ -67,3 +67,4 @@ It reaches trunk with the PR, next to the plan and checklist.
 - **Follow-ups:** unchanged, the sous files them at its handoff: (1) `guard.sh:78` refuses an `edit denied` gate whose text has a `Q<digit>` token and no `commis:`; (2) the `[heard]` after a head chef's lift has no `(head chef)` tag, so `budget.js:140`/`:237` count the ask as the sous's. The Window panel text is #51; the test-environment flake is #50.
 - **Lessons:** `lesson(plugin): skill-base-path-is-main` (already logged above). Nothing new.
 - **Session:** my shift is over; clear this session before any other ticket. Only the head chef merges #53.
+- 2026-10-25 · head chef · merged origin/main after #52 (0.27.9, f390e36): CHANGELOG [0.28.0] above [0.27.9], 0.28.0 kept in plugin.json and the Formula, both rows kept in the three INDEX files. check with the env unset: rc=0 (kitchen 270, guard 27, bk 82, budget 71, window 16). Pushed.
