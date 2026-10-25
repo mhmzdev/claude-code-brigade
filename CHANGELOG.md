@@ -12,6 +12,17 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.27.1] - 2026-10-25
+
+**The Brigade now runs on its own repo.** A `.claude/brigade.md` at the root of this
+repository makes it a kitchen: a GitHub Projects rail (the "Brigade: claude-code-brigade"
+project on the repo's issues, with the six statuses as columns and lanes and kinds as
+labels), worktree stations, `scripts/check.sh` as the check, and the record under `docs/`.
+Nothing changes for your kitchen; this is dogfooding, and the questions the kitchen has to
+ask while working its own backlog are the first gaps it fixes. If you run the Brigade on
+this repo, start it with `./bin/bk open` from the checkout so the sessions load the plugin
+you are editing.
+
 ## [0.27.0] - 2026-10-25
 
 **The debrief: the kitchen fixes friction nobody wrote down.** `kitchen.sh debrief` runs a
