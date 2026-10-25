@@ -75,8 +75,15 @@ out=$("$K" setup 2>&1); rc=$?
 ok "setup refuses while the config isn't pushed" test "$rc" -ne 0
 ok "…and says why" has "$out" "no \.claude/brigade\.md"
 ok "…and creates no station" test ! -e "$C/stations"
+out=$("$K" open --terminal print 2>&1); rc=$?
+ok "open with no stations tries to create them, and refuses for the same reason" bash -c 'test "$1" -ne 0 && printf "%s" "$2" | grep -q "No stations yet: creating 2" && printf "%s" "$2" | grep -q "no \.claude/brigade\.md"' _ "$rc" "$out"
+ok "…creating none" test ! -e "$C/stations"
 
 push_all "$C" "brigade setup"
+out=$("$K" open --terminal print 2>&1)
+ok "a first open creates the stations itself (nobody has to know setup exists)" has "$out" "No stations yet: creating 2"
+ok "…and opens them in the same run" has "$out" "--name app-cook-2"
+ok "…without setup's own Next: line" bash -c '! printf "%s" "$1" | grep -q "Next: kitchen.sh open"' _ "$out"
 out=$("$K" setup 2>&1)
 ok "setup creates station-1 and station-2" test -d "$C/stations/station-1/.git" -a -d "$C/stations/station-2/.git"
 ok "stations are full clones (.git is a directory)" test -d "$C/stations/station-2/.git"

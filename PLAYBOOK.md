@@ -52,7 +52,8 @@ repo, asks one round of questions, and writes:
   inside a station is a line cook.
 
 Nothing is committed until you say so. Stations are created from `origin/<trunk>`, so the
-setup must be pushed before `/bk:kitchen setup` can build them.
+setup must be on it (pushed, or its PR merged) before the first `bk open`, which creates
+the stations itself when there are none (`stations:` in the config says how many).
 
 **Do I need several stations?** No. One station works: you get the sous plus one cook.
 Add more later with `bk stations -n 3` (or `/bk:kitchen setup -n 3`); existing stations are

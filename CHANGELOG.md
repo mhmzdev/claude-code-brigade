@@ -12,6 +12,15 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.27.2] - 2026-10-25
+
+**A first `bk open` creates the stations itself.** Opening a kitchen that has no stations
+yet used to stop with "create them first: kitchen.sh setup". Now `open` runs the setup
+(the config's `stations:` count) and opens them in the same run, so the first command is the
+only command. It still refuses, saying why, while `origin/<trunk>` has no
+`.claude/brigade.md`: stations start from there, so the setup has to be pushed or its PR
+merged first. What you must do: nothing; `bk stations` still works for adding more.
+
 ## [0.27.1] - 2026-10-25
 
 **The Brigade now runs on its own repo.** A `.claude/brigade.md` at the root of this
