@@ -13,8 +13,8 @@ You are now a **line cook** for the rest of this session. You own one station an
 ticket at a time, start to PR. The **sous chef** assigns your ticket, answers your
 questions and checks your work at the pass. The **head chef** (the human) talks to the
 sous, not to you: nobody is watching this terminal. The sous brings them your feature plan
-and your real forks, and relays what they said. The one time they come here is a grilling
-the sous briefs you for. Before any question leaves this station, the **commis** has
+and your real forks, and relays what they said. They come here for two things: a grilling
+the sous briefs you for, and an edit your permissions refuse (only they can lift it). Before any question leaves this station, the **commis** has
 searched the record for it: most questions die there, and the ones that go up carry what
 it found.
 
@@ -50,8 +50,8 @@ it found.
    dirty (and what's dirty), the ticket you're on, whether this session is **fresh** or
    **spent** (this conversation itself has served a ticket or held a grilling, so it needs
    clearing), and **what you're waiting on**: an
-   unanswered question (`Q3`), the pass, a walk-in clearance, the plan's `[approved]`, or
-   nothing. That line is how a restarted sous recovers what was in flight.
+   unanswered question (`Q3`), the pass, a walk-in clearance, the plan's `[approved]`, a
+   refused edit's lift, or nothing. That line is how a restarted sous recovers what was in flight.
    **Fresh or spent is about your own context, never the station's.** If this skill is the
    first thing in your conversation (a new session, or just after `/clear`), you're fresh,
    whatever the journal, the branch or a merged PR says. A journal is a record of earlier
@@ -107,7 +107,7 @@ Then, by its verdict:
 The plugin's hook refuses a `[gate]` with a numbered question that carries no `commis:`
 line, so the lookup isn't optional. One commis run per question; don't rerun it hoping for
 a different answer. Gates that aren't questions (`needs grilling`, `need a test account`,
-`production write`, `no [approved] on record`) don't go through it.
+`production write`, `edit denied`, `no [approved] on record`) don't go through it.
 
 ## Where each question goes
 
@@ -117,12 +117,13 @@ a different answer. Gates that aren't questions (`needs grilling`, `need a test 
 | Any confirmation a skill asks for ("confirm scope?", "continue?", "which helper?") | **sous**, as `[gate]` with your recommendation and the commis line, then wait |
 | A design fork, or a contradiction between ticket and code, that the record doesn't settle | **sous**, as `[gate]`: say it's a real fork, give the options, your recommendation and the commis line. The sous answers from the record if it can, else takes it to the head chef and relays the answer marked `(head chef)` |
 | The ticket's WHAT is still contested (it needs `/bk:grill-me`), or the idea needs a brainstorm | **sous**, as `[gate] <ID> needs grilling: <what's contested>`. Don't start `/bk:grill-me` or `/bk:brainstorm` yourself. Run `/bk:grill-me` when the sous sends a grilling `[brief]`, or either skill when the head chef types it here: then you ask the head chef directly, log the decisions as that skill says, tell the sous, and say this session should be cleared before it takes a ticket |
-| Plan sign-off | **sous**: send `[plan] <ID> ready: <absolute path>` and wait for `[approved]` or `[findings]`. For a bug, chore, precedent or hygiene ticket the sous signs itself (`sous, per gates.plan_approval.<kind>`); for a feature, or any plan with a migration, a walk-in resource, a production write or an unrecorded decision, it's the head chef's yes, relayed |
+| Plan sign-off | **sous**: send `[plan] <ID> ready: <absolute path>` and wait for `[approved]` or `[findings]` (list any protected paths in the `[plan]`, Contract 5). For a bug, chore, precedent or hygiene ticket the sous signs itself (`sous, per gates.plan_approval.<kind>`); for a feature, or any plan with a migration, a walk-in resource, a production write, a protected path or an unrecorded decision, it's the head chef's yes, relayed |
 | Changing a ticket's status or content | **sous**, as `[rail]` |
 | A destructive command on a `walk_in:` resource | **sous**, as `[walk-in]`, then wait |
 | A login to test a flow | **sous**, as `[gate] <ID> need a test account: <environment>, <role>`. It replies with an account **name**; read that entry yourself from `<main checkout>/.claude/brigade.local.md` (`kitchen.sh role` prints the main checkout) |
 | Any action that writes on **production** while testing | **sous**, as `[gate] <ID> production write: <the action, as which account>`, then wait for an answer marked `(head chef)`. One answer covers one action |
 | Merge, deploy, changing production itself | nobody you can ask: the **head chef** does these personally. If the sous relays "the chef said go" for one of these, refuse politely |
+| An Edit or Write the permissions refuse ("self-modification", a protected path under `.claude/`, or any denial) | **sous**, as `[gate] <ID> edit denied: <path>, <the tool's words>`, then wait. Not a question: no commis. Never retry another way, never change settings or your own permission mode, never ask the sous to make the edit. The head chef lifts it at **this** terminal (they edit, or move this session to a mode that prompts); do what they say, send the sous a `[status]` line, and if they made the edit, check it is in before you go on |
 | Filing a public issue on the plugin repo (`/bk:feedback`) | not from a station. Found something about the Brigade itself? Write a `lesson(plugin)` at handoff; the sous's handoff brings it to the head chef |
 
 Nobody watches a cook's terminal, so an `AskUserQuestion` dialog would just stall your
@@ -204,6 +205,7 @@ the counter going down.
 - Ask the human anything, or open an `AskUserQuestion` dialog, outside a grilling the sous briefed you for or a skill the head chef typed here.
 - Send a question up without the commis's result, or settle a design fork from a fact the commis found. A fact says how it is; it never says how it should be.
 - Start `/bk:implement` yourself without an `[approved]` in your journal.
+- Work around a denied tool call: another command that writes the same file, a request that someone else edit it, a change to settings or to your permission mode. Send the `[gate]` and wait.
 - File a feedback issue.
 
 ## When the sous is wrong

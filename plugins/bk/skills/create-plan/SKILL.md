@@ -111,6 +111,7 @@ Body, every section filled with specifics:
 ## Desired end state       — and how to verify it
 ## Not doing               — explicit out of scope
 ## Approach                — chosen strategy, which existing pattern it reuses
+## Protected paths          — only when `files:` lists one (Contract 5): each path, the phase that edits it (last when the order allows), and "auto mode will refuse this edit; the head chef lifts it at the station"
 
 ## Phase 1: <name>
 **Status:** Not started
@@ -129,7 +130,7 @@ Body, every section filled with specifics:
 ## References               — ticket, spec, research, similar code `path:line`
 ```
 
-**Done only when:** every change names a real path marked `(new)` or `(edit)`; every edit has a `file:line` read this run; every non-trivial change carries code; every criterion is a command or a numbered manual procedure.
+**Done only when:** every change names a real path marked `(new)` or `(edit)`; every edit has a `file:line` read this run; every non-trivial change carries code; every criterion is a command or a numbered manual procedure; every path in `files:` has been checked against the protected paths in Contract 5.
 
 ## Step 6 — Rail, index, sign-off
 
@@ -137,15 +138,17 @@ Body, every section filled with specifics:
 2. Rail stays `todo` (set in Step 0).
 3. **Run the self-check** below.
 4. **Present it and stop. Don't ask "does this look right?"** Show the path, the phases in
-   one line each, the files, and anything notable (a migration, a risky phase).
+   one line each, the files, and anything notable (a migration, a risky phase). List any
+   protected paths (Contract 5) in the line.
    - **Solo:** end with exactly what the sign-off is: *"Your sign-off is `/bk:implement`
      (it finds this plan by itself). That authorises every commit under this plan. To
      change something, just say what; to stress-test it first, `/bk:grill-me <plan>`."*
      Don't start `implement` yourself.
-   - **Cook:** send the sous `[plan] <ID> ready: <absolute path>` and wait. The sous
+   - **Cook:** send the sous `[plan] <ID> ready: <absolute path>` (add `· protected paths:
+     <list>` when there are any) and wait. The sous
      signs off itself (a bug, chore or precedent plan, per `gates.plan_approval`) or gets the head
      chef's sign-off (a feature, or any plan with a migration, a walk-in resource, a
-     production write or an unrecorded decision) and replies `[approved]`; copy it into
+     production write, a protected path or an unrecorded decision) and replies `[approved]`; copy it into
      the journal and start `/bk:implement`. `[findings]` instead → revise, and send
      `[plan]` again.
 5. Leave `status: draft`: `/bk:implement` flips it once the sign-off is there.

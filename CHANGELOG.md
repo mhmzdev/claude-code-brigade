@@ -12,6 +12,22 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.28.0] - 2026-10-25
+
+**A plan that edits `.claude/` now comes to you before the cook starts, and a refused edit
+is a gate.** In auto mode Claude Code won't let a session edit anything under `.claude/`
+(and a cook was once refused the root `CLAUDE.md`), and an allow rule in settings doesn't
+change that: it checks those paths before it reads the rules. The sous's `[approved]` and
+your yes in the sous's terminal don't lift it either, so a ticket could sit until you
+found the cook's own terminal. Now a plan that touches such a path says so (a "Protected
+paths" section, and the `[plan]` names them), the sous brings it to you whatever its kind,
+and tells you which station and phase. If a cook is refused anyway, it sends
+`[gate] … edit denied` and waits: it never retries through another route, and the sous
+never makes the edit or relays a yes in its place. Nothing to install. What you must do:
+when the sous says a plan edits a protected path, be at that cook's terminal when it
+reaches the edit, then make the edit yourself or move that session to a mode that prompts
+(`default` or `acceptEdits`), and tell the sous.
+
 ## [0.27.9] - 2026-10-25
 
 **Reviews show a station's own work again, however far trunk has moved.** `/bk:clean check`,
