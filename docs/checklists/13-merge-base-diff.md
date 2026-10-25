@@ -40,8 +40,8 @@ Also closes #26 (same defect).
 - [x] The merge-base form excludes trunk's newer commits and keeps every kind of own work — throwaway repo run (`scratchpad/proof.sh`): the tip diff lists `other.txt`; the merge-base diff plus untracked lists exactly `own.txt`, `staged.txt`, `base.txt` (unstaged) and `untracked.txt`; the same after committing everything
 - [x] The `clean check` block works verbatim — the same run of its `BASE`/`DIFF`/`FILES` lines: `$FILES` holds only the branch's files and `$DIFF` has no `other.txt`; run for real on this branch (`origin/main` is past its base after #48): 10 own files, none of #48's
 - [x] The inspector found nothing on this diff — `/bk:clean check`, "No findings"
-- [x] Version, changelog and formula agree — `plugin.json` 0.27.6, `CHANGELOG.md` top entry `## [0.27.6]`, `Formula/bk.rb:9` `v0.27.6`; the gate's release step is green. (0.27.4 is #48's and 0.27.5 is #49's, both already on `origin/main`)
-- [x] `scripts/check.sh` is green — `env -u BRIGADE_CLAUDE_ARGS -u BRIGADE_VIA_BK -u TMUX -u TMUX_PANE scripts/check.sh` exits 0: kitchen 270/270, guard 27/27, bk 79/79, budget 70/70, manifests, shellcheck, frontmatter, release v0.27.5. Run that way because a session opened by `bk` carries those variables and 7 kitchen tests (59, 60, 107, 109, 115, 116, 123) fail without it, on an untouched `origin/main` too; filed as #50, not part of #13
+- [x] Version, changelog and formula agree — `plugin.json` 0.27.7, `CHANGELOG.md` top entry `## [0.27.7]`, `Formula/bk.rb:9` `v0.27.7`; the gate's release step is green. (0.27.4 is #48's, 0.27.5 is #49's and 0.27.6 is #54's, all already on `origin/main`)
+- [x] `scripts/check.sh` is green — `env -u BRIGADE_CLAUDE_ARGS -u BRIGADE_VIA_BK -u TMUX -u TMUX_PANE scripts/check.sh` exits 0: kitchen 270/270, guard 27/27, bk 79/79, budget 70/70, manifests, shellcheck, frontmatter, release v0.27.7. Run that way because a session opened by `bk` carries those variables and 7 kitchen tests (59, 60, 107, 109, 115, 116, 123) fail without it, on an untouched `origin/main` too; filed as #50, not part of #13
 - [?] The new skills load in live sessions — runtime: after merge, update the plugin and restart the sessions (the installed copy still shows the two-dot block); expect `/bk:clean check` to build `BASE`
 
 ## Known limitations
@@ -49,4 +49,4 @@ Also closes #26 (same defect).
 - No automated test: the change is skill and agent prose, and no runner covers it. The proof is the throwaway-repo script plus the read above.
 - `kitchen.sh` is not touched: `changed_files` (`kitchen.sh:536`) already measures from the merge base, and `leaks`/`status` use commit ranges, which were right.
 - `sous-chef/SKILL.md` is not touched (station-2 owns it for #19). It only passes `Trunk: origin/<trunk>` to the taster, and the taster builds its own diff.
-- `CHANGELOG.md`, `plugin.json` and `Formula/bk.rb` conflicted with `origin/main`'s newer entries when `open-pr` brought trunk in (twice: #48's 0.27.4, then #49's 0.27.5); resolved keeping every entry, mine on top at 0.27.6.
+- `CHANGELOG.md`, `plugin.json` and `Formula/bk.rb` conflicted with `origin/main`'s newer entries when `open-pr` brought trunk in (three times: #48's 0.27.4, #49's 0.27.5, then #54's 0.27.6); resolved keeping every entry, mine on top at 0.27.7.

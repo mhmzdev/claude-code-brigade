@@ -12,7 +12,7 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
-## [0.27.6] - 2026-10-25
+## [0.27.7] - 2026-10-25
 
 **Reviews show a station's own work again, however far trunk has moved.** `/bk:clean check`,
 `/bk:clean around`, `/bk:review-task` and the taster diffed a station against the tip of
@@ -21,6 +21,17 @@ the cook's deletions, and the inspector and taster reviewed code the branch neve
 now diff from the branch's merge base with trunk (`git merge-base HEAD origin/<trunk>`), which
 covers committed and uncommitted work and nothing else. Nothing to do: restart your sessions to
 load the new skills. Closes #13 and #26.
+
+## [0.27.6] - 2026-10-25
+
+**The Window's model select no longer goes stale after `/model`.** Typing `/model sonnet`
+into a cook (or sending it from the Window's own "Change model" button) writes no assistant
+line until the cook's next turn, so the Window kept showing the old model, and the details
+panel fell back to it when reopened. The live reader now reads the typed `/model` command
+and the "Set model to …" line Claude Code writes under it, so the panel, the facts and the
+hover tip change at once; the select also follows the session's model while the panel is
+open. On attach, the model is read from the replayed transcript too, so it is known before
+the next turn. Nothing to do: restart the Window after updating.
 
 ## [0.27.5] - 2026-10-25
 

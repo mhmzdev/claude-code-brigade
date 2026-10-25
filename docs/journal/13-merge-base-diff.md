@@ -60,3 +60,4 @@ Covers #26 too (same defect, sharper fix): one PR, "Closes #13, closes #26".
 - **Pending:** none. The sous may want a ticket for a transient failure seen once: kitchen tests 131/132 (`live --demo` on port 47471) failed in one full run on the merged tree and passed on two re-runs; cause not found.
 - **Follow-ups:** none drafted.
 - lesson(repo): kitchen-tests-bk-env | in a session opened by `bk`, run the gate as `env -u BRIGADE_CLAUDE_ARGS -u BRIGADE_VIA_BK -u TMUX -u TMUX_PANE scripts/check.sh` or 7 kitchen tests fail (until #50 lands) | #13
+- 2026-10-25 · claude-code-brigade-cook-1 · [brief] #52 (sous): main moved again, #54 (Window model select) took 0.27.6. Merged origin/main 1852116 in (a merge commit, no force-push); bumped to 0.27.7 (plugin.json, Formula url, CHANGELOG [0.27.7] over #54's [0.27.6], #49's [0.27.5], #48's [0.27.4]); plan and checklist version mentions updated. Release files and docs only, no new pass.
