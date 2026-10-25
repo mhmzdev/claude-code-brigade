@@ -230,8 +230,7 @@ export function createScene(stage) {
     drawRecord(lastRecord, true);
   }
   for (const part of [check.parts.feed, check.parts.machine, check.parts.out, check.parts.card]) {
-    part.addEventListener('click', (e) => { e.stopPropagation(); selectCb?.('runner'); });
-    part.addEventListener('mouseenter', () => hoverCb?.(`The check\n${checkNote}`, part)); part.addEventListener('mouseleave', () => hoverCb?.(null));
+    part.addEventListener('click', (e) => { e.stopPropagation(); selectCb?.('runner'); });   // the tip is the runner's: hover the character, not the machine
   }
 
   // --- the record: cupboards against the left wall that fill with one book per page written
@@ -299,7 +298,6 @@ export function createScene(stage) {
       if (st.box) st.box.remove();
       st.box = box({ x: p.x - p.w / 2, y: p.y, w: p.w, d: 1.1, h: 38, ...STEEL, top: BURNERS, label: 'COOK ' + (i + 1), sub: st.ticket || '', mark: st.mark, ink: '#2f3438', fs: '10px', lj: 'center' });
       st.box.classList.add('pick', 'station'); st.box.addEventListener('click', (e) => { e.stopPropagation(); selectCb?.(id); });
-      st.box.addEventListener('mouseenter', () => hoverCb?.(hoverText(st.cook), st.box)); st.box.addEventListener('mouseleave', () => hoverCb?.(null));
       st.box.faces.top.appendChild(el('flame')); st.box.faces.top.appendChild(el('steam', '<i></i><i></i><i></i>'));
       layers.boxes.appendChild(st.box);
       st.cook.place(p.x, p.y - 0.6);

@@ -11,7 +11,7 @@ const kindClass = (k) => esc(k.replace(/[[\]]/g, ''));
 const hhmm = (t) => new Date(t).toTimeString().slice(0, 5);
 const NAME = { 'head-chef': 'head chef', headchef: 'head chef' };
 const who = (id) => NAME[id] || id;
-const LINE_KEYS = '123456789';
+const LINE_KEYS = '0123456789';   // 0 is the sous, then each cook's own number
 // Numbers, formatted the way the budget prints them in the terminal.
 const fmtTok = (n) => n >= 1e6 ? `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(Math.round(n || 0));
 const fmtUsd = (n) => n == null ? '–' : `$${n >= 100 ? n.toFixed(0) : n >= 10 ? n.toFixed(1) : n.toFixed(2)}`;
@@ -76,7 +76,7 @@ function renderLine(s) {
   $('#line').innerHTML = lineIds(s).map((id, i) => {
     const a = actorOf(s, id), st = stationOf(s, id);
     const tk = st ? (st.ticket || a?.model || '') : (a?.model || ''), sp = spent(s, id);
-    return `<li><button type="button" data-who="${esc(id)}" class="${focus === id ? 'sel' : ''}"><span class="st ${esc(statusOf(a))}"></span><span class="nm">${esc(a?.name || id)}</span>${a?.activity === 'waiting' ? '<span class="gate" title="waiting"></span>' : ''}<span class="sp"></span><span class="tk">${esc(tk)}</span>${sp ? `<span class="cost" title="spent today, sub-agents included">${esc(fmtUsd(sp.cost))}</span>` : ''}${i < 9 ? `<kbd>${i + 1}</kbd>` : ''}</button></li>`;
+    return `<li><button type="button" data-who="${esc(id)}" class="${focus === id ? 'sel' : ''}"><span class="st ${esc(statusOf(a))}"></span><span class="nm">${esc(a?.name || id)}</span>${a?.activity === 'waiting' ? '<span class="gate" title="waiting"></span>' : ''}<span class="sp"></span><span class="tk">${esc(tk)}</span>${sp ? `<span class="cost" title="spent today, sub-agents included">${esc(fmtUsd(sp.cost))}</span>` : ''}${i < 10 ? `<kbd>${i}</kbd>` : ''}</button></li>`;
   }).join('');
 }
 
