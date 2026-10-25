@@ -555,8 +555,8 @@ cmd_setup() {
 
   Stations start from origin/$TRUNK (a fresh clone, or a worktree detached
   there), so they'd start without the
-  Brigade setup (config, CLAUDE.md section, docs/ folders). Commit and push
-  the setup first, then run this again:
+  Brigade setup (config, CLAUDE.md section, docs/ folders). Get the setup onto
+  origin/$TRUNK first (push it, or merge its PR), then run this again:
 
     git add -A && git commit -m "chore: set up The Brigade" && git push origin $TRUNK
 EOF2
@@ -658,6 +658,7 @@ EOF
       record of every worktree and would be left with stale ones.
 EOF
   fi
+  [[ "${AUTO_SETUP:-}" == true ]] && return 0
   cat <<EOF
 
   Next: kitchen.sh open   (then /bk:sous-chef here; cooks start already running /bk:line-cook)
@@ -671,9 +672,12 @@ cmd_open() {
   local list=() s i norm bad=()
   while IFS= read -r s; do list+=("$s"); done < <(stations)
   if (( ${#list[@]} == 0 )); then
-    echo "No stations yet. Create them first: kitchen.sh setup"
-    echo "(setup needs the Brigade setup committed and pushed to origin/$TRUNK — stations clone from there)"
-    exit 1
+    # A first open creates the stations itself: nobody should have to know setup exists.
+    # cmd_setup still refuses (and says why) when origin/<trunk> lacks the config.
+    echo "No stations yet: creating $N (stations: in .claude/brigade.md; kitchen.sh setup -n N adds more)."
+    AUTO_SETUP=true cmd_setup || exit 1
+    while IFS= read -r s; do list+=("$s"); done < <(stations)
+    (( ${#list[@]} == 0 )) && { echo "No station could be created; see above."; exit 1; }
   fi
   # Stations added later with `setup -n` open too; `stations:` only sizes a fresh setup.
   $N_GIVEN && (( ${#list[@]} > N )) && list=("${list[@]:0:$N}")

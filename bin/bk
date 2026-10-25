@@ -13,6 +13,8 @@
 #             /bk:sous-chef, one window per station already running /bk:line-cook), then
 #             attach you to the sous. Ctrl-b d leaves everything running. After `bk stop`
 #             it resumes every session where it was; --fresh starts new ones instead.
+#             The first time, with no stations yet, it creates them (the config's
+#             `stations:` count) before opening; the setup must be on origin/<trunk>.
 #   bk attach           sit with the sous (the one session you talk to)
 #   bk peek N|sous      look at cook N's window (or the sous's); Ctrl-b d to leave
 #   bk stop  [--timeout S]
