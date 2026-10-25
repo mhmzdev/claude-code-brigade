@@ -758,6 +758,10 @@ cmd_open() {
       # starts /bk:sous-chef by itself, and one window per station. Nothing to type: attach to
       # the sous to talk to it; peek at a cook's window when you want to see it work.
       local sess="${REPO_NAME}-brigade" win opened=0 sous_started=false
+      # A pane's shell inherits the tmux server's environment, not this one's. With the
+      # profile unset here (the default login), a CLAUDE_CONFIG_DIR the server kept from an
+      # earlier shell would silently pick another login: drop it before any window opens.
+      [[ -z "${CLAUDE_CONFIG_DIR:-}" ]] && tmux set-environment -g -u CLAUDE_CONFIG_DIR 2>/dev/null
       if ! tmux has-session -t "$sess" 2>/dev/null; then
         tmux new-session -d -s "$sess" -n sous -c "$ROOT"
         tmux send-keys -t "$sess:sous" "$(sous_cmd)" Enter; sous_started=true
