@@ -47,6 +47,13 @@ export function tailTranscript({ file, who, store, resolve, replayBytes = 48 * 1
   const pendingAgents = new Map(); // tool_use id → the helper (kind, from, note)
   const pendingAsks = new Set();
   let busy = false;
+  // The model: the last assistant line's, or a /model typed since (in the pane, or by the
+  // Window's own control), which writes no assistant line until the next turn. During the
+  // replay only the last value counts, and it is applied once the replay is done.
+  let model = null;
+  function setModel(m) { if (!m) return; model = m; if (!replaying) store.setActor(who, { model }); }
+  const MODEL_TYPED = /<command-name>\s*\/model\s*<\/command-name>[\s\S]*?<command-args>\s*([^<\s]+)/;
+  const MODEL_SET = /<local-command-stdout>\s*Set model to\s*`([^`]+)`/;
   // the session's sub-agents, by their meta file: seen once, started if still out, ended on `finished`
   const agentsDir = path.join(path.dirname(file), path.basename(file, '.jsonl'), 'subagents');
   const agents = new Map(); // meta file name → { id, started, done }
@@ -78,7 +85,7 @@ export function tailTranscript({ file, who, store, resolve, replayBytes = 48 * 1
     const msg = o.message || {};
     const content = Array.isArray(msg.content) ? msg.content : [];
     if (o.type === 'assistant') {
-      if (msg.model && !replaying) store.setActor(who, { model: shortModel(msg.model) });
+      if (msg.model) setModel(shortModel(msg.model));
       for (const b of content) {
         if (b.type === 'thinking' && !replaying) store.setActor(who, { activity: 'thinking', status: 'busy' });
         if (b.type === 'text' && !replaying && b.text && b.text.length <= 180 && b.text.trim()) store.say(who, b.text.trim());
@@ -120,8 +127,11 @@ export function tailTranscript({ file, who, store, resolve, replayBytes = 48 * 1
         }
         if (pendingAsks.has(b.tool_use_id)) { pendingAsks.delete(b.tool_use_id); store.answer(b.tool_use_id); store.setActor(who, { activity: 'thinking' }); }
       }
-      // The head chef typing to the sous: a plain user prompt, not a tool result.
       const typed = typeof msg.content === 'string' ? msg.content : content.filter((b) => b.type === 'text').map((b) => b.text).join(' ');
+      // A typed /model: the argument first, then the name the command's own output confirms.
+      const changed = typed.match(MODEL_TYPED) || typed.match(MODEL_SET);
+      if (changed) setModel(shortModel(changed[1]));
+      // The head chef typing to the sous: a plain user prompt, not a tool result.
       if (who === 'sous' && typed && !content.some((b) => b.type === 'tool_result') && !o.isMeta && !/^<[a-z-]+/.test(typed.trim())) {
         store.message({ from: 'head-chef', to: 'sous', kind: kindOf(typed) === '[note]' ? '[head-chef]' : kindOf(typed), text: typed.trim().slice(0, 300) });
         if (!replaying) store.setActor('sous', { activity: 'thinking', status: 'busy' });
@@ -142,6 +152,7 @@ export function tailTranscript({ file, who, store, resolve, replayBytes = 48 * 1
     } finally { fs.closeSync(fd); }
   }
   read(); replaying = false;
+  if (model) store.setActor(who, { model });
   // Helpers that left in the replayed part and have not come back are still out there.
   for (const h of pendingAgents.values()) { store.helperStart(h); store.setActor(who, { activity: 'waiting' }); }
   const watcher = fs.watch(file, { persistent: false }, () => setTimeout(read, 40));
