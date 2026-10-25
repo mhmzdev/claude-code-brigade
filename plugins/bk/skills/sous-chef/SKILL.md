@@ -475,7 +475,8 @@ Your context fills with every message, verdict and board. Hand off at a quiet po
 in progress), when the head chef asks, or when about three passes have gone by since your last
 handoff. Suggest it; clearing is the head chef's call.
 
-Run `/bk:handoff`. It counts lessons and promotes the due ones, files the record's four
+Run `/bk:handoff`. It counts lessons and promotes the due ones, runs the debrief (the
+budget's friction rules, fired as chores you sign off), files the record's four
 lists (decisions, open questions and asks, gaps, the inbox), fetches CI minutes into the
 budget, writes `.claude/sous-handoff.md`, and tells the cooks you're restarting. After `/clear`, a fresh `/bk:sous-chef` picks up from Step 0.
 

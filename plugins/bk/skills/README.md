@@ -714,8 +714,9 @@ what cooks are waiting on: `grep` across `<kitchen>/*/docs/journal/`.
   handoff is in the reviewed PR (the journal is the one file allowed to change after the
   pass). The human can also run it any time, e.g. before clearing a cook between plan and
   implement. A fresh cook reads its ticket's journal and resumes from the last handoff.
-- **Sous:** files the record (the decisions, the open questions and asks, the gaps, the
-  inbox), fetches CI minutes for the week's tickets into the budget's ledger, then overwrites the gitignored `.claude/sous-handoff.md` with only what lives nowhere
+- **Sous:** counts the lessons and runs the debrief, files the record (the decisions, the
+  open questions and asks, the gaps, the inbox), fetches CI minutes for the week's tickets
+  into the budget's ledger, then overwrites the gitignored `.claude/sous-handoff.md` with only what lives nowhere
   else: the head chef's standing instructions, what it meant to fire next, walk-in holds it
   granted, and which session is which cook. A fresh `/bk:sous-chef` reads it first, then
   checks it against the rail, stations and journals; **reality wins over the note**.
@@ -730,8 +731,8 @@ journal, written at handoff:
 - lesson(plugin): <key> | <one line about the Brigade itself> | <TICKET-ID>
 ```
 
-- **When:** only at the **sous's handoff**, the one checkpoint for it (the same pass files
-  decisions, questions and asks, gaps and the inbox, Contract 12).
+- **When:** only at the **sous's handoff**, the one checkpoint for it (the same pass runs
+  the debrief below and files decisions, questions and asks, gaps and the inbox, Contract 12).
 - **Count:** `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" lessons` counts distinct tickets per key
   across trunk's and every station's journals, and marks each key `watch`, `DUE` or `promoted`.
   It reads every `*.md` at any depth under `docs.journal`, so a journal that moves when its
@@ -747,6 +748,22 @@ journal, written at handoff:
   issue for https://github.com/mhmzdev/claude-code-brigade with repo-specific detail removed,
   and **files it only on the head chef's yes**: it's public. Record the key in
   the register once filed (or declined).
+
+**The debrief: friction nobody wrote down.** Lessons are what a cook noticed. The budget
+sees what nobody noticed, so the sous's handoff also runs
+`"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" debrief`: a fixed set of rules over the last
+week's tickets and sessions, each with a key like a lesson's and the fix it takes. The
+check red three times or more on one ticket; rework over a third of a ticket's spend; ten
+CI minutes or more on one PR; a gate the commis reported `nothing` on that the sous then
+answered from the record (the record holds it where the commis doesn't look); a session
+whose last ten turns average more than 150k cache-read tokens (it should have been cleared).
+The thresholds are the rules: no judgement, no tuning in this version. A key is **due at two
+tickets** (or two sessions), like a `repo` lesson, and `promoted` once the register lists
+it. **Action for a due `repo` row:** fire a `BKLG` chore with the rule's fix and its
+evidence (ticket ids, numbers), sign it off yourself, add `` | `<key>` | repo | <ticket> | ``
+to the register. **A due `plugin` row** (only `context-bloat` today) goes the `lesson(plugin)`
+way: `/bk:feedback`, on the head chef's yes. A `watch` row is left alone; the number is
+on the board of the next handoff.
 
 ## Contract 12 — The record: what the kitchen remembers
 
