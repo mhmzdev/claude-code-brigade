@@ -22,6 +22,16 @@ now diff from the branch's merge base with trunk (`git merge-base HEAD origin/<t
 covers committed and uncommitted work and nothing else. Nothing to do: restart your sessions to
 load the new skills. Closes #13 and #26.
 
+## [0.27.4] - 2026-10-25
+
+**`bk open` says when a token would beat the profile.** A `CLAUDE_CODE_OAUTH_TOKEN` or
+`ANTHROPIC_API_KEY` in the environment wins over any profile's login, so a kitchen opened
+under "Profile: default" could still be another account's, with nothing on screen saying so.
+Now `bk open` prints a warning naming the variable, what it means, and how to stop it
+(unset it, drop it from the tmux server, `bk open --fresh`). Nothing is removed for you: a
+token someone set on purpose keeps working. What you must do: nothing, unless the warning
+appears and surprises you.
+
 ## [0.27.3] - 2026-10-25
 
 **The default profile is your plain login again.** `bk` used to start the kitchen with
