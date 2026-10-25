@@ -101,24 +101,24 @@ the old wording"): the diff base is a rule shared by four files.
 
 ## Phase 1: Release bookkeeping and the contract
 
-**Status:** Done. plugin.json, Formula/bk.rb, CHANGELOG.md (all 0.27.7, since #48 took 0.27.4, #49 0.27.5 and #54 0.27.6), Contract 8 "Both modes" paragraph. `check.sh`: all green with the bk env cleared (`env -u BRIGADE_CLAUDE_ARGS -u BRIGADE_VIA_BK -u TMUX -u TMUX_PANE`); without it 7 kitchen tests fail, on an untouched `origin/main` too (#50).
+**Status:** Done. plugin.json, Formula/bk.rb, CHANGELOG.md (all 0.27.8, since #48 took 0.27.4, #49 0.27.5, #54 0.27.6 and #55 0.27.7), Contract 8 "Both modes" paragraph. `check.sh`: all green with the bk env cleared (`env -u BRIGADE_CLAUDE_ARGS -u BRIGADE_VIA_BK -u TMUX -u TMUX_PANE`); without it 7 kitchen tests fail, on an untouched `origin/main` too (#50).
 
 Version and changelog first, so `scripts/check.sh` (release step) is green after every phase.
 
 ### Changes
 
 #### `plugins/bk/.claude-plugin/plugin.json` (edit)
-`"version": "0.27.6"` → `"0.27.7"` (a patch: fixes how skills diff, no change in how a kitchen
-runs). Read the line first; `origin/main` is already at 0.27.6 (#48 took 0.27.4, #49 0.27.5, #54 0.27.6), so bump above that, and
+`"version": "0.27.7"` → `"0.27.8"` (a patch: fixes how skills diff, no change in how a kitchen
+runs). Read the line first; `origin/main` is already at 0.27.7 (#48 took 0.27.4, #49 0.27.5, #54 0.27.6, #55 0.27.7), so bump above that, and
 use the same number in the CHANGELOG and formula.
 
 #### `Formula/bk.rb:9` (edit)
-`.../archive/refs/tags/v0.27.6.tar.gz` → `.../archive/refs/tags/v0.27.7.tar.gz` (the gate checks it).
+`.../archive/refs/tags/v0.27.7.tar.gz` → `.../archive/refs/tags/v0.27.8.tar.gz` (the gate checks it).
 
-#### `CHANGELOG.md` (edit, new top entry above `## [0.27.6] - 2026-10-25`)
+#### `CHANGELOG.md` (edit, new top entry above `## [0.27.7] - 2026-10-25`)
 
 ```markdown
-## [0.27.7] - 2026-10-25
+## [0.27.8] - 2026-10-25
 
 **Reviews show a station's own work again, however far trunk has moved.** `/bk:clean check`,
 `/bk:clean around`, `/bk:review-task` and the taster diffed a station against the tip of
@@ -152,9 +152,9 @@ sous's `[go]` nothing is committed, so it reads empty. `/bk:clean check` and `ar
 ```
 
 ### Success criteria
-- [x] `scripts/check.sh` passes (with the bk env unset, see #50; release check v0.27.7)
-- [x] CHANGELOG top entry is `## [0.27.7]` (`grep -m1 '^## \[' CHANGELOG.md`)
-- [x] `grep -n 'v0.27.7' Formula/bk.rb` shows the url line
+- [x] `scripts/check.sh` passes (with the bk env unset, see #50; release check v0.27.8)
+- [x] CHANGELOG top entry is `## [0.27.8]` (`grep -m1 '^## \[' CHANGELOG.md`)
+- [x] `grep -n 'v0.27.8' Formula/bk.rb` shows the url line
 
 ## Phase 2: The skills and the taster
 

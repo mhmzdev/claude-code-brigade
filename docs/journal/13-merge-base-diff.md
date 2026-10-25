@@ -70,3 +70,4 @@ Covers #26 too (same defect, sharper fix): one PR, "Closes #13, closes #26".
 - **Pending:** none. Kitchen tests 131/132 (`live --demo`, port 47471) did not flake in the gate run on 4fd99b0, which ran alone; the cause of the earlier one is still unfound and is probably station-2's check sharing the fixed port (#50).
 - **Follow-ups:** none drafted.
 - No new lesson; `kitchen-tests-bk-env` above still stands.
+- 2026-10-25 · claude-code-brigade-cook-1 · [findings] #13 PR #52 (sous): main moved again, #55 (Window details tabs) took 0.27.7. Merged origin/main 9f9d62b in (a merge commit, no force-push); bumped to 0.27.8 (plugin.json, Formula url, CHANGELOG [0.27.8] over #55's [0.27.7], #54's [0.27.6]); plan and checklist version mentions updated. Release files and docs only, no new pass.

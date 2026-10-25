@@ -12,7 +12,7 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
-## [0.27.7] - 2026-10-25
+## [0.27.8] - 2026-10-25
 
 **Reviews show a station's own work again, however far trunk has moved.** `/bk:clean check`,
 `/bk:clean around`, `/bk:review-task` and the taster diffed a station against the tip of
@@ -21,6 +21,18 @@ the cook's deletions, and the inspector and taster reviewed code the branch neve
 now diff from the branch's merge base with trunk (`git merge-base HEAD origin/<trunk>`), which
 covers committed and uncommitted work and nothing else. Nothing to do: restart your sessions to
 load the new skills. Closes #13 and #26.
+
+## [0.27.7] - 2026-10-25
+
+**The details panel is three tabs, with Heard first.** The panel used to open on a long
+list of facts (session, pid, attach line, three rows of spend) with the controls under it
+and what the character said and heard squeezed into the bottom. Now the head carries only
+the name, its state and one line (ticket, model, branch, or the session), with its last
+words; under it, tabs: **Heard** (the default, and it gets the whole height), **Controls**
+(the model select, Handoff, /clear) and **Facts** (the session, the spend rows, the role).
+The head chef's panel has **Needs you**, with a count, and Heard; a helper's has Heard and
+About. The panel is as tall as its tab needs, not always the full height. Nothing to do:
+restart the Window after updating.
 
 ## [0.27.6] - 2026-10-25
 
