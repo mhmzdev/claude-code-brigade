@@ -28,6 +28,17 @@ when the sous says a plan edits a protected path, be at that cook's terminal whe
 reaches the edit, then make the edit yourself or move that session to a mode that prompts
 (`default` or `acceptEdits`), and tell the sous.
 
+## [0.27.6] - 2026-10-25
+
+**The Window's model select no longer goes stale after `/model`.** Typing `/model sonnet`
+into a cook (or sending it from the Window's own "Change model" button) writes no assistant
+line until the cook's next turn, so the Window kept showing the old model, and the details
+panel fell back to it when reopened. The live reader now reads the typed `/model` command
+and the "Set model to …" line Claude Code writes under it, so the panel, the facts and the
+hover tip change at once; the select also follows the session's model while the panel is
+open. On attach, the model is read from the replayed transcript too, so it is known before
+the next turn. Nothing to do: restart the Window after updating.
+
 ## [0.27.5] - 2026-10-25
 
 **Six small things in the Window, from the first shift.** A speech bubble is now clickable:
