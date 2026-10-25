@@ -160,6 +160,15 @@ resolve_profile() {
   for d in "${dirs[@]}"; do say "  --profile $(profile_label "$d")   ($d)" >&2; done
   die "pick one with --profile NAME (bk open records it)"
 }
+# A token or API key in the environment beats any profile's login: every session bk starts
+# would authenticate with it, whatever the profile line says. Say so, loudly, and how to stop it.
+warn_auth_env() {
+  local v
+  for v in CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY; do
+    [[ -n "${!v:-}" ]] || continue
+    say "⚠️  $v is set in this environment: every session will authenticate with it, not with the profile's login (a token wins over a profile). If that is not what you want: unset $v (and in tmux: tmux set-environment -g -u $v), then bk open --fresh." >&2
+  done
+}
 record_profile() {
   mkdir -p "$ROOT/.claude"
   exclude_locally "$ROOT" .claude/bk-profile
@@ -231,6 +240,7 @@ cmd_open() {
   resolve_profile ask
   record_profile
   say "Profile: $(profile_label "$PROFILE_DIR") ($PROFILE_DIR, from $PROFILE_FROM)"
+  warn_auth_env
   if $fresh; then
     rm -f "$ROOT/.claude/sous-session"
     for s in $(git -C "$ROOT" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p') "$ROOT"/stations/station-*; do
