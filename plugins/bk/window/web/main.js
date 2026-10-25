@@ -1,7 +1,7 @@
 // Boot: connect to the server's event stream, feed the room, draw the HUD around it.
 // The HUD floats over the 2.5D room: identity and what needs you at the top, the line down
 // the left, a sheet at the bottom for the rail or everything heard, the composer at the
-// foot, an inspector on the right while a figure is selected, and a popover on the figure.
+// foot, and the details of the selected figure on the right.
 import { createScene, HELPER, ABOUT } from './scene.js';
 
 const $ = (s) => document.querySelector(s);
@@ -113,42 +113,19 @@ function renderBudgetSum(s) {
   const cap = b.caps?.shift_usd, spent = models + ci;
   el.innerHTML = `<span class="spent"><b>${esc(fmtUsd(spent))}</b>${cap ? `<span class="bar"><span style="width:${Math.min(100, spent / cap * 100)}%"></span></span>` : ''}</span><span>${esc(fmtTok(total))} tok</span><span>${esc(fmtSecs(working))} working</span><span>CI ${esc(String(Math.round(ciMin * 10) / 10))} min</span><kbd>$</kbd>`;
 }
-// ---------- the popover on the selected figure, and the hover tip ----------
+// ---------- the hover tip ----------
 // anchor: an element, or a rect ({ left, width, top, bottom }) such as a figure's head
 function place(el, anchor, below) {
   const r = typeof anchor.getBoundingClientRect === 'function' ? anchor.getBoundingClientRect() : anchor, x = Math.min(Math.max(r.left + r.width / 2, 160), innerWidth - 160);
   const under = below ?? r.top < 300;
   el.style.left = `${x}px`; el.style.top = `${under ? r.bottom + 10 : r.top - 10}px`; el.style.transform = under ? 'translate(-50%,0)' : 'translate(-50%,-100%)';
 }
-function renderPop(s) {
-  const p = $('#pop'), f = focus && scene.figure(focus);
-  const hidden = !f || ui.insp || ui.sheet || ui.gateX;
-  p.hidden = hidden; if (hidden) return;
-  const a = actorOf(s, focus), st = stationOf(s, focus), line = isLine(focus);
-  const meta = line ? [st?.ticket, a?.model, st?.branch, st ? null : a?.session].filter(Boolean).join(' · ') : isHelper(focus) ? `${HELPER[focus].role} · reports to the sous` : (s.headChef.pending.length ? `${s.headChef.pending.length} waiting on you` : 'nothing waiting on you');
-  const note = f.said || (focus === 'headchef' ? ABOUT.head : focus === 'runner' ? scene.checkNote() : isHelper(focus) ? HELPER[focus].about : '');
-  p.innerHTML = `<div class="top"><span class="dot" style="background:var(--${statusOf(a) === 'busy' ? 'busy' : statusOf(a) === 'waiting' ? 'wait' : a ? 'idle' : 'muted'})"></span><b>${esc(nameOf(focus))}</b>${a ? `<span class="pill" data-s="${esc(statusOf(a))}">${esc(a.activity)}</span>` : ''}<span class="sp"></span><button type="button" class="link" data-act="close">Esc</button></div>
-    <div class="meta">${esc(meta)}</div>${note ? `<p>${esc(note)}</p>` : ''}
-    <div class="acts">${line ? `<button type="button" class="go" data-act="message">Message<kbd>/</kbd></button><button type="button" class="gold" data-act="handoff">Handoff</button>` : ''}${focus === 'headchef' && s.headChef.pending.length ? `<button type="button" class="go" data-act="gate">Answer<kbd>G</kbd></button>` : ''}<button type="button" data-act="details">Details<kbd>i</kbd></button></div><div class="note" hidden></div>`;
-  place(p, f.anchor ? f.anchor() : f.bb);
-}
-$('#pop').addEventListener('click', async (e) => {
-  const b = e.target.closest('[data-act]'); if (!b) return;
-  if (b.dataset.act === 'close') setFocus(null);
-  if (b.dataset.act === 'message') $('#chat').focus();
-  if (b.dataset.act === 'details') { ui.insp = true; render(state); }
-  if (b.dataset.act === 'gate') { ui.gateX = true; render(state); }
-  if (b.dataset.act === 'handoff') showResult($('#pop .note'), await control({ who: focus, action: 'handoff' }), 4000);
-});
 const tip = $('#tip');
 scene.onHover((text, anchor) => {
   if (!text) { tip.hidden = true; return; }
   const [head, ...rest] = text.split('\n');
   tip.innerHTML = `<b>${esc(head)}</b>${rest.join(' ').trim() ? `<span class="meta">${esc(rest.join(' '))}</span>` : ''}`; tip.hidden = false; place(tip, anchor, false);
 });
-// The figures move with the camera; the popover follows after the camera settles.
-let camT = 0;
-scene.onCamera(() => { if (!$('#pop').hidden) { requestAnimationFrame(() => renderPop(state)); clearTimeout(camT); camT = setTimeout(() => renderPop(state), 480); } });
 
 // ---------- the inspector ----------
 // The head says who, with chips for the ticket, model and tree and a strip of what it has
@@ -173,7 +150,7 @@ function renderInspector(s) {
     <div class="chips">${chips.filter(Boolean).map(([t, c]) => `<span><i style="background:${c}"></i>${esc(t)}</span>`).join('')}</div>
     ${sp ? `<div class="stats"><div><span>Today</span><b class="gold">${esc(fmtUsd(sp.cost))}</b><small>${sp.sessions} conversation${sp.sessions === 1 ? '' : 's'}</small></div><div><span>This conversation</span><b>${esc(fmtUsd(cur?.allCost ?? 0))}</b><small>${esc(fmtTok(cur?.allTotal || 0))} tok</small></div><div><span>Working</span><b>${esc(fmtSecs(sp.activeSecs))}</b><small>today</small></div></div>` : ''}
     <div class="tabs">${tabs.map(([k, n]) => `<button type="button" data-dtab="${k}" class="${ui.dtab === k ? 'on' : ''}">${n}${counts[k] ? `<span>${counts[k]}</span>` : ''}</button>`).join('')}</div>`;
-  $('#insp-close').onclick = () => { ui.insp = false; render(state); };
+  $('#insp-close').onclick = () => setFocus(null);
   const body = $('#d-body');
   if (ui.dtab === 'now') {
     const note = f?.said || '', long = note.length > 180;
@@ -290,11 +267,12 @@ function ago(t) { const m = Math.round((Date.now() - t) / 60000); return m < 1 ?
 // ---------- render everything ----------
 function render(s) {
   if (!s) return;
-  renderTop(s); renderLine(s); renderSheet(s); renderBudgetSum(s); renderInspector(s); renderPop(s);
+  renderTop(s); renderLine(s); renderSheet(s); renderBudgetSum(s); renderInspector(s);
   $('#target').textContent = nameOf(target()); $('#chat').placeholder = `Say something to ${nameOf(target())}…   ( / )`;
 }
+// Selecting a character (a click in the room or on the line, a number key) opens its details; the composer is addressed to it.
 function setFocus(id) {
-  focus = id; controlsFor = null; ui.dtab = null; ui.noteOpen = false; if (!id) ui.insp = false; scene.setSelected(id);
+  focus = id; controlsFor = null; ui.dtab = null; ui.noteOpen = false; ui.insp = !!id; scene.setSelected(id);
   render(state);
 }
 scene.onSelect(setFocus);
@@ -313,7 +291,7 @@ $('#chatform').addEventListener('submit', async (e) => {
 });
 document.addEventListener('keydown', (e) => {
   const tag = (e.target.tagName || '').toLowerCase();
-  if (e.key === 'Escape') { if (tag === 'input') e.target.blur(); else if (ui.insp || ui.sheet || ui.gateX) { ui.insp = false; ui.sheet = null; ui.gateX = false; render(state); } else setFocus(null); return; }
+  if (e.key === 'Escape') { if (tag === 'input') e.target.blur(); else if (ui.sheet || ui.gateX) { ui.sheet = null; ui.gateX = false; render(state); } else setFocus(null); return; }
   if (tag === 'input' || tag === 'select' || tag === 'textarea' || e.metaKey || e.ctrlKey || e.altKey || !state) return;
   const k = e.key.toLowerCase(), i = LINE_KEYS.indexOf(e.key);
   if (i >= 0) { const id = lineIds(state)[i]; if (id) setFocus(id === focus ? null : id); return; }
@@ -321,7 +299,7 @@ document.addEventListener('keydown', (e) => {
   const oi = 'abcdefghi'.indexOf(k);
   if (ui.gateX && oi >= 0) { const b = document.querySelectorAll('#gate button[data-opt]')[oi]; if (b && !b.disabled) b.click(); return; }
   if (k === '/') { e.preventDefault(); $('#chat').focus(); }
-  if (k === 'i') { if (!focus) focus = 'sous'; ui.insp = !ui.insp; scene.setSelected(focus); render(state); }
+  if (k === 'i') { if (focus) setFocus(null); else setFocus('sous'); }
   if (k === 'r') { ui.sheet = ui.sheet === 'rail' ? null : 'rail'; render(state); }
   if (k === 'h') { ui.sheet = ui.sheet === 'heard' ? null : 'heard'; render(state); }
   if (e.key === '$') { location.href = '/ledger'; return; }
@@ -339,7 +317,7 @@ es.addEventListener('snapshot', (e) => {
   scene.applySnapshot(state); render(state);
 });
 for (const t of ['message', 'bubble', 'helper:start', 'helper:end', 'ask', 'answered', 'ticket', 'check']) {
-  es.addEventListener(t, (e) => { scene.onEvent({ type: t, ...JSON.parse(e.data) }); if (t === 'bubble' || t === 'message') renderPop(state); });
+  es.addEventListener(t, (e) => { scene.onEvent({ type: t, ...JSON.parse(e.data) }); if ((t === 'bubble' || t === 'message') && ui.insp) renderInspector(state); });
 }
 const fpsSamples = [];
 setInterval(() => { fpsSamples.push(scene.fps()); if (fpsSamples.length > 8) fpsSamples.shift(); const f = Math.round(fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length); $('#fps').textContent = f ? `${f} fps` : 'still'; }, 250);
