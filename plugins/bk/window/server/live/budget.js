@@ -212,7 +212,7 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
     const helperCost = agentRuns.reduce((a, r) => a + r.cost, 0), helperTotal = agentRuns.reduce((a, r) => a + r.total, 0);
     return {
       id: sessionId, role, file, model: own.model, startedAt: st.first, lastAt: st.last, turns: st.turns.length,
-      tokens: own.tokens, total: own.total, cost: own.cost, priced: own.priced,
+      tokens: own.tokens, total: own.total, cost: own.cost, priced: own.priced, price: priceFor(own.model, overrides),
       helpers, helperCost: round(helperCost), helperTotal, allCost: round(own.cost + helperCost), allTotal: own.total + helperTotal,
       secs: st.first && st.last ? Math.round((st.last - st.first) / 1000) : 0, activeSecs: activeSecs(st.turns),
       context: contextOf(st.turns),

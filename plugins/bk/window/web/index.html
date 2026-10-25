@@ -24,6 +24,7 @@
   <div class="chip toggles">
     <button type="button" data-t="line">Line <kbd>L</kbd></button>
     <button type="button" data-t="heard">Heard <kbd>H</kbd></button>
+    <a data-t="ledger" href="/ledger" title="The Ledger ($)">Ledger <kbd>$</kbd></a>
     <span id="fps" class="mono muted"></span>
   </div>
 </header>
@@ -62,11 +63,9 @@
 
 <!-- Right: the inspector for the selected figure (I) -->
 <aside id="inspector" hidden>
-  <section id="d-head"></section>
-  <div class="tabs" id="d-tabs"></div>
-  <ol id="d-heard" class="heard"></ol>
-  <section id="d-controls" hidden></section>
-  <section id="d-facts" hidden></section>
+  <div id="d-head"></div>
+  <div id="d-body"></div>
+  <div id="d-foot" hidden></div>
 </aside>
 <script type="module" src="/main.js"></script>
 </body>

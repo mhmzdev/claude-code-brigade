@@ -215,6 +215,7 @@ async function backgroundCook(store, id, grow) {
 function demoBudget(store, every = 1000) {
   const RATE = { thinking: 0.9, editing: 1.4, running: 0.4, reading: 0.7, waiting: 0.05, idle: 0, offline: 0 }; // cents per second
   const PRICE = { opus: 1, sonnet: 0.5, haiku: 0.03, fable: 2.5 };
+  const TABLE = { opus: { in: 4, out: 20, read: 0.2 }, sonnet: { in: 2, out: 10, read: 0.2 }, haiku: { in: 0.1, out: 0.5, read: 0.01 }, fable: { in: 10, out: 50, read: 0.25 } };
   const actors = {}, tickets = new Map(), since = Date.now(), seenHelpers = new Map();
   const tok = (usd) => Math.round(usd / 2.6 * 1e6); // mostly cache reads at $0.20 to $0.25 per million, as in a real session
   const zero = () => ({ in: 0, out: 0, read: 0, w5: 0, w1: 0 });
@@ -236,7 +237,7 @@ function demoBudget(store, every = 1000) {
       const x = (actors[id] ||= { sessions: 1, cost: 0, total: 0, secs: 0, activeSecs: 0, helpers: {}, current: { id, role: id, model: a.model, tokens: zero(), total: 0, cost: 0, priced: true, helpers: {}, helperCost: 0, allCost: 0, allTotal: 0, secs: 0, activeSecs: 0, turns: 0, startedAt: since, lastAt: Date.now() } });
       const d = (RATE[a.activity] || 0) * (PRICE[a.model] || 1) / 100 * (every / 1000);
       x.cost += d; x.total += tok(d); x.secs += every / 1000; if (d) { x.activeSecs += every / 1000; x.current.turns++; }
-      x.current.helpers = x.helpers; x.current.cost = x.cost; x.current.allCost = x.cost; x.current.total = x.total; x.current.allTotal = x.total; x.current.secs = x.secs; x.current.activeSecs = x.activeSecs; x.current.model = a.model; x.current.lastAt = Date.now();
+      x.current.helpers = x.helpers; x.current.cost = x.cost; x.current.allCost = x.cost; x.current.total = x.total; x.current.allTotal = x.total; x.current.secs = x.secs; x.current.activeSecs = x.activeSecs; x.current.model = a.model; x.current.price = TABLE[a.model] || null; x.current.lastAt = Date.now();
       x.current.tokens.read += tok(d) * 0.9; x.current.tokens.w5 += tok(d) * 0.08; x.current.tokens.out += tok(d) * 0.02;
       if (ticket) {
         // The scripted service briefs the same ticket again next round: that is a new dish.

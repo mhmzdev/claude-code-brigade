@@ -51,7 +51,7 @@ export function layout(n) {
     stations.push({ x: cx + r * 0.5 + (c - (per - 1) / 2) * sp, y: y0 + r * dy, w: sw });
   }
   const D = Math.max(10.4, y0 + (rows - 1) * dy + 3.1);
-  return { stations, D, homes: { commis: [2.1, 5], taster: [11.8, 3.1], inspector: [2.1, D + 0.2], runner: [18.2, 8.3] }, sous: [8, 2.9], chef: [14.2, 0.9], record: [1.5, 4.2], check: [14.9, 6.9] };
+  return { stations, D, homes: { commis: [2.1, 5], taster: [11.8, 3.1], inspector: [2.1, D + 0.2], runner: [15.75, 7.2] }, sous: [8, 2.9], chef: [14.5, 0.62], record: [1.5, 4.2], check: [15.75, 7.2] };
 }
 
 // A box: top, south, north, east, west faces around a floor rectangle. Labels sit on the
@@ -70,6 +70,15 @@ function box(b) {
   root.faces = { top, south, north, east, west };
   return root;
 }
+
+// A desk with two sheets of paper on it: the head chef, the commis and the inspector each
+// stand behind one until they are called.
+const PAPER = { top: '#f3eee2', south: '#ddd6c6', east: '#cfc7b6', side: '#cfc7b6' };
+const desk = (x, y, w, d, h) => [
+  { x, y, w, d, h, top: '#8a5a3c', south: '#6e4630', east: '#5e3b28', side: '#5a3826' },
+  { x: x + w * 0.12, y: y + d * 0.2, w: Math.min(0.34, w * 0.3), d: d * 0.55, h: h + 1, ...PAPER },
+  { x: x + w * 0.55, y: y + d * 0.15, w: Math.min(0.3, w * 0.28), d: d * 0.6, h: h + 5, ...PAPER },
+];
 
 // The characters, as vector SVG: the same chefs and helpers the Window has always drawn
 // (toque, double-breasted jacket, neckerchief, apron; the helpers' caps and tools), now
@@ -120,6 +129,7 @@ function helperSVG(kind) {
   s += face(0, -40, 7) + '</svg>';
   return s;
 }
+const HEAD_FRAC = { cook: 0.2, sous: 0.11, head: 0.18 };   // how far down each drawing the hat starts
 const BUBBLE_MAX = 110;
 const shortOf = (text) => text.length > BUBBLE_MAX ? text.slice(0, BUBBLE_MAX).replace(/\s+\S*$/, '') + ' …' : text;
 // A figure: a floor anchor that holds a billboard (the character, always facing the camera)
@@ -134,6 +144,13 @@ function figure({ id, name, role, label = true }) {
   root.appendChild(bb);
   const f = { id, name, role, root, bb, ring, bubble: bb.querySelector('.bubble'), badge: bb.querySelector('.badge'), glyph: bb.querySelector('.glyph'), x: 0, y: 0, status: 'offline', activity: 'offline', said: '', model: null, pinned: false };
   f.place = (x, y) => { f.x = x; f.y = y; root.style.left = px(x); root.style.top = px(y); };
+  // Where a tip or popover should hang from: the top of the hat, or whatever stands above it (a bubble, a badge), not the drawing's empty margin.
+  f.anchor = () => {
+    const svg = bb.querySelector('svg').getBoundingClientRect();
+    const above = [f.bubble, f.badge, f.glyph, bb.querySelector('.name')].filter((k) => k && !k.hidden).map((k) => k.getBoundingClientRect().top);
+    const top = above.length ? Math.min(...above) : svg.top + svg.height * (HEAD_FRAC[role] ?? 0.1);
+    return { left: svg.left, width: svg.width, top, bottom: svg.bottom };
+  };
   // A bubble is cut at three lines; a click opens it whole and keeps it up, a second click lets it go.
   f.bubble.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -160,9 +177,12 @@ function buildCheck() {
   const out = el('cbox out'); out.style.cssText = 'left:935px;top:300px;width:56px;height:56px';
   out.innerHTML = `<div class="face top" style="transform:translateZ(34px)"><span class="plate"><span class="mark"></span></span></div><div class="face south" style="height:34px;background:#8e979f"></div><div class="face north" style="height:34px;background:#6d757c"></div><div class="face east" style="width:34px;background:#7b848c"></div><div class="face west" style="width:34px;background:#6d757c"></div>`;
   const fx = el('cfx'); fx.style.cssText = 'left:885px;top:328px';
-  fx.innerHTML = `<div class="steam bb" style="transform:translateZ(72px) ${BB}"><i></i><i></i><i></i></div><div class="beacon bb" style="transform:translateZ(118px) ${BB}"><div class="card"><div class="row"><span class="lamp"></span><b>CHECK</b><span class="chip"></span><span class="time mono"></span></div><div class="row next mono"><span>next</span><span class="dots"></span><span class="stats"></span></div></div></div>`;
-  root.append(mat, feed, machine, out, fx);
-  return { root, parts: { feed, machine, out, fx, queue: feed.querySelector('.queue'), hist: machine.querySelector('.hist'), door: machine.querySelector('.door'), lamp: machine.querySelector('.lamp'), readout: machine.querySelector('.readout'), plate: out.querySelector('.plate'), mark: out.querySelector('.mark'), blamp: fx.querySelector('.beacon .lamp'), chip: fx.querySelector('.chip'), time: fx.querySelector('.time'), dots: fx.querySelector('.dots'), stats: fx.querySelector('.stats'), card: fx.querySelector('.card') } };
+  fx.innerHTML = `<div class="steam bb" style="transform:translateZ(72px) ${BB}"><i></i><i></i><i></i></div>`;
+  // the billboard: a standing board beside the machine that says who is in, how long, the last ten, who is next, and the shift's count
+  const board = el('cfx board'); board.style.cssText = 'left:1040px;top:345px';
+  board.innerHTML = `<div class="bb" style="transform:${BB}"><div class="card"><div class="row"><span class="lamp"></span><b>CHECK</b></div><div class="state"></div><div class="who"></div><div class="time mono"></div><div class="hist"></div><div class="foot mono"><span class="next">next <span class="dots"></span></span><span class="runs"></span><span class="red"></span></div></div><div class="legs"><span></span><span></span></div><div class="shadow"></div></div>`;
+  root.append(mat, feed, machine, out, fx, board);
+  return { root, parts: { feed, machine, out, fx, board, queue: feed.querySelector('.queue'), hist: machine.querySelector('.hist'), door: machine.querySelector('.door'), lamp: machine.querySelector('.lamp'), readout: machine.querySelector('.readout'), plate: out.querySelector('.plate'), mark: out.querySelector('.mark'), card: board.querySelector('.card'), blamp: board.querySelector('.lamp'), state: board.querySelector('.state'), who: board.querySelector('.who'), time: board.querySelector('.time'), bhist: board.querySelector('.hist'), dots: board.querySelector('.dots'), runs: board.querySelector('.runs'), red: board.querySelector('.red') } };
 }
 
 export function createScene(stage) {
@@ -196,7 +216,9 @@ export function createScene(stage) {
     const add = (b) => { const n = box(b); layers.boxes.appendChild(n); fixed.push(n); return n; };
     // the head chef's office: a glass corner top-right, with a striped floor and a desk
     const pad = el('pad'); pad.style.cssText = `left:${px(12.5)};top:0;width:${px(3.5)};height:${px(2.1)}`; layers.pads.appendChild(pad); fixed.push(pad);
-    add({ x: 13.6, y: 0.25, w: 1.8, d: 0.55, h: 28, top: '#8a5a3c', south: '#6e4630', east: '#5e3b28', side: '#5a3826' });
+    for (const b of [...desk(13.6, 1.15, 1.8, 0.55, 28), { x: 13.75, y: 1.52, w: 0.3, d: 0.14, h: 29, ...PAPER }]) add(b);
+    // the commis's desk, by the record, and the inspector's, at the bottom of the room: each in front of where they stand
+    for (const b of [...desk(L.homes.commis[0] - 0.45, L.homes.commis[1] + 0.3, 0.9, 0.42, 22), ...desk(L.homes.inspector[0] - 0.45, L.homes.inspector[1] + 0.3, 0.9, 0.42, 22)]) add(b);
     add({ x: 12.5, y: 2.0, w: 3.5, d: 0.12, h: 26, ...BASE, label: 'HEAD CHEF', ink: '#efe6d6', fs: '9px' });
     add({ x: 12.5, y: 2.0, w: 3.5, d: 0.12, h: 78, ...GLASS });
     add({ x: 12.5, y: 0, w: 0.12, d: 1.15, h: 26, ...BASE });
@@ -206,7 +228,7 @@ export function createScene(stage) {
     layers.boxes.appendChild(check.root); fixed.push(check.root);
     drawRecord(lastRecord, true);
   }
-  for (const part of [check.parts.feed, check.parts.machine, check.parts.out]) {
+  for (const part of [check.parts.feed, check.parts.machine, check.parts.out, check.parts.card]) {
     part.addEventListener('click', (e) => { e.stopPropagation(); selectCb?.('runner'); });
     part.addEventListener('mouseenter', () => hoverCb?.(`The check\n${checkNote}`, part)); part.addEventListener('mouseleave', () => hoverCb?.(null));
   }
@@ -244,7 +266,7 @@ export function createScene(stage) {
   function addFig(f, x, y) {
     f.place(x, y); layers.figs.appendChild(f.root);
     f.bb.addEventListener('click', (e) => { e.stopPropagation(); selectCb?.(f.id); });
-    f.bb.addEventListener('mouseenter', () => { hovered = f.id; hoverCb?.(hoverText(f), f.bb); });
+    f.bb.addEventListener('mouseenter', () => { hovered = f.id; hoverCb?.(hoverText(f), f.anchor()); });
     f.bb.addEventListener('mouseleave', () => { hovered = null; hoverCb?.(null); });
     return f;
   }
@@ -304,11 +326,13 @@ export function createScene(stage) {
     p.readout.textContent = cur ? `C${num(cur.from) || '·'} ${mmss(secs)}` : ck.last ? `${mode.toUpperCase()} ${Math.round(secs)}s` : 'IDLE';
     p.readout.style.color = lamp;
     p.plate.hidden = !ck.last; if (ck.last) { p.plate.style.borderColor = markOf(ck.last.who); p.mark.style.background = ck.last.ok === false ? RED : ck.last.ok ? GREEN : '#9aa3aa'; p.mark.textContent = ck.last.ok === false ? '✕' : ck.last.ok ? '✓' : '·'; }
-    p.card.style.borderColor = lamp;
-    p.chip.textContent = cur ? `${nameOf(cur.from)} · ${cur.note || 'the check'}` : ck.last ? `${mode} · ${nameOf(ck.last.who)}` : 'idle';
-    p.time.textContent = cur ? mmss(secs) : ck.last ? `${Math.round(secs)}s` : ''; p.time.style.color = lamp;
+    p.card.style.boxShadow = `inset 0 0 0 1px ${lamp}, 0 6px 14px rgba(0,0,0,.35)`;
+    p.state.textContent = cur ? 'running' : mode === 'idle' ? 'idle' : mode;
+    p.who.textContent = cur ? nameOf(cur.from) : ck.last ? `last: ${nameOf(ck.last.who)}` : 'nobody yet';
+    p.time.textContent = cur ? mmss(secs) : ck.last ? `${Math.round(secs)}s` : '–'; p.time.style.color = lamp; p.time.style.textShadow = `0 0 8px ${lamp}`;
+    p.bhist.innerHTML = p.hist.innerHTML;
     p.dots.innerHTML = queue.length ? queue.map((h) => `<i style="background:${markOf(h.from)}"></i>`).join('') : '—';
-    p.stats.textContent = `· ${ck.runs || 0} runs · ${ck.failed || 0} red`;
+    p.runs.textContent = `${ck.runs || 0} runs`; p.red.textContent = `${ck.failed || 0} red`;
     checkNote = (cur ? `In the machine: ${nameOf(cur.from)}, ${cur.note || 'the check'}, ${mmss(secs)}. ` : 'Machine idle. ')
       + `Next: ${queue.length ? queue.map((h) => nameOf(h.from)).join(', ') : 'nobody'}. `
       + (ck.last ? `Last: ${ck.last.ok === false ? 'fail' : ck.last.ok ? 'pass' : 'done'} in ${Math.round(ck.last.secs)}s (${nameOf(ck.last.who)}). ` : '')
@@ -347,7 +371,7 @@ export function createScene(stage) {
     for (const h of s.helpers) if (!helpers.has(h.id)) startHelper(h);
     figs.set('sous', sous); figs.set('headchef', chef); for (const [k, f] of Object.entries(residents)) figs.set(k, f);
     drawCheck(s);
-    if (hovered) { const f = figs.get(hovered); if (f) hoverCb?.(hoverText(f), f.bb); }
+    if (hovered) { const f = figs.get(hovered); if (f) hoverCb?.(hoverText(f), f.anchor()); }
   }
 
   // --- helpers walk to their jobs: the commis to the record, the runner to the check, the
@@ -355,7 +379,7 @@ export function createScene(stage) {
   // resident is already out.
   const helpers = new Map();
   const posOf = (who) => who === 'sous' ? L.sous : (who === 'headchef' || who === 'head-chef') ? L.chef : stations.get(who)?.pos ? [stations.get(who).pos.x, stations.get(who).pos.y - 0.6] : L.sous;
-  const MAT_FRONT = [[13.7, 8.3], [18.2, 8.3]];   // the two ends of the check's mat, along its front edge
+  const MAT_FRONT = [[14.0, 7.3], [17.4, 7.3]];   // the two ends of the runner's walk: on the mat, in front of the machine
   function walk(f, [x, y], then, speed = 4) {
     const d = Math.hypot(x - f.x, y - f.y), secs = Math.max(.4, d / speed);
     f.root.style.transition = `left ${secs}s linear, top ${secs}s linear`;
@@ -368,7 +392,7 @@ export function createScene(stage) {
     if (f.busy) { f = figure({ id: h.kind, name: h.kind, role: h.kind }); f.meta = HELPER[h.kind].role; f.extra = true; addFig(f, ...L.homes[h.kind]); extras.add(f); }
     f.busy = true; f.note = h.note || ''; if (h.kind !== 'runner') f.meta = `${HELPER[h.kind].role} · ${f.note || 'working'}`;
     const from = posOf(h.from), at = [from[0] + 0.8, from[1] + 0.2];
-    const target = h.kind === 'commis' ? [L.record[0] + 0.3, L.record[1] + 0.8]
+    const target = h.kind === 'commis' ? [L.record[0] + 0.1, L.record[1] - 0.3]
       : h.kind === 'runner' ? L.check
       : h.kind === 'taster' ? (() => { const p = posOf(h.note?.match(/station-\d+/)?.[0] || h.from); return [p[0] + 0.8, p[1] + 0.2]; })()
       : at;
