@@ -37,7 +37,7 @@ function showResult(el, out, ttl = 2500) {
 
 // ---------- state ----------
 let state = null, focus = null, controlsFor = null, modelMenu = null, modelShown = null;
-let ui = { line: true, sheet: null, insp: false, gateX: false, answered: {} };
+let ui = { line: true, sheet: null, insp: false, dtab: null, gateX: false, answered: {} };
 const actorOf = (s, id) => id === 'sous' ? s.sous : s.stations.find((x) => x.id === id)?.cook;
 const stationOf = (s, id) => s.stations.find((x) => x.id === id);
 const isLine = (id) => id === 'sous' || !!stationOf(state, id);
@@ -151,25 +151,29 @@ let camT = 0;
 scene.onCamera(() => { if (!$('#pop').hidden) { requestAnimationFrame(() => renderPop(state)); clearTimeout(camT); camT = setTimeout(() => renderPop(state), 480); } });
 
 // ---------- the inspector ----------
+// The head says who and what; the tabs hold the rest, Heard first because it is what a busy
+// head chef reads. Controls (the model, handoff, /clear) and Facts (the session, the spend,
+// the role) sit behind their tabs so the talk gets the height.
+const TABS = { line: [['heard', 'Heard'], ['controls', 'Controls'], ['facts', 'Facts']], headchef: [['needs', 'Needs you'], ['heard', 'Heard']], helper: [['heard', 'Heard'], ['about', 'About']] };
 function renderInspector(s) {
   const open = ui.insp && focus; $('#inspector').hidden = !open; if (!open) return;
   const id = focus, a = actorOf(s, id), st = stationOf(s, id), f = scene.figure(id);
-  let facts;
-  if (id === 'headchef') facts = [['talks to', 'the sous only'], ['waiting', s.headChef.pending.length ? `${s.headChef.pending.length} question(s)` : 'nothing']];
-  else if (id === 'runner') { const ck = s.check || {}, running = (s.helpers || []).filter((h) => h.kind === 'runner'); facts = [['role', HELPER.runner.role], ['reports', 'the sous'], ['in the machine', running[0] ? `${running[0].from} · ${running[0].note || 'the check'}` : 'nobody'], ['next', running.slice(1).map((h) => h.from).join(', ') || 'nobody'], ['last', ck.last ? `${ck.last.ok === false ? 'fail' : ck.last.ok ? 'pass' : 'done'} in ${ck.last.secs}s · ${ck.last.who}` : null], ['this shift', `${ck.runs || 0} runs · ${ck.failed || 0} red`]]; }
-  else if (isHelper(id)) facts = [['role', HELPER[id].role], ['reports', 'the sous']];
-  else if (id === 'sous') facts = [['session', a.session || 'not running'], ['model', a.model], ['where', 'the main checkout'], ['pid', a.pid], ['attach', a.tmux ? `tmux attach -t ${a.tmux}` : null], ...spendFacts(s, id, null)];
-  else facts = [['session', a.session || 'not running'], ['model', a.model], ['ticket', st.ticket], ['station', st.path || st.id], ['branch', st.branch || 'detached at trunk'], ['tree', st.dirty ? 'dirty' : 'clean'], ['ahead', st.ahead ? `+${st.ahead} commits` : null], ['pid', a.pid], ['peek', a.tmux ? `tmux attach -t ${a.tmux}` : null], ...spendFacts(s, id, st.ticket)];
-  const about = id === 'headchef' ? ABOUT.head : isHelper(id) ? HELPER[id].about : id === 'sous' ? ABOUT.sous : ABOUT.cook;
+  const kind = id === 'headchef' ? 'headchef' : isHelper(id) ? 'helper' : 'line';
+  const tabs = TABS[kind]; if (!tabs.some(([k]) => k === ui.dtab)) ui.dtab = tabs[0][0];
+  const meta = kind === 'line' ? [st?.ticket, a?.model, st?.branch, st ? null : a?.session].filter(Boolean).join(' · ') : kind === 'helper' ? `${HELPER[id].role} · reports to the sous` : (s.headChef.pending.length ? `${s.headChef.pending.length} waiting on you` : 'nothing waiting on you');
   $('#d-head').innerHTML = `<div class="top"><span class="dot" style="background:var(--${statusOf(a) === 'busy' ? 'busy' : statusOf(a) === 'waiting' ? 'wait' : a ? 'idle' : 'muted'})"></span><strong>${esc(nameOf(id))}</strong>${a ? `<span class="pill" data-s="${esc(statusOf(a))}">${esc(a.activity)}</span>` : ''}<span class="sp"></span><button type="button" class="link" id="insp-close">Close</button></div>
-    <dl>${facts.filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${f?.said ? `<p class="say">“${esc(f.said)}”</p>` : ''}<p class="about">${esc(about)}</p>`;
+    ${meta ? `<div class="meta">${esc(meta)}</div>` : ''}${f?.said ? `<p class="say">“${esc(f.said)}”</p>` : ''}`;
   $('#insp-close').onclick = () => { ui.insp = false; render(state); };
-  if (id === 'headchef') {
+  const heard = s.log.filter((m) => involves(m, id)).slice(-60).reverse();
+  const badge = (k) => k === 'needs' && s.headChef.pending.length ? `<b>${s.headChef.pending.length}</b>` : '';
+  $('#d-tabs').innerHTML = tabs.map(([k, n]) => `<button type="button" data-dtab="${k}" class="${ui.dtab === k ? 'on' : ''}">${n}${badge(k)}</button>`).join('');
+  $('#d-heard').hidden = ui.dtab !== 'heard'; $('#d-controls').hidden = !['controls', 'needs', 'about'].includes(ui.dtab); $('#d-facts').hidden = ui.dtab !== 'facts';
+  if (kind === 'headchef') {
     const qs = s.headChef.pending;
-    if (controlsFor !== id) { controlsFor = id; $('#d-controls').innerHTML = `<div class="h">Needs you</div><ul id="d-questions"></ul>`; }
+    if (controlsFor !== id) { controlsFor = id; $('#d-controls').innerHTML = `<ul id="d-questions"></ul>`; }
     $('#d-questions').innerHTML = qs.length ? qs.map((q) => `<li data-q="${esc(q.id)}"><div class="from">${esc(q.from)} · via the sous</div>${esc(q.text)}<div class="opts">${(q.options || []).map((o) => `<button type="button" data-opt="${esc(o)}">${esc(o)}</button>`).join('')}</div><div class="note" hidden></div></li>`).join('') : '<li class="note">No open questions.</li>';
-  } else if (isHelper(id)) {
-    controlsFor = id; $('#d-controls').innerHTML = `<p class="hint">A sub-agent: it is spawned for one job and reports back. Nothing to control.</p>`;
+  } else if (kind === 'helper') {
+    controlsFor = id; $('#d-controls').innerHTML = `<p class="hint">${esc(HELPER[id].about)}</p><p class="hint">A sub-agent: it is spawned for one job and reports back. Nothing to control.</p>`;
   } else {
     if (controlsFor !== id) {
       controlsFor = id;
@@ -199,17 +203,24 @@ function renderInspector(s) {
     const sh = shiftOf(s, id);
     $('#c-clear').classList.toggle('dim', !sh.ok); $('#c-handoff').classList.toggle('due', !sh.ok && sh.needsHandoff);
     $('#c-shift').textContent = sh.why;
+    // Facts: the session and what it has cost, then the role.
+    const facts = id === 'sous'
+      ? [['session', a.session || 'not running'], ['model', a.model], ['where', 'the main checkout'], ['pid', a.pid], ['attach', a.tmux ? `tmux attach -t ${a.tmux}` : null]]
+      : [['session', a.session || 'not running'], ['model', a.model], ['ticket', st.ticket], ['station', st.path || st.id], ['branch', st.branch || 'detached at trunk'], ['tree', st.dirty ? 'dirty' : 'clean'], ['ahead', st.ahead ? `+${st.ahead} commits` : null], ['pid', a.pid], ['peek', a.tmux ? `tmux attach -t ${a.tmux}` : null]];
+    const spend = spendFacts(s, id, id === 'sous' ? null : st.ticket);
+    // The spend rows stack (label over value): their values are long and their labels do not fit a narrow column.
+    $('#d-facts').innerHTML = `<dl>${facts.filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${spend.length ? `<div class="h">Spend</div><dl class="spend">${spend.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}<p class="about">${esc(id === 'sous' ? ABOUT.sous : ABOUT.cook)}</p>`;
   }
-  const heard = s.log.filter((m) => involves(m, id)).slice(-60).reverse();
   $('#d-heard').innerHTML = heard.length ? heard.map((m) => `<li><div class="row"><span class="k">${esc(m.kind)}</span><span class="who">${esc(who(m.from))} → ${esc(who(m.to))}</span><span class="sp"></span><span class="t">${hhmm(m.t)}</span></div><p>${linkify(m.text)}</p></li>`).join('') : '<li class="none">Nothing heard yet.</li>';
 }
+$('#d-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-dtab]'); if (!b) return; ui.dtab = b.dataset.dtab; render(state); });
 
 // The budget rows of an actor's page: today across its sessions, this conversation, and its ticket.
 function spendFacts(s, id, ticket) {
   const sp = spent(s, id); if (!sp) return [];
   const c = sp.current, u = c?.tokens, t = ticket && ticketSpend(s, ticket);
   return [
-    ['spent today', `${fmtUsd(sp.cost)} · ${fmtTok(sp.total)} tokens · ${fmtSecs(sp.activeSecs)} working${sp.sessions > 1 ? ` · ${sp.sessions} conversations` : ''}`],
+    ['today', `${fmtUsd(sp.cost)} · ${fmtTok(sp.total)} tokens · ${fmtSecs(sp.activeSecs)} working${sp.sessions > 1 ? ` · ${sp.sessions} conversations` : ''}`],
     ['this conversation', c ? `${fmtUsd(c.allCost)} · in ${fmtTok(u.in)} · out ${fmtTok(u.out)} · cache read ${fmtTok(u.read)} · write ${fmtTok(u.w5 + u.w1)}` : null],
     ['helpers today', Object.keys(sp.helpers || {}).length ? helpersLine(sp.helpers) : null],
     [t ? `on ${t.id}` : null, t ? `${fmtUsd(t.allCost)} · ${fmtTok(t.total)} tokens · ${fmtSecs(t.secs)} since the brief${t.ci ? ` · CI ${t.ci.minutes} min` : ''}` : null],
@@ -265,7 +276,7 @@ function render(s) {
   $('#target').textContent = nameOf(target()); $('#chat').placeholder = `Say something to ${nameOf(target())}…   ( / )`;
 }
 function setFocus(id) {
-  focus = id; controlsFor = null; if (!id) ui.insp = false; scene.setSelected(id);
+  focus = id; controlsFor = null; ui.dtab = null; if (!id) ui.insp = false; scene.setSelected(id);
   render(state);
 }
 scene.onSelect(setFocus);
