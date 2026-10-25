@@ -12,6 +12,18 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.26.0] - 2026-10-25
+
+**The budget counts the asks.** Each ticket's line in the ledger, the `kitchen.sh budget
+--ticket` report, the journal's cost line and the Ledger page now carry what the ticket
+asked: every `[gate]` the cook sent, who answered it (the sous, the record, or the head chef
+when the answer came back marked `(head chef)`), the commis's verdict that rode in with it,
+and how long the cook waited; plus the sous's own asks about the ticket from the ask log,
+with their gap kinds. The tickets table gains an `ASKS` column (asked/to the head chef), the
+journal line ends with `asks: 2 (1 to the head chef, waited 3m)`, and a dish on the Ledger
+page shows a note with each question. This is the number the self-improving kitchen watches
+fall: questions that reach you per ticket. What you must do: nothing.
+
 ## [0.25.0] - 2026-10-25
 
 **Every question that reaches you is a gap, and the kitchen fixes it.** The sous now keeps an

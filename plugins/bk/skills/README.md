@@ -691,14 +691,17 @@ cook. Entries are append-only, one line each where possible:
 The journal's last line, after the closing handoff, is the ticket's **cost line**, printed
 by `kitchen.sh budget --ticket <ID> --journal-line [--session <name>]` and appended by
 `/bk:open-pr` before it commits: money, tokens, brief→PR with the phases known by then
-(plan, wait, build, pass), and the helpers. The ship phase and the CI minutes come later and
-live in `.claude/budget.jsonl`, not in the journal. The ticket's spend is what its cook
+(plan, wait, build, pass), the helpers, and the **asks**: how many questions went up from
+the cook, how many reached the head chef (a relayed `(head chef)` answer, or an entry in
+the ask log naming the ticket), how many the record answered, how long the cook waited.
+The ship phase and the CI minutes come later and live in `.claude/budget.jsonl`, not in the
+journal; so does each ask with who answered it and the commis's verdict. The ticket's spend is what its cook
 spent between the brief and `[served]`, across a `/clear` if there was one, plus its
 sub-agents and the sous's sub-agents that name it (the taster at the pass); the sous's own
 turns are the shift's, not the ticket's.
 
 ```
-- 2026-09-29 16:40 · <session name> · cost: $4.63 · 1.5M tokens (in 1.0M, out 5k, cache read 450k, cache write 50k) · brief→PR 41m (plan 31m, wait 2m, build 8m, pass 1m) · helpers: runner 1 ($0.05), taster 1 ($2.00)
+- 2026-09-29 16:40 · <session name> · cost: $4.63 · 1.5M tokens (in 1.0M, out 5k, cache read 450k, cache write 50k) · brief→PR 41m (plan 31m, wait 2m, build 8m, pass 1m) · helpers: runner 1 ($0.05), taster 1 ($2.00) · asks: 2 (1 to the head chef, 1 from the record, waited 3m)
 ```
 
 An **unanswered question** is a `Qn:` with no matching `An`. That's how a fresh sous finds

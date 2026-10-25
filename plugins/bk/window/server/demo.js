@@ -223,7 +223,14 @@ function demoBudget(store, every = 1000) {
   const tick = () => {
     const s = store.state;
     const holding = (who) => s.stations.find((st) => st.id === who)?.ticket;
-    for (const m of s.log) { if (!m.text && !m.kind) continue; const id = (String(m.text).match(/\b(S\d{3}-\d{2}|BKLG-\d{3}|HYG-\d{3})\b/) || [])[1] || holding(m.from) || holding(m.to); const t = id && tickets.get(id); if (!t || m.t < t.startedAt) continue; const k = m.kind.replace(/[[\]]/g, ''); if (['plan', 'approved', 'handoff', 'go', 'served'].includes(k)) t.marks[k] ||= m.t; }
+    for (const m of s.log) {
+      if (!m.text && !m.kind) continue; const id = (String(m.text).match(/\b(S\d{3}-\d{2}|BKLG-\d{3}|HYG-\d{3})\b/) || [])[1] || holding(m.from) || holding(m.to); const t = id && tickets.get(id); if (!t || m.t < t.startedAt) continue; const k = m.kind.replace(/[[\]]/g, ''); if (['plan', 'approved', 'handoff', 'go', 'served'].includes(k)) t.marks[k] ||= m.t;
+      // a cook's [gate] is an ask; the sous's [heard] back answers the oldest open one (the demo's heards name no Qn)
+      if (k === 'gate' && m.from === t.cook && !t.asks.items.some((a) => a.t === m.t)) t.asks.items.push({ t: m.t, q: `Q${t.asks.items.length + 1}`, commis: /commis:\s*(\w+)/.exec(String(m.text))?.[1]?.toLowerCase() || 'nothing', text: String(m.text).replace(/^\[gate\]\s*/, '').slice(0, 160), answeredAt: null, by: null, secs: null });
+      if (k === 'heard' && m.to === t.cook) { const a = t.asks.items.find((x) => !x.answeredAt && x.t < m.t); if (a) { a.answeredAt = m.t; a.by = /head chef/i.test(String(m.text)) ? 'head chef' : /settled in|per docs/i.test(String(m.text)) ? 'record' : 'sous'; a.secs = Math.max(0, Math.round((m.t - a.t) / 1000)); } }
+      const it = t.asks.items, by = (w) => it.filter((a) => a.by === w).length;
+      Object.assign(t.asks, { gates: it.length, answered: it.filter((a) => a.answeredAt).length, open: it.filter((a) => !a.answeredAt).length, sous: by('sous'), record: by('record'), headChef: by('head chef'), logged: 0, unanswered: 0, waitedSecs: it.reduce((x, a) => x + (a.secs || 0), 0), gaps: by('head chef') ? { ruling: by('head chef') } : {} });
+    }
     const who = [['sous', s.sous, null], ...s.stations.map((st) => [st.id, st.cook, st.ticket])];
     for (const [id, a, ticket] of who) {
       const x = (actors[id] ||= { sessions: 1, cost: 0, total: 0, secs: 0, activeSecs: 0, helpers: {}, current: { id, role: id, model: a.model, tokens: zero(), total: 0, cost: 0, priced: true, helpers: {}, helperCost: 0, allCost: 0, allTotal: 0, secs: 0, activeSecs: 0, turns: 0, startedAt: since, lastAt: Date.now() } });
@@ -234,7 +241,7 @@ function demoBudget(store, every = 1000) {
       if (ticket) {
         // The scripted service briefs the same ticket again next round: that is a new dish.
         if (tickets.get(ticket)?.status === 'served') tickets.delete(ticket);
-        const t = tickets.get(ticket) || { id: ticket, cook: id, session: a.session, status: 'open', startedAt: Date.now(), servedAt: null, model: a.model, tokens: zero(), total: 0, cost: 0, helpers: {}, helperCost: 0, allCost: 0, phases: { plan: null, wait: null, build: null, pass: null, ship: null }, secs: 0, marks: {}, steps: [], stages: { prep: { cost: 0, total: 0, secs: 0, steps: 0 }, cook: { cost: 0, total: 0, secs: 0, steps: 0 }, check: { cost: 0, total: 0, secs: 0, steps: 0 }, serve: { cost: 0, total: 0, secs: 0, steps: 0 } }, rework: null };
+        const t = tickets.get(ticket) || { id: ticket, cook: id, session: a.session, status: 'open', startedAt: Date.now(), servedAt: null, model: a.model, tokens: zero(), total: 0, cost: 0, helpers: {}, helperCost: 0, allCost: 0, phases: { plan: null, wait: null, build: null, pass: null, ship: null }, secs: 0, marks: {}, steps: [], stages: { prep: { cost: 0, total: 0, secs: 0, steps: 0 }, cook: { cost: 0, total: 0, secs: 0, steps: 0 }, check: { cost: 0, total: 0, secs: 0, steps: 0 }, serve: { cost: 0, total: 0, secs: 0, steps: 0 } }, rework: null, asks: { gates: 0, answered: 0, open: 0, sous: 0, record: 0, headChef: 0, logged: 0, unanswered: 0, gaps: {}, waitedSecs: 0, items: [] } };
         tickets.set(ticket, t);
         const stage = stageOf(t), st = step(t, stage, id, a.model, 'own', 'the cook');
         t.cost += d; t.allCost = t.cost + t.helperCost; t.total += tok(d); t.tokens.read += tok(d) * 0.9; t.tokens.out += tok(d) * 0.02; t.secs = Math.round((Date.now() - t.startedAt) / 1000);

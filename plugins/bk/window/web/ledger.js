@@ -70,7 +70,7 @@ function renderDishes(b, w) {
     const p = cap ? total / cap : 0, capC = p > 1 ? 'var(--red)' : p > .75 ? 'var(--accent)' : 'var(--green)';
     const last = cap ? `<span class="cap"><span class="bar thin"><span style="width:${Math.min(100, p * 100)}%;background:${capC}"></span></span><span class="pct" style="color:${capC}">${Math.round(p * 100)}%</span></span>` : `<span class="t">${t.ci ? `${t.ci.minutes} min · ${t.ci.public ? 'free' : fmtUsd(t.ci.cost)}` : '–'}</span>`;
     return `<div class="item ${open ? 'open' : ''}" data-id="${esc(t.id)}">
-      <button type="button" class="row" data-toggle="${esc(t.id)}"><span class="id"><span class="caret">${open ? '▼' : '▶'}</span>${esc(t.id)}</span><span class="who"><span class="mark" style="background:${markOf(t.cook)}"></span>${esc(nameOf(t.cook))}</span><span class="status ${cls}">${label}</span><span class="bar">${segs}</span><span class="t r">${fmtSecs(t.secs)}</span><b class="cost r">${fmtUsd(total)}</b>${last}</button>
+      <button type="button" class="row" data-toggle="${esc(t.id)}"><span class="id"><span class="caret">${open ? '▼' : '▶'}</span>${esc(t.id)}${t.asks && (t.asks.gates || t.asks.logged) ? `<span class="askchip ${t.asks.headChef ? 'hc' : ''}" title="questions that went up / reached the head chef">?${Math.max(t.asks.gates, t.asks.logged)}${t.asks.headChef ? `/${t.asks.headChef}` : ''}</span>` : ''}</span><span class="who"><span class="mark" style="background:${markOf(t.cook)}"></span>${esc(nameOf(t.cook))}</span><span class="status ${cls}">${label}</span><span class="bar">${segs}</span><span class="t r">${fmtSecs(t.secs)}</span><b class="cost r">${fmtUsd(total)}</b>${last}</button>
       ${open ? renderDish(t) : ''}</div>`;
   }).join('') + '</div>';
 }
@@ -78,11 +78,25 @@ function renderDish(t) {
   const u = t.tokens || {}, tokens = fmtTok(t.total + Object.values(t.helpers || {}).reduce((a, h) => a + h.total, 0));
   const cards = STAGES.map(([k, label]) => { const g = t.stages?.[k]; return `<div class="card ${g?.steps ? '' : 'empty'}" style="border-top-color:${COLOR[k]}"><span class="h">${label.toUpperCase()}</span><b class="n">${g?.steps ? fmtUsd(g.cost) : '—'}</b><span class="sub">${g?.steps ? `${fmtSecs(g.secs)} working · ${plural(g.steps, 'step')}` : ''}</span><span class="note">${esc(stageNote(k, t))}</span></div>`; }).join('');
   const redo = t.rework ? `<div class="redo">${t.rework.reds === 1 ? 'A red check' : `${t.rework.reds} red checks`} sent it back: the fix and the re-checks cost ${fmtUsd(t.rework.cost)} and ${fmtSecs(t.rework.secs)}${t.rework.settled ? '' : ', and it is not green yet'}.</div>` : '';
+  const asks = asksNote(t.asks);
   const all = ui.all === t.id;
   const steps = all ? `<div class="steps"><div class="sh"><span>STAGE</span><span>WHO</span><span>WHAT</span><span>MODEL</span><span class="r">TIME</span><span class="r">COST</span></div>${(t.steps || []).map((s) => `<div class="sr"><span class="who"><span class="mark" style="background:${COLOR[s.stage]}"></span>${s.stage}</span><span class="muted">${esc(s.kind === 'own' ? nameOf(s.who) : s.who)}</span><span class="what"><span class="${s.ok === false ? 'bad' : ''}">${esc(s.note || '')}${s.ok === false ? ' · red' : s.ok === true ? ' · green' : ''}</span><span class="usage">${fmtTok(s.total)} tokens</span></span><span class="rate">${esc(String(s.model || '?').replace(/^claude-/, ''))}</span><span class="t r">${fmtSecs(s.secs)}</span><span class="r mono">${fmtUsd(s.cost)}</span></div>`).join('')}</div>` : '';
   return `<div class="detail"><div class="cards">${cards}</div>
     <div class="line"><span>Models <b>${fmtUsd(t.allCost)}</b> for ${tokens} tokens (in ${fmtTok(u.in || 0)} · out ${fmtTok(u.out || 0)} · cache read ${fmtTok(u.read || 0)} · cache write ${fmtTok((u.w5 || 0) + (u.w1 || 0))})</span><span>CI ${t.ci ? `<b>${t.ci.public ? 'free' : fmtUsd(t.ci.cost)}</b> for ${t.ci.minutes} min over ${plural(t.ci.runs, 'run')}` : 'not fetched yet'}</span><span>brief ${hhmm(t.startedAt)}${t.servedAt ? ` → served ${hhmm(t.servedAt)}` : ''}</span><span class="sp"></span><button type="button" data-all="${esc(t.id)}">${all ? 'Hide steps' : `Show all ${plural((t.steps || []).length, 'step')}`}</button></div>
-    ${redo}${steps}</div>`;
+    ${redo}${asks}${steps}</div>`;
+}
+// The asks callout: what went up, who answered, how long the cook waited; the ask log's gaps.
+// Nothing when nobody asked anything: a quiet dish needs no note.
+function asksNote(a) {
+  if (!a || (!a.gates && !a.logged)) return '';
+  const n = Math.max(a.gates, a.logged), who = [];
+  if (a.sous) who.push(`${a.sous} the sous answered`);
+  if (a.record) who.push(`${a.record} the record had`);
+  if (a.headChef) who.push(`${a.headChef} reached the head chef`);
+  if (a.open) who.push(`${a.open} still open`);
+  const gaps = Object.entries(a.gaps || {}).map(([k, v]) => `${k} ×${v}`).join(', ');
+  const items = (a.items || []).map((x) => `<div class="ask"><span class="t">${hhmm(x.t)}</span><span class="q">${esc(x.q || '')}</span><span class="what">${esc(x.text || '')}</span><span class="by ${x.answeredAt ? (x.by === 'head chef' ? 'hc' : '') : 'open'}">${x.answeredAt ? `${esc(x.by)} · ${fmtSecs(x.secs)}` : 'unanswered'}</span>${x.commis ? `<span class="commis">commis: ${esc(x.commis)}</span>` : ''}</div>`).join('');
+  return `<div class="asks ${a.headChef ? 'hc' : ''}"><div class="sum">${plural(n, 'question')} went up: ${who.join(', ')}${a.waitedSecs ? `; the cook waited ${fmtSecs(a.waitedSecs)}` : ''}.${gaps ? ` Gaps: ${esc(gaps)}.` : ''}</div>${items}</div>`;
 }
 
 // ---------- sessions ----------

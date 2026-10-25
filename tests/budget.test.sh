@@ -94,6 +94,8 @@ write(path.join(cookDir, 'cook1.jsonl'), [
   peer(0, 'app-sous', '[brief] BKLG-001 Fix the thing. Bug: I sign the plan.'),
   asst(0.5, 'claude-opus-5-5', { in: 100, out: 1000, read: 100000, w1: 50000 }, [send('sous', '[plan] BKLG-001 ready: /x/docs/plans/BKLG-001-fix.md')]),
   peer(2, 'app-sous', '[approved] BKLG-001: /x/docs/plans/BKLG-001-fix.md · sous, per gates.plan_approval.bug'),
+  asst(3, 'claude-opus-5-5', { in: 0, out: 0, read: 0 }, [send('sous', '[gate] BKLG-001 Q1, see journal: retry 3 or 5 times? recommend 3. commis: nothing recorded in decisions, specs, journals')]),
+  peer(4, 'app-sous', '[heard] Q1: 3 times (head chef), because the upstream throttles at 5'),
   asst(5, 'claude-opus-5-5', { in: 100, out: 1000, read: 100000 }, [runnerCall]),
   result(6, runnerCall.id, { toolUseResult: { agentId: 'r1', status: 'done' } }),
   asst(10, 'claude-opus-5-5', { in: 0, out: 2000, read: 200000 }, [send('sous', '[handoff] BKLG-001 ready for the pass')]),
@@ -118,6 +120,9 @@ write(path.join(cookDir, 'cook3.jsonl'), [
   peer(20, 'app-sous', '[brief] BKLG-002 Another thing.'),
   asst(21, 'claude-haiku-5-5', { in: 0, out: 1000000, read: 0 }, [send('sous', '[plan] BKLG-002 ready: /x/docs/plans/BKLG-002.md')]),
   peer(22, 'app-sous', '[approved] BKLG-002: /x/docs/plans/BKLG-002.md · sous'),
+  asst(22.2, 'claude-haiku-5-5', { in: 0, out: 0, read: 0 }, [send('sous', '[gate] BKLG-002 Q1: which helper? commis: fact only')]),
+  asst(22.4, 'claude-haiku-5-5', { in: 0, out: 0, read: 0 }, [send('sous', '[gate] BKLG-002 Q2: rounding? commis: nothing recorded in decisions')]),
+  peer(22.6, 'app-sous', '[heard] Q2: round half up, settled in docs/decisions/003-rounding.md (2026-09-01)'),
   asst(23, 'claude-haiku-5-5', { in: 0, out: 200000, read: 0 }, [red]),
   result(24, red.id, { toolUseResult: { agentId: 'r2', status: 'done' } }),
   asst(25, 'claude-haiku-5-5', { in: 0, out: 400000, read: 0 }, [{ type: 'text', text: 'fixing' }]),
@@ -204,14 +209,15 @@ ok "and prices them at the runners' list rates" has "$OUT" "\(\\\$0.10\)"
 ok "the CI result reaches the ledger" grep -q '"kind":"ci","t":.*"ticket":"BKLG-001","branch":"bklg-001-fix"' "$APP/.claude/budget.jsonl"
 OUT="$("$K" budget)"
 ok "the shift's CI line sums the tickets" has "$OUT" "CI 3 min \(\\\$0.10\)"
-ok "the ticket row carries its CI minutes" has "$OUT" "BKLG-001 .*\\\$4.63 +3m"
+ok "the ticket row carries its asks (asked/to the head chef) and its CI minutes" has "$OUT" "BKLG-001 .*\\\$4.63 +1/1 +3m"
 
 section "the journal line"
 OUT="$("$K" budget --ticket BKLG-001 --journal-line --session app-cook-1)"
 ok "one journal line, dated, for the cook to append" has "$OUT" "^- [0-9]{4}-[0-9]{2}-[0-9]{2} 09:12 · app-cook-1 · cost: \\\$4\.63 · "
+ok "…and the asks: one went to the head chef and waited a minute" has "$OUT" " · asks: 1 \\(1 to the head chef, waited 1m\\)$"
 ok "it carries the tokens, the phases, the helpers and CI" has "$OUT" "tokens \(in 1\.0M, out 5k, cache read 450k, cache write 50k\) · brief→served 42m \(plan 31m, wait 2m, build 8m, pass 1m, ship 1m\) · helpers: runner 1 \(\\\$0\.05\), taster 1 \(\\\$2\.00\) · CI 3 min \(\\\$0\.10\)"
 OUT="$("$K" budget --ticket BKLG-002 --journal-line)"
-ok "a ticket not served yet reads brief→PR, with the phases known so far and no CI" has "$OUT" "^- .* · cook3 · cost: \\\$0\.87 · 1\.7M tokens .* · brief→PR [0-9]+[smh].*\(plan 1m, wait 1m\) · helpers: runner 2 \(\\\$0\.02\)$"
+ok "a ticket not served yet reads brief→PR, with the phases known so far and no CI" has "$OUT" "^- .* · cook3 · cost: \\\$0\.87 · 1\.7M tokens .* · brief→PR [0-9]+[smh].*\(plan 1m, wait 1m\) · helpers: runner 2 \(\\\$0\.02\) · asks: 2 \\(1 from the record, 1 unanswered, waited 12s\\)$"
 ok "an unknown ticket is an error" fails "$K" budget --ticket BKLG-999 --journal-line
 
 section "stages, steps and rework"
@@ -226,6 +232,20 @@ T="$("$K" budget --ticket BKLG-002 --json)"
 ok "rework is what came after the first red runner, up to the green one" [ "$(field "$T" 'b.rework.cost')" = 0.21 ]
 ok "rework counts the reds and says whether it settled" [ "$(field "$T" 'b.rework.reds + "," + b.rework.settled')" = "1,true" ]
 ok "the stage split sums to the ticket" [ "$(field "$T" 'Math.round(Object.values(b.stages).reduce((a,g)=>a+g.cost,0)*10000)/10000 === b.allCost')" = true ]
+
+section "asks"
+ok "two gates on BKLG-002: one answered from the record, one still open" [ "$(field "$T" 'b.asks.gates + "," + b.asks.record + "," + b.asks.open + "," + b.asks.sous')" = "2,1,1,0" ]
+ok "the answer is matched to its question by number, not by order" [ "$(field "$T" 'b.asks.items.map(a=>a.q+":"+(a.by||"-")).join()')" = "Q1:-,Q2:record" ]
+ok "the commis verdict rides in from the gate" [ "$(field "$T" 'b.asks.items.map(a=>a.commis).join()')" = "fact,nothing" ]
+T="$("$K" budget --ticket BKLG-001 --json)"
+ok "a relayed answer counts as the head chef's, with the wait" [ "$(field "$T" 'b.asks.headChef + "," + b.asks.waitedSecs')" = "1,60" ]
+printf -- '# Asks\n\n- A1 · 2026-10-24 09:05 · BKLG-001 · ruling · Q: Which currency?\n- A1 answered · 2026-10-24 09:30 · PKR\n- A2 · 2026-10-24 09:06 · BKLG-001 · access · Q: Staging login?\n' > "$APP/.claude/asks.md"
+T="$("$K" budget --ticket BKLG-001 --json)"
+ok "the ask log adds the sous's own asks about the ticket, with their gaps" [ "$(field "$T" 'b.asks.logged + "," + b.asks.unanswered + "," + b.asks.headChef + "," + JSON.stringify(b.asks.gaps)')" = '2,1,2,{"ruling":1,"access":1}' ]
+OUT="$("$K" budget --ticket BKLG-001)"
+ok "…and the ticket report prints them" has "$OUT" "asks      2 \\(2 to the head chef, waited 1m, gaps: ruling 1, access 1\\)"
+ok "…with each gate, who answered, the wait and the commis verdict" has "$OUT" "09:03 Q1 → head chef, 1m · commis: nothing · BKLG-001 Q1, see journal"
+rm "$APP/.claude/asks.md"
 J="$("$K" budget --json)"
 ok "the shift window starts at the sous's current conversation, today at 08:58" [ "$(field "$J" 'b.windows.shift > b.windows.today && b.windows.week < b.windows.today && new Date(b.windows.shift).getMinutes()')" = 58 ]
 ok "no budget: block means no caps" [ "$(field "$J" 'Object.keys(b.caps).length')" = 0 ]
