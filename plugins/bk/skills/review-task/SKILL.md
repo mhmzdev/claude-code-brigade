@@ -90,7 +90,7 @@ Start from `${CLAUDE_SKILL_DIR}/../../templates/checklist.md`. Write outcomes, n
 
   **The last act before the message is `kitchen.sh check`**, after the journal entry, the checklist, its INDEX row and the rail move, so its receipt names the tree the taster will read. A write after it (even one line in the journal) moves the tree and the taster reports no receipt.
 
-  **Do not commit anything before the sous replies `[go]`.** A `[findings]` reply means fix, re-run this skill, and hand off again. The sous tastes it through the `taster` sub-agent, which re-reads your diff and reads that receipt with `kitchen.sh check --receipt` (it does not run the check; no receipt or a stale one for the exact tree blocks the pass, and a red one is a finding). That's the pass, and it's the sous's job, not a sign of distrust.
+  **Do not commit anything before the sous replies `[go]`** (it comes with the grant; before it the guard refuses a commit). A `[findings]` reply means fix, re-run this skill, and hand off again. The sous tastes it through the `taster` sub-agent, which re-reads your diff and reads that receipt with `kitchen.sh check --receipt` (it does not run the check; no receipt or a stale one for the exact tree blocks the pass, and a red one is a finding). That's the pass, and it's the sous's job, not a sign of distrust.
 
 ## Hard rules
 
@@ -99,4 +99,4 @@ Start from `${CLAUDE_SKILL_DIR}/../../templates/checklist.md`. Write outcomes, n
 - `[!]` means not done. Report it at the top; don't bury it.
 - Every `file:line` and test name was read in this run. No invented references.
 - This skill writes only the checklist, its INDEX row (by `kitchen.sh index`), and (solo/sous only) the rail. It never touches code, git history or another station.
-- A cook never commits, pushes or edits a ticket file from this skill.
+- A cook never commits, pushes or edits a ticket file from this skill (it holds no grant before `[go]`).

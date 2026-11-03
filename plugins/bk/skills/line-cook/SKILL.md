@@ -174,7 +174,7 @@ lines short; the journal is read by people later, not just by the next session.
    this look right?".
 4. **On `[approved]`** (the sous's own, naming the rule, or the head chef's yes relayed):
    copy it into the journal, then start **`/bk:implement`** yourself. That sign-off authorises every commit you'll make
-   under this plan. It runs straight through, `check` after every phase, with no "go on to
+   under this plan, and the sous's `[go]` grant (step 9) is what lets you make them. It runs straight through, `check` after every phase, with no "go on to
    phase 2?". Run `kitchen.sh rail move <ID> in-progress` when it starts. On `[findings]` instead:
    revise the plan, send `[plan]` again. Nothing but `[approved]` starts the build (unless
    the head chef types `/bk:implement` here themselves; then record it with `kitchen.sh here --note`).
@@ -184,10 +184,14 @@ lines short; the journal is read by people later, not just by the next session.
    **`[handoff]`** to the sous: branch, files changed, `check` result, inspector result,
    checklist path. The last act before it is `kitchen.sh check` (nothing in the tree may change
    between that check and the message: the taster reads its receipt, Contract 8, and journal
-   lines count too, so write them first). **Don't commit.** Wait. (A process you must leave running, and why, goes in
+   lines count too, so write them first). **Don't commit** (you hold no grant yet). Wait. (A process you must leave running, and why, goes in
    your handoff's `Processes` line, not in the message.)
 8. On `[findings]`: fix each numbered item, re-run `kitchen.sh check` (its receipt is the proof, not your word), hand off again.
-9. On `[go]`, end of shift, in this order:
+9. On `[go]`, end of shift, in this order. The `[go]` comes with your **grant**: the sous has
+   run `kitchen.sh grant <station> commit push open-pr`, and `kitchen.sh grant --show` says
+   so. Until then nothing is yours to commit, push or open (Contract 5; the guard refuses it).
+   No grant after a `[go]`, or one missing an action → `[gate] <ID> no grant on record:
+   <action>` (not a question: no commis) and wait.
    1. **`/bk:clean around`**: old mess in the files you touched, drafted as `HYG` tickets for
       the sous (not fixed; your PR stays focused).
    2. **`/bk:handoff`**: the closing section of your journal, including lessons.
@@ -198,7 +202,7 @@ lines short; the journal is read by people later, not just by the next session.
     second ticket on this context. After the merge the sous runs `kitchen.sh done <station>`: it
     deletes your ticket branch (local and origin) and detaches this station at trunk, so don't be
     on that branch or hold unpushed commits you still want; the folder and this session stay.
-    Until the sous says the PR has merged, stay ready: if it says the PR is behind or conflicting, bring trunk in (`git merge origin/<trunk>`), re-run the check, push, and send `[served]` again with the new head.
+    Your grant ends at `[served]`. Until the sous says the PR has merged, stay ready: if it says the PR is behind or conflicting, it grants `commit push` again; bring trunk in (`git merge origin/<trunk>`), re-run the check, push, and send `[served]` again with the new head.
 
 **Being cleared mid-ticket** (e.g. while waiting for `[approved]`) is normal; that one is the head chef's, by hand, since `kitchen.sh clear` refuses an unanswered `[plan]`. When the
 sous or the head chef says so, run `/bk:handoff` first. The next session in this station
@@ -241,7 +245,10 @@ do one or the other.
 - Edit a ticket file or any other rail entry. Ask the sous.
 - Touch another station, or the main checkout.
 - Run a destructive walk-in command without the sous's clearance.
-- Commit before `[go]`, force-push, or push to trunk.
+- Commit, push or open a PR without a grant (`kitchen.sh grant --show` says what you hold; the
+  sous writes it with `[go]`), push to trunk, force-push, `reset --hard`, merge, or write a
+  grant, a receipt (`.claude/check.log`, `procs`, `served`) or anything else the guard keeps
+  for the sous. A refused call is a gate, not a puzzle: no other route.
 - Write a password, code or token anywhere: not in a message, the journal, the plan,
   the checklist, a test, a commit or the PR. Name the account ("walked as `stage-builder`").
   A test that needs one reads it from an environment variable at run time.

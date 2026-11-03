@@ -300,7 +300,8 @@ because only one session (the sous) hands them out. They are zero-padded and nev
 | The register: promoted lessons and handled decisions | `docs/lessons.md` (`docs.lessons`) | — (one row per promoted key or kept answer) |
 | Sous handoff | `.claude/sous-handoff.md`, **gitignored** | — (overwritten each handoff) |
 | Sous's session name | `.claude/sous`, kept out of git (`.git/info/exclude`) | — (written by `kitchen.sh sous --set` when the sous starts) |
-| Check log and output | `.claude/check.log`, `.claude/check.out` in each checkout, kept out of git (`.git/info/exclude`) | — (written only by `kitchen.sh check`: one **receipt** per real run, `<ended> tree=<hash> rc=<n> secs=<n> cmd=<id> start=<started> out=<sha256 of the output> station=<folder, spaces and % encoded as %20 and %25>`, plus ` moved` when the run changed its own tree, then `check=<the config's check: line>` to the end of the line; `kitchen.sh check --receipt [<tree>]` prints the newest one for a tree and exits 0 when it is green and the config's `check:` line is still the one it ran, 1 when there is none, 2 when it is red or stale; a moved line is never a receipt, and a line from before receipts is read by the budget and the Window as a run but is not one; the budget and the Window read the log, and drop a receipt that names another station) |
+| Check log and output | `.claude/check.log`, `.claude/check.out` in each checkout, kept out of git (`.git/info/exclude`) | — (written only by `kitchen.sh check`: one **receipt** per real run, `<ended> tree=<hash> rc=<n> secs=<n> cmd=<id> start=<started> out=<sha256 of the output> station=<folder, spaces and % encoded as %20 and %25>`, plus ` moved` when the run changed its own tree, then `check=<the config's check: line>` to the end of the line; `kitchen.sh check --receipt [<tree>]` prints the newest one for a tree and exits 0 when it is green and the config's `check:` line is still the one it ran, 1 when there is none, 2 when it is red or stale; a moved line is never a receipt, and a line from before receipts is read by the budget and the Window as a run but is not one; the budget and the Window read the log, and drop a receipt that names another station; the guard refuses a cook's Edit or Write on `.claude/check.log`: no model writes a receipt) |
+| Grants | `.claude/grants/<station>` in the main checkout, kept out of git (`.git/info/exclude`) | — (one action per line, `commit`, `push` or `open-pr`; written only by `kitchen.sh grant`, from the main checkout, and removed by `grant <station> --none`, `done` and `clear`; read by `hooks/guard.sh`, which refuses a cook's Edit or Write on it and any Bash command that names the folder) |
 | Research | `docs/research/YYYY-MM-DD-<slug>.md` | — |
 | Brainstorm | `docs/brainstorm/YYYY-MM-DD-<slug>.md` | — |
 | Branch | `<lowercase id>-<slug>` e.g. `bklg-004-fix-login` | — |
@@ -494,7 +495,8 @@ earlier session's work. And when the head chef says they've just cleared a cook,
 outranks a check-in that says spent.
 
 **The sign-off is what starts `/bk:implement`.** It approves the plan and authorises
-every commit made under it (after the sous's pass). No separate "approve?" question exists.
+every commit made under it (a cook commits only after the sous's pass, when `[go]` brings
+its grant, below). No separate "approve?" question exists.
 **Who signs off depends on what the ticket is** (`gates.plan_approval`, Contract 2):
 
 | The ticket | Default signer | Why |
@@ -590,6 +592,23 @@ other skill is model-invocable, or cooks would stall waiting for a human to type
 | Filing a public issue on the plugin repo (`/bk:feedback`) | human, after reading the whole draft | a cook never files: it writes a `lesson(plugin)`, and the sous's handoff brings it to the human |
 | A tool call the cook's permissions refuse (a protected path in auto mode) | human, at the prompt | cook sends `[gate] <ID> edit denied: <path>, …` and waits; the sous tells the head chef which station, and the head chef lifts it **in that cook's terminal**; no session does it for them |
 
+**Every outward action is off by default** (positive authorization). A cook commits, pushes
+and opens a PR only on a **grant** the sous writes: `kitchen.sh grant <station> commit push
+open-pr`, which puts the actions in `<main>/.claude/grants/<station>` (out of git, written
+only from the main checkout, never by a cook). The sous grants all three with its `[go]`, at
+the end of the pass, so nothing is committed before it; takes them away with `grant <station>
+--none` at `[served]`; grants `commit push` again when it asks a cook to bring trunk in after
+the PR is open; and `done` and `clear` take them away too. A cook with no grant for what it
+is about to do sends `[gate] <ID> no grant on record: <action>` (not a question: no commis)
+and waits. `kitchen.sh grant --show` says what a station holds. Some things are refused
+**whatever is granted**: a push to trunk, a force, delete, `--all` or `--mirror` push,
+`reset --hard`, `git clean` with `-x` or `-X`, and `merge`, which is no action a grant can
+name. `hooks/guard.sh` enforces all of it (see "Hooks that back this up"); it is a guardrail
+against a slip, not a wall.
+
+A cook's own `kitchen.sh rail claim` and `move` (Contract 3) run inside the script and need
+no grant: the guard judges the cook's own commands, not what `kitchen.sh` does.
+
 A cook that receives "the chef said go" from the sous for a merge or a deploy **refuses**.
 That is correct. A cook never merges or deploys: the sous merges (`kitchen.sh ship`, or the human with `gates.merge: head-chef`), and the human deploys personally; no message stands in for them.
 
@@ -616,7 +635,7 @@ Keep messages short and typed. The first line is the kind, in brackets:
 | `[hello]` | sous → cook | cook | "I'm the sous, check in": sent at start-up to cooks that were already waiting |
 | `[brief]` | sous → cook | cook | the ticket's absolute path, why it matters, constraints from other stations, the loop. Or a **grilling brief**: the item to grill the head chef on, and where its decisions go |
 | `[check-in]` | cook → sous | **script** (`kitchen.sh here`); **sous** only when the cook is free | station, model, branch, dirty or clean, ticket, whether the session is **fresh or spent** (spent: this conversation itself has served a ticket or held a grilling, so it needs clearing; a session just started or just cleared is fresh, whatever the station's journal or branch says), and **what it's waiting on** (a question id, the plan's sign-off, the pass, a walk-in clearance, a refused edit's lift, or nothing). Mid-ticket, or after a restart, this is `kitchen.sh here`, not a message; the message is for a free cook |
-| `[gate]` | cook → sous | sous | the question, the options, the cook's recommendation, and the commis's result (`commis: nothing recorded in <places>`, `commis: conflict between <a> and <b>`, `commis: blocked on <question file>`, or `commis: precedent in <paths>, but <why it doesn't settle this>`); or the refusal `edit denied: <path>, <the tool's words>` |
+| `[gate]` | cook → sous | sous | the question, the options, the cook's recommendation, and the commis's result (`commis: nothing recorded in <places>`, `commis: conflict between <a> and <b>`, `commis: blocked on <question file>`, or `commis: precedent in <paths>, but <why it doesn't settle this>`); or the refusal `edit denied: <path>, <the tool's words>`, or `no grant on record: <action>` (Contract 5) |
 | `[rail]` | cook → sous | **script** for `claim` and `move` (`kitchen.sh rail`); **sous** for anything else | a rail change request the script cannot make: `fire`, `close`, `link`, `<ID> grilled: …` (a grilling is done), a move a cook may not make, or a `claim` / `move` the script refused (`claim BKLG-004 todo`, `BKLG-004 → rfr`; normally the cook runs `kitchen.sh rail claim` / `move` itself, Contract 3). Also a file for the sous to record in the main checkout, by absolute path: a spec draft, grilling decisions, a brainstorm doc |
 | `[walk-in]` | cook → sous | sous | "about to run `<command>` on `<resource>`, OK?" |
 | `[status]` | anyone | **script** (`kitchen.sh here --note`) | a state change that needs no answer: "the head chef told me directly to …", "implement started (signed off)", a lane-C counter before/after. A cook writes it with `kitchen.sh here --note "…"`; only the sous's own broadcast to the cooks (`[status] sous restarting`) is still a message |
@@ -624,8 +643,8 @@ Keep messages short and typed. The first line is the kind, in brackets:
 | `[findings]` | sous → cook | cook | numbered items, each with file and why (for an unregistered process: the station, the pid and the scan's line) |
 | `[plan]` | cook → sous | sous | the plan is ready for the sign-off: its absolute path, its protected paths, if any, and `changes the ticket: <n>` when its `## Decisions → Changes the ticket` is not "None". The cook waits for `[approved]` or `[findings]` |
 | `[approved]` | sous → cook | cook | the sign-off: start `/bk:implement`. Either the sous's own, naming its rule (`[approved] <ID>: <path> · sous, per gates.plan_approval.<kind>`), or the head chef's yes in their words with the reason it was theirs (`[approved] <ID>: <path> · head chef: "<words>" · why: <feature | migration | walk-in | production write | protected path | changes the ticket | precedent fork | config | every plan>` (`precedent fork`: a precedent plan departing from its precedent; `config`: `gates.plan_approval` sends that kind to the head chef; `every plan`: they asked to see them all); the debrief's `over-ask` rule counts a head chef `[approved]` with no `why:` against the sous). A feature plan only ever gets the second |
-| `[go]` | sous → cook | cook | commit approval after the pass |
-| `[served]` | cook → sous | sous | the PR is open: its URL |
+| `[go]` | sous → cook | cook | commit approval after the pass. The sous runs `kitchen.sh grant <station> commit push open-pr` first, so the guard lets the cook commit, push and open the PR |
+| `[served]` | cook → sous | sous | the PR is open: its URL. The sous then runs `kitchen.sh grant <station> --none` |
 | `[heard]` | anyone | cook (an answer); a cook sends none for a script kind | acknowledgement, one line; also the sous's **answer** to a `[gate]`: its own (`[heard] Q3: <answer>, because …`, copied in as `A3 (sous)`), from the record (`[heard] Q3: <answer>, settled in <path> (<date>)`, copied in as `A3 (sous)` with the source), or relayed (`[heard] Q3: <answer> (head chef), because …`, copied in as `A3 (head chef)`, the tag the record is built from) |
 
 **Route** says who is woken. A message to the sous costs the sous a whole turn, the kitchen's most
@@ -668,7 +687,8 @@ database, a docker stack, a fixed port.
 **Processes.** The kitchen manages the processes it started, and only those (the head chef's
 rule). A cook registers every process it starts that outlives the tool call (a `&` or `nohup`
 job, a dev server, a watcher, `make up`, a tunnel, a background poll) the moment it starts:
-`kitchen.sh procs --add <pid> "<what>"`, writing `<station>/.claude/procs` (out of git) with
+`kitchen.sh procs --add <pid> "<what>"`, writing `<station>/.claude/procs` (out of git, and
+refused to a cook's Edit or Write by the guard: only the script writes it) with
 the pid, start time, command line, purpose and ticket. It registers the process that actually
 holds the port or the CPU (the server itself, not only the `npm` or `make` wrapper), stops its
 own before `[handoff]`, and lists any it must leave running, and why, in its handoff's
@@ -740,8 +760,7 @@ receipt for the exact tree is green, not when a session says so. The taster read
 a stale one (the config's `check:` line changed since), is not reviewable (the taster says
 `blocked`), a red receipt is a finding, and `open-pr` pushes none of the three. The journal, checklist and INDEX are inside the hashed tree, so the cook runs
 `kitchen.sh check` after its last write and before `[handoff]`. Only the script writes a
-receipt; until a guard refuses an Edit or Write on `.claude/check.log`, that is a rule,
-not a lock.
+receipt, and the guard refuses a cook's Edit or Write on `.claude/check.log`.
 
 **A station's own changes** are the diff from its merge base with trunk, never from trunk's
 tip: `BASE=$(git merge-base HEAD origin/<trunk>)`, then `git diff "$BASE"` (tracked files,
@@ -1050,9 +1069,16 @@ grilling is under way (`.claude/grilling` exists in the station and was touched 
 four hours: `grill-me` and `brainstorm` write it when they start there, touch it before
 each round so the cap measures idle time, and remove it when they finish; `kitchen.sh
 setup` keeps it out of the station's git status), and a `[gate]`
-carrying a numbered question is refused when it names no commis result. Both are
-guardrails against a slip, not a wall; both stay out of the way in a repo with no
-`.claude/brigade.md` and in the main checkout.
+carrying a numbered question is refused when it names no commis result. It also enforces
+Contract 5's grant rule on a cook's Bash commands (`git commit`, `git push`, `gh pr create`
+and the commands that make a commit; what is refused whatever is granted) and keeps a cook's
+Edit and Write off the grants and the receipts a script writes (`.claude/check.log`,
+`procs`, `served`). It judges the word that runs: quoted text and heredoc bodies are not commands (`git grep "git
+push"` and a commit message that names `git push` pass), the script after `sh -c`, `$( )` and
+backticks in double quotes are read, and a route it does not see (`gh api`, a script file
+that pushes) passes. All of it is a guardrail
+against a slip, not a wall, and stays out of the way in a repo with no `.claude/brigade.md`
+and in the main checkout.
 
 ## The skills
 

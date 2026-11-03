@@ -252,12 +252,16 @@ If you do type in a cook's terminal, the cook does as told and records it in one
    the check after each, without "continue?" questions.
 6. `/bk:clean check` (the inspector reads the diff), then `/bk:review-task` (the acceptance
    checklist). Status goes to `rfr`.
-7. The cook sends `[handoff]` and **does not commit**. This is **the pass**: the sous
+7. The cook sends `[handoff]` and **does not commit**: a cook holds no grant to commit, push
+   or open a PR, and the plugin's hook refuses all three. This is **the pass**: the sous
    spawns the taster, questions its verdict, checks across stations, and sends `[findings]`
-   or `[go]`.
+   or `[go]`. Before `[go]` it runs `kitchen.sh grant station-N commit push open-pr`: the
+   grant is a file only the sous writes, and the only thing that lets the cook through.
 8. On `[go]`: `/bk:clean around` (old mess nearby, drafted as hygiene tickets),
    `/bk:handoff` (the journal's closing section), `/bk:open-pr`. The cook sends `[served]`
-   with the PR link.
+   with the PR link, and the sous takes the grant away (`kitchen.sh grant station-N --none`;
+   it gives `commit push` back only if it asks the cook to bring trunk in). A push to trunk,
+   a force push and a merge are never granted: the sous merges.
 9. The sous merges (`kitchen.sh ship`, once CI is green and the PR is up to date) and closes the ticket. Then it puts the station back on trunk (`kitchen.sh done station-N`: detaches it and deletes the merged ticket branch), reaps what the cook left running (`kitchen.sh procs --reap station-N`: only the processes the cook registered, never a session or a system process) and clears the cook's session (`kitchen.sh clear`) before its next
    ticket: one ticket per session.
 
@@ -435,9 +439,11 @@ reaches you.
   of thing in two or more places and the record says why, "how do we add the third" is
   settled; the commis reports the instances, and a cook follows them. It never settles
   *whether*: the first of its kind is yours.
-- **Two hooks back it up.** In a station, a dialog to the human is refused (unless a
-  grilling is under way), and a question sent up without the commis's result is refused.
-  Guardrails against a slip, not walls.
+- **The hooks back it up.** In a station, a dialog to the human is refused (unless a
+  grilling is under way), a question sent up without the commis's result is refused, a
+  `git commit`, `git push` or `gh pr create` is refused unless the sous has granted it (a
+  push to trunk, a force push and `gh pr merge` never are), and a cook cannot write its
+  grant or a receipt (`.claude/check.log`, `procs`). Guardrails against a slip, not walls.
 - **Grillings are the exception.** There you answer in the moment; settled questions are
   shown, not asked.
 

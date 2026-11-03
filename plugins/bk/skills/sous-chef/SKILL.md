@@ -497,10 +497,14 @@ what fills a sous's context fastest, so **the taster does the reading**:
    (`kitchen.sh files`) and another cook's overlapping work (`kitchen.sh scope --overlap`).
 5. Findings go back as `[findings]`: numbered, each with file and why. A `blocked` verdict for
    no or a stale receipt goes back the same way: the cook runs `kitchen.sh check` as its last act and
-   hands off again; you do not run it for the cook. When clean, send
-   `[go]`. That is the commit approval.
+   hands off again; you do not run it for the cook. When clean, **grant, then send `[go]`**:
+   `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" grant station-N commit push open-pr`, then
+   `[go]`. That is the commit approval, and the grant is what lets the cook's `git commit`,
+   `git push` and `gh pr create` past the guard (Contract 5); until it is written the cook
+   can do none of them. `merge` is never granted: you ship.
 
-**After the PR opens** (the cook's `[served]` message): the branch includes current trunk (`git -C <station> log --oneline
+**After the PR opens** (the cook's `[served]` message): take the grant back first,
+`kitchen.sh grant station-N --none`; then the branch includes current trunk (`git -C <station> log --oneline
 origin/<trunk> ^HEAD` is empty), and the file list matches what you passed. Then post the
 LGTM as a PR comment: verdict, "Done when" walk, what you verified yourself, deploy
 prerequisites. The journal is the one file allowed to differ
@@ -530,7 +534,8 @@ One cook, one ticket, one shift. When a cook's PR is open and LGTM'd:
    context), then `kitchen.sh ship <N>`. It merges only an open, non-draft PR against trunk
    that is mergeable, up to date and green on every check, and otherwise refuses naming the
    condition. Skip it when the head chef has said to hold that PR: a hold is theirs to lift. A refusal is an instruction, never a question for the head chef: behind or
-   conflicting → the cook brings trunk in and pushes, you re-verify the head; red → send
+   conflicting → grant that cook `commit push` again (`kitchen.sh grant station-N commit push`),
+   it brings trunk in and pushes, you take the grant away again and re-verify the head; red → send
    `[findings]`; blocked by a protection rule → tell the head chef in one line. Trunk red
    after your merge → fire a `bug` ticket and brief a cook at once: a kitchen that merges
    often fixes often. With `gates.merge: head-chef`, tell the head chef the PR is up and

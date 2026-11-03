@@ -215,7 +215,7 @@ This repo can run several Claude Code sessions at once. Config: `.claude/brigade
 - **The rail is the claim.** A ticket not in `backlog` or `blocked` belongs to someone.
   Cooks ask the sous to change a ticket, bar claiming and moving their own briefed ticket with `kitchen.sh rail claim` / `move`; they never edit ticket files.
 - **Ask before touching the walk-in** (`walk_in:` in the config). One migration in flight at a time.
-- **One ticket per session.** Pull trunk into your branch before opening a PR, and re-run the check.
+- **One ticket per session.** Pull trunk into your branch before opening a PR, and re-run the check. (A line cook does it once the sous has granted `commit push` with its `[go]`.)
 - Stashes are shared between stations, so stash with `-m "<station>: …"` and apply only your own;
   remove stations with `kitchen.sh remove`, never `rm -rf`.
 ```

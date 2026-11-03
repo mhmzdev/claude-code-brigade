@@ -13,7 +13,7 @@ Honour the plugin contract: the `README.md` in this skill's parent folder, `${CL
 
 Position: `… → review-task → **open-pr**`. For lane C it follows the pass (cook) or `implement` (solo).
 
-**Line cook:** run this only after the sous has sent `[go]` for this ticket, and after `/bk:clean around` and `/bk:handoff`. No `[go]` recorded in the ticket's journal → stop and send `[handoff]` via `/bk:review-task` instead.
+**Line cook:** run this only after the sous has sent `[go]` for this ticket, and after `/bk:clean around` and `/bk:handoff`. No `[go]` recorded in the ticket's journal → stop and send `[handoff]` via `/bk:review-task` instead. **First step: check the grant** (Contract 5): `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" grant --show` must list `commit`, `push` and `open-pr`. One missing → stop and send `[gate] <ID> no grant on record: <action>` (not a question: no commis), then wait: the guard refuses the commit, the push and `gh pr create` without it, and there is no other route to try.
 
 **Invoking this skill is the go** (Contract 5): commit, bring trunk in, re-check, push and
 open the PR without asking again. It stops only for what's listed under "Stop and ask only
@@ -69,7 +69,7 @@ Stage only the ticket's files: the ones in the diff that the plan, the ticket's 
 
 **Leak check before the commit, and again before the push** (Contract 2): `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" leaks`, the second time with `--also <the PR body file>`. It prints `file:line` for any test-account secret that reached a file, a commit message or the PR body. A non-zero exit → stop, remove it (name the account instead), and run it again; a cook then sends `[handoff]` again if the fix changed anything but the journal.
 
-Commit message: `[<ID>] <imperative summary>`, then a short body of why. Keep the repo's attribution trailer if its history uses one.
+Commit message: `[<ID>] <imperative summary>`, then a short body of why. Keep the repo's attribution trailer if its history uses one. Write it to a file and commit with `git commit -F <file>`, as the PR body goes in with `--body-file`: the guard reads a command line, and a long message in quotes is more to get wrong.
 
 ## 4 — Bring trunk in and re-check
 
@@ -162,7 +162,8 @@ The PR URL, title, base, created or updated, every Deploy prerequisite repeated 
 
 ## Never
 
-- `git push --force` in any form, a push to trunk, `reset --hard`, a stash without `-u`.
+- `git push --force` in any form, a push to trunk, `reset --hard`, a stash without `-u`, `gh pr merge`.
+- A way round a refusal from the guard. Send the `[gate]`.
 - A second PR for a branch that already has one open.
 - An approval-sounding line ("LGTM", "ready to merge"). That's the reviewer's call.
 - A board or rail change from here. `review-task` owns `rfr`; the merge owns `done`.

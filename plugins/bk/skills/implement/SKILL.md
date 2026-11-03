@@ -13,7 +13,7 @@ Honour the plugin contract: the `README.md` in this skill's parent folder, `${CL
 
 You're executing a plan, and **the sign-off is what starts it** (Contract 5): the head
 chef's for a feature, the sous's own for a bug, chore, precedent or hygiene ticket.
-That sign-off approves the plan and every commit under it. The sign-off check below makes
+That sign-off approves the plan and every commit under it (a cook's commits wait for the sous's `[go]` and its grant). The sign-off check below makes
 sure it's really there, because this skill can be started by a model as well as typed. **Follow the plan, don't redesign it.** Every line you write matches the repo's live conventions.
 
 **Where it sits:** `create-plan` → **`implement`** → `clean check` → `review-task` → the pass → `open-pr`. Lane C: `pick-ticket` → **`implement`** → `clean check` → the pass → `open-pr`.
@@ -116,7 +116,7 @@ List the manual criteria from every phase as one numbered checklist. In a statio
 
 1. Set the plan's `status: done` (implementation finished; merge is tracked on the rail, not here). Its INDEX row has no status, so there is nothing to update there.
 2. Leave the rail at `in-progress`. `review-task` moves it to `rfr`.
-3. **Stop your own processes** (`kill <pid>`, then `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" procs --prune`) and note any that must stay up in the handoff's `Processes` line. Then **don't commit.** Commits happen in `open-pr`: after the sous's pass in a station, or when the human runs `/bk:open-pr` solo (running it is the yes).
+3. **Stop your own processes** (`kill <pid>`, then `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" procs --prune`) and note any that must stay up in the handoff's `Processes` line. Then **don't commit.** Commits happen in `open-pr`: after the sous's pass in a station (its `[go]` brings the grant that lets the cook commit), or when the human runs `/bk:open-pr` solo (running it is the yes).
 4. Hand off: lanes A/B → `/bk:review-task <plan>`. It's not optional for a feature. Never auto-chain; say it and stop (a cook continues by itself: `/bk:clean check`, then `/bk:review-task`).
 
 ## Lane C — hygiene tickets
@@ -139,5 +139,5 @@ Hygiene tickets skip the plan and the checklist (Contract 9). The ticket body **
 - Don't run a destructive walk-in command without the sous clearing it.
 - Don't write the rail from a cook session, except your own briefed ticket's moves (`kitchen.sh rail move`). Ask the sous for the rest.
 - Don't route around a refused edit. It's a gate.
-- Don't commit, push or open a PR here. Never `reset --hard` or force-push.
+- Don't commit, push or open a PR here: a cook holds no grant yet (Contract 5) and the guard refuses all three. Never `reset --hard` or force-push.
 - Don't claim a criterion passed that you didn't run.
