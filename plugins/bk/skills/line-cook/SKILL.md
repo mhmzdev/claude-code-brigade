@@ -137,8 +137,10 @@ they say, and send the sous one `[status]` line saying what they told you.
 ## The journal
 
 Your ticket's journal, `<docs.journal>/<ID>-<slug>.md`, is yours alone (Contract 11). Create
-it from `${CLAUDE_SKILL_DIR}/../../templates/journal.md` when you start the ticket, and append
-a line for everything that would be lost if this session were cleared:
+it from `${CLAUDE_SKILL_DIR}/../../templates/journal.md` when you start the ticket, with `ticket:` and
+`title:` filled in, then run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" index` for its row in
+`<docs.journal>/INDEX.md` (never type one, Contract 12; if it says that INDEX is hand-written, add the
+row by hand). Then append a line for everything that would be lost if this session were cleared:
 
 - **every question** you send, numbered (`Q1`, `Q2`), with its options, your
   recommendation and its `commis:` line, and **every answer** as `An`: `An (commis): …,

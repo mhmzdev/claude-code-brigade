@@ -14,7 +14,7 @@ this file explains it. A folder under `docs/` that no row names is reported by
 | spec | `docs/specs/` (`specs`) | `/bk:spec` | `id, title, status, brainstorm, backlog, created` | the WHAT/WHY contract for a feature; its tickets live in a sub-folder |
 | ticket | `docs/backlog/` (`backlog`), and a spec's sub-folder | the sous, through `/bk:rail` | `id, title, lane, status, cook, kind, spec, priority, blocked_by, files, created` | one unit of work; the rail |
 | plan | `docs/plans/` (`plans`) | `/bk:create-plan`, in a station | `ticket, title, lane, status, open_questions, migration, files, created` | how one ticket gets built, phase by phase |
-| checklist | `docs/checklists/` (`checklists`) | `/bk:review-task`, in a station | `ticket, plan, last_verified` | the acceptance checklist with evidence per criterion |
+| checklist | `docs/checklists/` (`checklists`) | `/bk:review-task`, in a station | `ticket, plan, title, last_verified` | the acceptance checklist with evidence per criterion |
 | journal | `docs/journal/` (`journal`) | the ticket's cook, only | `ticket, title, station, created` | the story of one ticket: questions, answers, findings, handoffs, lessons |
 | brainstorm | `docs/brainstorm/` (`brainstorm`) | `/bk:brainstorm` | `slug, status, research, created` | what to build and why, before a spec |
 | research | `docs/research/` (`research`) | research sub-agents | `title, date` | findings worth keeping, dated; they expire |
@@ -23,7 +23,7 @@ this file explains it. A folder under `docs/` that no row names is reported by
 | knowledge | `docs/domains/` (`knowledge`) | the sous, or a human | `type, title, covers, last_verified` | how the product works, by area |
 | question | `docs/questions/` (`questions`) | the sous | `type, title, status, asked, blocks, source, answered` | a question nobody has answered yet, and its answer once given |
 | register | `docs/lessons.md` (`lessons`) | the sous, at handoff | — | one table: promoted lessons and handled decisions |
-| index | any folder's `INDEX.md` | the skill that adds a file | — | one row per file in that folder |
+| index | any folder's `INDEX.md` | `kitchen.sh index` for plans, journals and checklists (generated from `title`, `ticket`); the skill that adds a file for the rest | — | one row per file in that folder |
 
 **Writers.** "The sous" means the lead session in the main checkout, or a human working
 alone; a cook writes only in its station. "Recording the head chef's words" means the words

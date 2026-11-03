@@ -1,5 +1,6 @@
 ---
 ticket: <ID>
+title: <one line, same as the plan's>
 plan: docs/plans/<ID>-<slug>.md
 last_verified: YYYY-MM-DD
 ---
