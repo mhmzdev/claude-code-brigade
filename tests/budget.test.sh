@@ -65,14 +65,14 @@ git -C "$APP" add -A; git -C "$APP" commit -qm init
 slug() { printf '%s' "$1" | sed 's/[^A-Za-z0-9]/-/g'; }
 SOUS_DIR="$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APP" && pwd -P)")"
 COOK_DIR="$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APP/stations/station-1" && pwd -P)")"
-mkdir -p "$SOUS_DIR/sous1/subagents" "$COOK_DIR/cook1/subagents" "$COOK_DIR/cook2" "$COOK_DIR/cook3/subagents" "$COOK_DIR/cook4/subagents"
+mkdir -p "$SOUS_DIR/sous1/subagents" "$COOK_DIR/cook1/subagents" "$COOK_DIR/cook2" "$COOK_DIR/cook3/subagents" "$COOK_DIR/cook4/subagents" "$COOK_DIR/cook6/subagents"
 
 # ---------- the transcripts ----------
 # Written by node so the timestamps are today's. T0 = 09:00 local today; everything is
 # minutes after it. One API turn is written as two lines sharing a message id, as Claude Code does.
-node - "$SOUS_DIR" "$COOK_DIR" <<'EOF'
+node - "$SOUS_DIR" "$COOK_DIR" "$APP/stations/station-1" <<'EOF'
 const fs = require('fs'), path = require('path');
-const [sousDir, cookDir] = process.argv.slice(2);
+const [sousDir, cookDir, stationDir] = process.argv.slice(2);
 const d = new Date(); d.setHours(9, 0, 0, 0); const T0 = d.getTime();
 const at = (min) => new Date(T0 + min * 60000).toISOString();
 let n = 0;
@@ -125,6 +125,29 @@ write(path.join(cookDir, 'cook5.jsonl'), [
   asst(61, 'claude-sonnet-5-5', { in: 0, out: 1000, read: 1000 }, [send('sous', '[plan] BKLG-004 ready: /x/docs/plans/BKLG-004.md')]),
   peer(62, 'app-sous', '[approved] BKLG-004: /x/docs/plans/BKLG-004.md · head chef: "Approve"'),
 ]);
+// A sixth cook conversation on BKLG-005, served before the others begin: three runners that read as red
+// (the old reading would count three reds), but the station's check.log holds the real runs inside its span:
+// two red, one green that moved the tree. The log wins where it has lines, so two reds and no finding.
+const c1 = agent('runner', 'check 1'), c2 = agent('runner', 'check 2'), c3 = agent('runner', 'check 3');
+const c6 = [c1, c2, c3];
+write(path.join(cookDir, 'cook6.jsonl'), [
+  peer(-60, 'app-sous', '[brief] BKLG-005 A log thing.'),
+  peer(-59, 'app-sous', '[approved] BKLG-005: /x/docs/plans/BKLG-005.md · sous'),
+  ...c6.flatMap((c, i) => [asst(-58 + i, 'claude-sonnet-5-5', { in: 0, out: 10, read: 0 }, [c]), result(-57.5 + i, c.id, { toolUseResult: { agentId: `c${i + 1}`, status: 'done' } })]),
+  asst(-48, 'claude-sonnet-5-5', { in: 0, out: 10, read: 0 }, [send('sous', '[served] https://example.test/pr/9')]),
+]);
+c6.forEach((c, i) => write(path.join(cookDir, 'cook6', 'subagents', `agent-c${i + 1}.jsonl`), [
+  { type: 'user', isSidechain: true, agentId: `c${i + 1}`, timestamp: at(-57.9 + i), message: { role: 'user', content: 'run the check' } },
+  asst(-57.6 + i, 'claude-haiku-5-5', { in: 0, out: 10, read: 0 }, [{ type: 'text', text: 'FAIL' }]),
+]));
+const iso = (min) => new Date(T0 + min * 60000).toISOString().replace(/\.\d+Z$/, 'Z');
+fs.mkdirSync(path.join(stationDir, '.claude'), { recursive: true });
+fs.writeFileSync(path.join(stationDir, '.claude', 'check.log'), [
+  `${iso(-55)} tree=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa rc=1 secs=40 cmd=0123456789ab`,
+  `${iso(-53)} tree=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb rc=1 secs=41 cmd=0123456789ab`,
+  `${iso(-51)} tree=cccccccccccccccccccccccccccccccccccccccc rc=0 secs=42 cmd=0123456789ab moved`,
+  'a line that is not a run',
+].join('\n') + '\n');
 // The runner, a Haiku sub-agent of the first cook conversation.
 write(path.join(cookDir, 'cook1', 'subagents', 'agent-r1.jsonl'), [
   { type: 'user', isSidechain: true, agentId: 'r1', timestamp: at(5.1), message: { role: 'user', content: 'run the check' } },
@@ -224,7 +247,7 @@ ok "a session carries its model's price table, for the Window's cost rows" [ "$(
 ok "an unpriced model counts its tokens and costs nothing" [ "$(field "$J" 'b.sessions.find(s=>s.id==="sous1").priced')" = false ]
 ok "the sous conversation's priced turns still add up" [ "$(field "$J" 'b.sessions.find(s=>s.id==="sous1").cost')" = 0.04 ]
 ok "the shift sums every session and helper of the kitchen" [ "$(field "$J" 'b.shift.cost')" = "$(field "$J" 'Math.round(b.sessions.filter(s=>s.role!=="head chef").reduce((a,s)=>a+s.allCost,0)*10000)/10000')" ]
-ok "per actor: station-1 today spans five conversations" [ "$(field "$J" 'b.actors["station-1"].sessions')" = 5 ]
+ok "per actor: station-1 today spans six conversations" [ "$(field "$J" 'b.actors["station-1"].sessions')" = 6 ]
 ok "the unknown model is reported" [ "$(field "$J" 'b.unknownModels.join()')" = claude-mystery-9 ]
 
 section "the head chef"
@@ -273,7 +296,7 @@ ok "the ticket report reads top-down" has "$OUT" "^BKLG-001  served · station-1
 section "the ledger"
 ok "a served ticket is written to .claude/budget.jsonl" grep -q '"kind":"ticket","t":.*"id":"BKLG-001"' "$APP/.claude/budget.jsonl"
 ok "the ledger is kept out of git" git -C "$APP" check-ignore -q .claude/budget.jsonl
-ok "it is written once, not on every run" [ "$(grep -c '"kind":"ticket"' "$APP/.claude/budget.jsonl")" = 1 ]
+ok "each served ticket is written once, not on every run (BKLG-001 and the check-log ticket BKLG-005)" [ "$(grep -c '"kind":"ticket"' "$APP/.claude/budget.jsonl")" = 2 ]
 mv "$COOK_DIR" "$COOK_DIR.gone"
 OUT="$("$K" budget --ticket BKLG-001)"
 ok "a ticket whose transcripts are gone is still reported from the ledger" has "$OUT" "^BKLG-001  served · station-1"
@@ -297,6 +320,14 @@ ok "it carries the tokens, the phases, the helpers and CI" has "$OUT" "tokens \(
 OUT="$("$K" budget --ticket BKLG-002 --journal-line)"
 ok "a ticket not served yet reads brief→PR, with the phases known so far and no CI" has "$OUT" "^- .* · cook3 · cost: \\\$0\.87 · 1\.7M tokens .* · brief→PR [0-9]+[smh].*\(plan 1m, wait 1m\) · helpers: runner 2 \(\\\$0\.02\) · asks: 2 \\(1 from the record, 1 unanswered, waited 12s\\)$"
 ok "an unknown ticket is an error" fails "$K" budget --ticket BKLG-999 --journal-line
+
+section "the check log"
+BJ="$("$K" budget --json)"
+ok "a ticket with check.log lines in its span counts the log's runs, not the runners' replies" [ "$(field "$BJ" 'JSON.stringify(b.tickets.find(t=>t.id==="BKLG-005").checks)')" = '{"source":"log","runs":3,"reds":2}' ]
+ok "…and the log's runs are its check steps" [ "$(field "$BJ" 'b.tickets.find(t=>t.id==="BKLG-005").steps.filter(s=>s.kind==="check").map(s=>s.ok+(s.note?":"+s.note:"")).join()')" = "false,false,true:moved" ]
+ok "a ticket with no log lines still reads its runners" [ "$(field "$BJ" 'JSON.stringify(b.tickets.find(t=>t.id==="BKLG-003").checks)')" = '{"source":"runner","runs":3,"reds":3}' ]
+ok "a junk line in the log is ignored" [ "$(field "$BJ" 'b.tickets.find(t=>t.id==="BKLG-005").checks.runs')" = 3 ]
+ok "two red log runs are not a check-red-repeat finding even with three red-reading runners" bash -c '! "$1" debrief | grep -q "BKLG-005: .*red runs"' _ "$K"
 
 section "the debrief"
 OUT="$("$K" debrief)"

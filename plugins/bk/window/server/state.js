@@ -15,7 +15,7 @@ export function createState(kitchen) {
     rail: { backlog: [], todo: [], 'in-progress': [], rfr: [], done: [] },
     log: [],                            // last messages between sessions
     record: { total: 0, kinds: {} },    // what the kitchen remembers: pages per docs kind
-    check: { history: [], runs: 0, failed: 0, last: null },   // the runner's results this shift: { ok, secs, who, note, at }
+    check: { history: [], runs: 0, failed: 0, last: null, source: 'runner' },   // the check's results this shift: { ok, secs, who, note, at }. source: the runners' replies, until a station's check.log has a line; then the log (kitchen.sh check) alone
     budget: null,                       // what the shift spends (live/budget.js compute()): shift, sessions, tickets, actors
     updatedAt: Date.now(),
   };
@@ -43,6 +43,13 @@ export function createState(kitchen) {
     snapshot() { return state; },
 
     setKitchen(patch) { Object.assign(state.kitchen, patch); touch(); },
+    // One check result: { ok, secs, who, note, at }. fromLog marks the check.log as the source from now on.
+    checkResult(r, { fromLog = false } = {}) {
+      const c = state.check; if (fromLog) c.source = 'log';
+      c.history.push(r); if (c.history.length > 10) c.history.splice(0, c.history.length - 10);
+      c.runs++; if (r.ok === false) c.failed++; c.last = r;
+      emit('check', r); touch();
+    },
     setRecord(r) { state.record = { total: r.total || 0, kinds: r.kinds || {} }; touch(); },
     setBudget(b) { state.budget = b; touch(); },
 
@@ -99,12 +106,11 @@ export function createState(kitchen) {
       if (i < 0) return;
       const [h] = state.helpers.splice(i, 1);
       // A runner's reply is a check result: pass or fail read from its words, else unknown.
-      if (h.kind === 'runner') {
+      // Once the log has spoken, a runner's reply is not a check result (it may have run something else, or run
+      // kitchen.sh check, whose run the log already holds).
+      if (h.kind === 'runner' && state.check.source !== 'log') {
         const v = String(verdict || ''), ok = /\b(fail|failed|failing|error|errors|red|not ok|✕|✗)\b/i.test(v) ? false : /\b(pass|passed|passing|ok|green|clean|✓|success)\b/i.test(v) ? true : null;
-        const r = { ok, secs: Math.max(1, Math.round((Date.now() - h.since) / 1000)), who: h.from, note: h.note, at: Date.now() };
-        const c = state.check; c.history.push(r); if (c.history.length > 10) c.history.splice(0, c.history.length - 10);
-        c.runs++; if (ok === false) c.failed++; c.last = r;
-        emit('check', r);
+        api.checkResult({ ok, secs: Math.max(1, Math.round((Date.now() - h.since) / 1000)), who: h.from, note: h.note, at: Date.now() });
       }
       emit('helper:end', { ...h, verdict });
       touch();

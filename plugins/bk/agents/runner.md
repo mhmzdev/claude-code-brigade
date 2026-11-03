@@ -1,6 +1,6 @@
 ---
 name: runner
-description: The Brigade's runner — runs one noisy command (the check, a test suite, a lint, a hygiene counter) for any session and returns only whether it passed plus the lines that matter, so the raw output never enters the caller's context. Never edits or decides anything. Spawned by cooks or the sous (the taster has no Agent tool and runs its commands itself).
+description: The Brigade's runner — runs one noisy command (a test suite, a lint, a hygiene counter) for any session and returns only whether it passed plus the lines that matter, so the raw output never enters the caller's context. Never edits or decides anything. Spawned by cooks or the sous (the taster has no Agent tool and runs its commands itself).
 tools: Bash, Read
 model: haiku
 maxTurns: 8
