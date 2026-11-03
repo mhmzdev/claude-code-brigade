@@ -56,3 +56,12 @@ Counters run over the files this branch touched, after `[go]` (2026-11-03). None
 - lesson(plugin): check-record-paperwork | the journal, plan, checklist and INDEX files sit inside the tree `kitchen.sh check` hashes, so writing them after the last green makes the next call run again; write the paperwork before the check you want recorded, or expect a re-run (filed: #78) | #66
 - **Session:** my shift is over after `[served]`; clear this session before any other ticket. Only the sous merges (the head chef's new rule: once green, mergeable and up to date).
 - 2026-11-03 · station-2 · cost line: `kitchen.sh budget --ticket 66 --journal-line` found no spend recorded for 66 (the budget does not know github ids, lesson budget-github-ids); not a gate, going on.
+
+## Handoff — 2026-11-03 13:45 · claude-code-brigade-cook-2
+
+- **Stage:** served. PR #80 is open (https://github.com/mhmzdev/claude-code-brigade/pull/80, "Closes #66", branch issue-66-check-tree-hash, commit 0c4fe0f, 27 files, pushed with no force). The real check at open-pr: green (ran, 146s), kitchen 344 / guard 27 / bk 82 / budget 92 / window 22 / release v0.32.0; origin/main (3693836) was already in. `[served]` sent; the sous has checked the PR and merges it when CI is green.
+- **Uncommitted:** nothing once this journal section is pushed (it is the one file allowed to change after the pass).
+- **Next step:** none for this ticket. My shift is over; this session is spent and should be cleared before any other ticket.
+- **Pending:** none. The PR's Test plan carries the two `[?]` checklist recipes for whoever walks the next pass.
+- **Follow-ups:** #78 (the paperwork inside the hash) is the sous's; #75 holds the shellcheck notes. Not drafted: the Window's check machine draws only runners in flight, so a `kitchen.sh check` in flight is not drawn.
+- **Lessons:** the two already logged above (`kitchen-tests-fixed-port`, `check-record-paperwork`). Nothing new.
