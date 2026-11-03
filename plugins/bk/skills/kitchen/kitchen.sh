@@ -80,6 +80,13 @@
 #                                         than its last turn and nothing it sent still waits
 #                                         for an answer. Refuses otherwise, saying why.
 #                                         Needs node (reads the session's transcript)
+#   kitchen.sh ship <PR number>           merge that PR, the sous's job when gates.merge is
+#                                         sous-chef (the default): open, not a draft, against
+#                                         trunk, mergeable, up to date, every check green
+#                                         (refuses otherwise, naming the condition), then
+#                                         `gh pr merge --merge` (gates.merge_method: merge |
+#                                         squash | rebase). With gates.merge: head-chef it
+#                                         refuses: the merge is the head chef's there
 #   kitchen.sh lessons                    count lesson(...) lines across ticket journals
 #   kitchen.sh decisions                  every "(head chef)" answer in a journal that no doc
 #                                         under the docs map cites and the register doesn't
@@ -193,6 +200,18 @@ cfg() {
     }' "$CONFIG"
 }
 
+# cfg_gate <key> [default] → gates.<key> from the nested gates: block ("" or the default if absent)
+cfg_gate() {
+  local v=""
+  [[ -f "$CONFIG" ]] && v="$(awk -v k="$1" '
+    NR==1 && $0=="---" { inside=1; next }
+    inside && $0=="---" { exit }
+    inside && /^gates:/ { ing=1; next }
+    ing && /^[^ ]/ { ing=0 }
+    ing && $0 ~ "^  " k ":" { sub("^  " k ":[ ]*", ""); sub(/[ ]+#.*$/, ""); gsub(/^"|"$/, ""); print; exit }' "$CONFIG")"
+  printf '%s' "${v:-${2:-}}"
+}
+
 # cfg_docs <name> → docs.<name> from the nested docs: block, with a default
 cfg_docs() {  # cfg_docs <key> [default] → docs.<key>, else the default, else docs/<key>
   local v=""
@@ -254,6 +273,7 @@ JOURNAL_LINE=false # --journal-line, for budget
 FORCE=false       # --force, for check
 SESSION_NAME=""   # --session, for budget --journal-line
 CLEAR_WHO=""      # station-N | sous, for clear
+SHIP_PR=""        # a PR number, for ship
 CHECK_INDEX=false # --check, for index
 ADOPT=false       # --adopt, for index
 ARGV=()   # set by native_argv
@@ -285,6 +305,7 @@ while [[ $# -gt 0 ]]; do
     --force) FORCE=true; shift ;;
     --session) SESSION_NAME="$2"; shift 2 ;;
     sous|station-*) CLEAR_WHO="$1"; shift ;;
+    [0-9]*|'#'[0-9]*) SHIP_PR="${1#\#}"; shift ;;
     --check) CHECK_INDEX=true; shift ;;
     --adopt) ADOPT=true; shift ;;
     -m|--model) shift
@@ -702,6 +723,7 @@ EOF
 # open
 # ---------------------------------------------------------------------------
 cmd_open() {
+  seed_sous_permissions
   local list=() s i norm bad=()
   while IFS= read -r s; do list+=("$s"); done < <(stations)
   if (( ${#list[@]} == 0 )); then
@@ -1699,6 +1721,70 @@ cmd_clear() {
 }
 
 # ---------------------------------------------------------------------------
+# ship — the sous merges a PR (Contract 5). Once a PR has passed the pass, is green on CI,
+# mergeable and up to date with trunk, merging it is no decision, so `gates.merge:
+# sous-chef` (the default) makes it the sous's: `ship <PR>` checks every one of those through
+# gh and refuses, naming the condition, when one fails (a check still running says so); when
+# they all hold it runs `gh pr merge --merge` (gates.merge_method: merge | squash | rebase)
+# and says which stations are now behind trunk. With `gates.merge: head-chef` it refuses:
+# the merge stays the head chef's in that kitchen. Whether the pass happened is the sous's
+# word, not checked here: the sous runs this only after its LGTM.
+# ---------------------------------------------------------------------------
+cmd_ship() {
+  local n="$SHIP_PR" gate method line state draft base head mergeable mstate checks s pending=0 failed=0 ok=0
+  [[ -n "$n" ]] || { echo "Usage: kitchen.sh ship <PR number>" >&2; return 1; }
+  gate="$(cfg_gate merge sous-chef)"
+  [[ "$gate" == sous-chef ]] || { echo "Not merged: gates.merge is $gate in .claude/brigade.md, so merging #$n is the head chef's." >&2; return 1; }
+  command -v gh >/dev/null 2>&1 || { echo "ship needs the gh CLI on your PATH, logged in." >&2; return 1; }
+  line="$(cd "$ROOT" && gh pr view "$n" --json state,isDraft,baseRefName,headRefName,mergeable,mergeStateStatus,statusCheckRollup \
+    --jq '[.state, (.isDraft|tostring), .baseRefName, .headRefName, .mergeable, .mergeStateStatus, ([.statusCheckRollup[]? | (.conclusion // .status // "PENDING")] | join(","))] | join("|")' 2>/dev/null)" \
+    || { echo "Not merged: gh could not read PR #$n (does it exist, and are you logged in?)." >&2; return 1; }
+  IFS='|' read -r state draft base head mergeable mstate checks <<<"$line"
+  [[ "$state" == OPEN ]] || { echo "Not merged: #$n is $state, not open." >&2; return 1; }
+  [[ "$draft" == false ]] || { echo "Not merged: #$n is a draft." >&2; return 1; }
+  [[ "$base" == "$TRUNK" ]] || { echo "Not merged: #$n targets $base, not $TRUNK." >&2; return 1; }
+  for s in ${checks//,/ }; do
+    case "$s" in SUCCESS|NEUTRAL|SKIPPED) ok=$((ok+1)) ;; FAILURE|CANCELLED|TIMED_OUT|ACTION_REQUIRED|STARTUP_FAILURE|STALE) failed=$((failed+1)) ;; *) pending=$((pending+1)) ;; esac
+  done
+  (( failed == 0 )) || { echo "Not merged: #$n has $failed red check(s) ($checks). Send the cook [findings]." >&2; return 1; }
+  (( pending == 0 )) || { echo "Not merged: #$n has $pending check(s) still running. Wait: gh pr checks $n --watch" >&2; return 1; }
+  [[ "$mergeable" == MERGEABLE ]] || { echo "Not merged: #$n is $mergeable (a conflict with $TRUNK, or GitHub is still computing: try again in a minute). The cook brings $TRUNK in." >&2; return 1; }
+  case "$mstate" in
+    CLEAN|HAS_HOOKS|UNSTABLE) ;;
+    BEHIND) echo "Not merged: #$n ($head) is behind $TRUNK. The cook brings $TRUNK in and pushes." >&2; return 1 ;;
+    BLOCKED) echo "Not merged: #$n is blocked (a required review, a protection rule, or a check GitHub still waits on: gh pr view $n). Not the sous's to override." >&2; return 1 ;;
+    *) echo "Not merged: #$n merge state is $mstate." >&2; return 1 ;;
+  esac
+  method="$(cfg_gate merge_method merge)"
+  case "$method" in merge|squash|rebase) ;; *) echo "Not merged: gates.merge_method is $method; use merge, squash or rebase." >&2; return 1 ;; esac
+  (cd "$ROOT" && gh pr merge "$n" "--$method") || { echo "Not merged: gh pr merge #$n failed (see above)." >&2; return 1; }
+  echo "Merged #$n ($head) into $TRUNK by $method (gates.merge: sous-chef). $TRUNK moved: stations on a branch bring it in before their PR; kitchen.sh status shows who is behind."
+}
+# seed_sous_permissions: the sous runs in a mode that asks before a shell command, and nobody
+# watches its pane for long. When the merge is the sous's, open seeds the main checkout's
+# .claude/settings.local.json (kept out of git) with the gh lines ship uses, once.
+seed_sous_permissions() {
+  local f="$ROOT/.claude/settings.local.json"
+  [[ "$(cfg_gate merge sous-chef)" == sous-chef ]] || return 0
+  if [[ -f "$f" ]]; then
+    grep -q 'gh pr merge' "$f" || echo "  sous: .claude/settings.local.json has no \"Bash(gh pr merge:*)\" allow line; kitchen.sh ship will ask in the sous's pane until you add one."
+    return 0
+  fi
+  mkdir -p "$ROOT/.claude"
+  cat > "$f" <<'EOF'
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr view:*)", "Bash(gh pr checks:*)", "Bash(gh pr merge:*)", "Bash(gh pr list:*)"
+    ]
+  }
+}
+EOF
+  exclude_locally .claude/settings.local.json
+  echo "  sous: permissions seeded (.claude/settings.local.json: gh pr view, checks, merge, list), so kitchen.sh ship runs without a prompt"
+}
+
+# ---------------------------------------------------------------------------
 # budget — what the kitchen spends. The reading lives in the Window's server
 # (window/server/live/budget.js) so the terminal and the Window sum the same way; this
 # only finds node and runs it from the main checkout.
@@ -1872,5 +1958,5 @@ case "$CMD" in
   files) cmd_files ;; rail) cmd_rail ;; board) cmd_board ;; leaks) cmd_leaks ;; remove) cmd_remove ;;
   role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   decisions) cmd_decisions ;; inbox) cmd_inbox ;; asks) cmd_asks ;; gaps) cmd_gaps ;; doctor) cmd_doctor ;; index) cmd_index ;;
-  sessions) cmd_sessions ;; clear) cmd_clear ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; check) cmd_check ;; *) usage ;;
+  sessions) cmd_sessions ;; clear) cmd_clear ;; ship) cmd_ship ;; check) cmd_check ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; *) usage ;;
 esac

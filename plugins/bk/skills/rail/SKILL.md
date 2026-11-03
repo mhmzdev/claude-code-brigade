@@ -32,7 +32,7 @@ backend does each operation. Everything else asks for the operation.
 
 Before any `claim`, check the current status. `backlog` and `blocked` are free. `todo`,
 `in-progress` and `rfr` belong to the ticket's `cook`, and only a request from that cook
-may move them, or the sous closing an `rfr` ticket to `done` after the head chef merges. Refuse anything else and say whose claim it is.
+may move them, or the sous closing an `rfr` ticket to `done` after its PR merges (the sous's `kitchen.sh ship`, or the head chef's merge). Refuse anything else and say whose claim it is.
 
 ## The operations
 

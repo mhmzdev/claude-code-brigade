@@ -170,6 +170,9 @@ now disagrees.
   `main` directly, admins included: work on a branch, open a PR, and merge once **both** CI
   jobs are green and the branch is up to date with `main`. No approving review is required
   (a solo maintainer can't approve their own PR), so reading the diff before merging is on you.
+  In the dogfood kitchen the sous merges a cook's PR itself once it passed the pass and CI is
+  green (`kitchen.sh ship`, `gates.merge: sous-chef` in `.claude/brigade.md`); every such merge is
+  a release too, so a red `main` is the next ticket.
   Run `scripts/check.sh` locally before opening the PR; CI skips manifest validation.
 - **Every merge to `main` is a release.** In every PR, bump `version` in
   `plugins/bk/.claude-plugin/plugin.json` and add its entry at the top of `CHANGELOG.md`:

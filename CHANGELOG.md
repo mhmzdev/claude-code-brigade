@@ -12,6 +12,23 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.33.0] - 2026-11-03
+
+**The sous merges.** A PR that has passed the sous's pass, is green on CI, mergeable and
+up to date with trunk used to wait for you to click merge; meanwhile trunk moved and the
+cook was sent back to bring it in again. At that point the merge is no decision, so it is
+the sous's: `gates.merge` now defaults to `sous-chef`, and `kitchen.sh ship <PR>` does it.
+It merges only an open, non-draft PR against trunk that is mergeable, up to date and green
+on every check, and otherwise refuses naming the condition (a check still running says how
+to wait; a red one is `[findings]` for the cook; a blocked one is yours). `gates.merge_method`
+picks `merge` (default), `squash` or `rebase`. The sous runs it right after a cook's
+`[served]`, then clears the cook; a trunk that breaks after a merge is a `bug` ticket it
+fires and briefs at once, because a kitchen that merges often fixes often. `kitchen.sh open`
+seeds the main checkout's `.claude/settings.local.json` with the `gh pr` allow lines, so the
+sous isn't prompted in a pane nobody watches. What you must do: nothing, unless you want to
+keep the merge: put `merge: head-chef` under `gates:` in `.claude/brigade.md`, and `ship`
+refuses. You can always hold one PR by telling the sous. Deploying stays yours.
+
 ## [0.32.0] - 2026-11-03
 
 **The check runs once per tree.** A pass used to run your full check three or four times on

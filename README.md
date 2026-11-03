@@ -7,7 +7,7 @@
 
 Run a kitchen of Claude Code sessions on one machine. A **sous chef** session leads, a few
 **line cook** sessions each work one ticket in their own **station** (a clone or worktree),
-and you are the **head chef**: you approve feature plans and you merge. The sessions talk to
+and you are the **head chef**: you approve feature plans; the sous merges what passed its review and is green. The sessions talk to
 each other over `SendMessage`. No daemon, no queue, no database.
 
 > Inspired by Steve Yegge's *[The Shape of Things to Come](https://yegge.ai/essays/the-shape-of-things-to-come/)*
@@ -121,7 +121,7 @@ from the record, reviews its diff before anything is committed, and tells you wh
 assigned. You talk to the sous only, bar a grilling and an edit auto mode refuses (you
 lift that in the cook's terminal). It comes to you for a yes on a feature plan (or any plan
 with a migration, a shared resource, a production write, a protected path such as
-`.claude/`, or a change to what its ticket asked for), and the merge. A bug or chore
+`.claude/`, or a change to what its ticket asked for), and for the merge only if you keep it (`gates.merge: head-chef`). A bug or chore
 plan's how is the sous's: it never asks you to approve names and orderings.
 
 | You want to | Type |
@@ -289,7 +289,7 @@ repo's names, paths and secrets, and files nothing until you have read it and sa
 ## Honest limits
 
 - One machine. Two to five cooks, not a fleet.
-- The sous is a second fence, not a replacement for your review. You still merge.
+- The sous is a second fence, not a replacement for your review. By default it also merges what passed its pass and is green (`gates.merge: sous-chef`); set `head-chef` to keep the merge.
 - It costs more tokens than one session. Use it when the work is really parallel.
 
 Every merge to `main` is a release, tagged and listed in [`CHANGELOG.md`](CHANGELOG.md).
