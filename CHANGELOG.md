@@ -12,7 +12,7 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
-## [0.28.1] - 2026-11-03
+## [0.29.1] - 2026-11-03
 
 **The budget no longer bills your own sessions to the sous.** Every session in the main
 checkout used to count as the sous, so on the first dogfood shift $106 of your own work
@@ -23,6 +23,23 @@ sends (`[brief]`, `[go]` and the like), which keeps a past shift's sous and a so
 `/clear` the sous's. Every other session in the main checkout is yours: `kitchen.sh budget`
 and the Ledger list it as `head chef`, apart from the kitchen's spend, and the debrief
 leaves it out. Nothing to do. A patch: a fix.
+
+## [0.29.0] - 2026-11-03
+
+**The sous signs a plan's how; only a change to the ticket comes to you.** On the first
+shift the sous sent two chore plans up for a yes with nine "decisions" between them: a
+command's name, a table's columns, their order, which function reads a value. Those are
+how, and a bug, chore, precedent or hygiene plan's how is the sous's to sign; you approved
+them unread, which is the risk. Contract 5 now says what makes a decision yours: it
+**changes the ticket** (its scope against the Done when, behaviour a user sees, a contract
+rule, a schema, a name people already type, a cost) or contradicts the record; what a new
+command or column is called is how. A plan's
+`## Decisions` has two parts, **Changes the ticket** (usually "None") and **How**, and the
+sous shows you only the first, the ticket's words beside the plan's, never the list of
+names. The head chef's `[approved]` now ends with `why: <feature | migration | … | changes
+the ticket>`, and a new debrief rule, `over-ask`, counts a head chef `[approved]` with no
+why against the sous. Nothing to do: restart your sessions to load the new skills; expect
+fewer plan questions, and shorter ones.
 
 ## [0.28.0] - 2026-10-25
 
