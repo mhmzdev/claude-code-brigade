@@ -73,7 +73,7 @@ Commit message: `[<ID>] <imperative summary>`, then a short body of why. Keep th
 
 ## 4 — Bring trunk in and re-check
 
-Trunk moved while you cooked. Merge it now, so the PR is reviewed against today's trunk:
+Trunk moved while you cooked. Merge it now, so the PR is reviewed against today's trunk. This is a real merge because step 3 made a commit; before the sous's `[go]` nothing is committed, and trunk comes in only by `--ff-only` (Contract 8):
 
 ```bash
 git fetch origin

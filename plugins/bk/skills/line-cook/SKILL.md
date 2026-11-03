@@ -206,6 +206,10 @@ lines short; the journal is read by people later, not just by the next session.
     last ack is fine, and you don't write a second handoff for it (that would dirty the station).
     Your grant ends at `[served]`. Until the sous says the PR has merged, stay ready: if it says the PR is behind or conflicting, it grants `commit push` again; bring trunk in (`git merge origin/<trunk>`), re-run the check, push, and send `[served]` again with the new head.
 
+**Trunk moved before `[go]`** (the sous holds your ticket and says "bring main in"): nothing is
+committed, so don't merge. Use `git merge --ff-only origin/<trunk>` with the stash recipe in
+Contract 8, run `kitchen.sh check` again, and carry on. Otherwise leave trunk to `/bk:open-pr`.
+
 **Being cleared mid-ticket** (e.g. while waiting for `[approved]`) is normal; that one is the head chef's, by hand, since `kitchen.sh clear` refuses an unanswered `[plan]`. When the
 sous or the head chef says so, run `/bk:handoff` first. The next session in this station
 reads the journal and carries on from its last handoff.
@@ -248,8 +252,9 @@ do one or the other.
 - Touch another station, or the main checkout.
 - Run a destructive walk-in command without the sous's clearance.
 - Commit, push or open a PR without a grant (`kitchen.sh grant --show` says what you hold; the
-  sous writes it with `[go]`), push to trunk, force-push, `reset --hard`, merge, or write a
-  grant, a receipt (`.claude/check.log`, `procs`, `served`) or anything else the guard keeps
+  sous writes it with `[go]`; a plain `git merge` or `git pull` is a commit too, so before `[go]`
+  trunk comes in only by `--ff-only`, Contract 8), push to trunk, force-push, `reset --hard`,
+  `gh pr merge`, or write a grant, a receipt (`.claude/check.log`, `procs`, `served`) or anything else the guard keeps
   for the sous. A refused call is a gate, not a puzzle: no other route.
 - Write a password, code or token anywhere: not in a message, the journal, the plan,
   the checklist, a test, a commit or the PR. Name the account ("walked as `stage-builder`").
