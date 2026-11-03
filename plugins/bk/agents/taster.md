@@ -42,6 +42,10 @@ check command and the leak check only.
    Capture the exit code this way; `cmd | tail` reports tail's status, not the check's. `kitchen.sh check` runs the check once per tree: when its line says `green on this tree, not re-run`, it found a green that `kitchen.sh` itself recorded for the exact tree you are reading, and you trust it. Say which you did in the report, `CHECK: ran` or `CHECK: trusted the record of <time>`.
    If the check changed tracked files (`git -C <station> status --porcelain` differs from before),
    report that as a finding.
+   Your Bash access runs the check and nothing that outlives it. If you ever start a process in
+   the background (you should not need to), register it the moment it starts with
+   `kitchen.sh procs --add <pid> "taster: <what>" --station <N>` and stop it before you report;
+   never leave a process running behind you (Contract 7).
 3. **Done when.** Walk every box in the ticket's "Done when" and every success criterion in
    the plan. For each: ✅ with the evidence (`file:line`, a test name, the check result), or ❌
    with what's missing. Lane C: the counter named in the ticket must drop by the stated amount.

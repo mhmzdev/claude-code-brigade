@@ -170,6 +170,32 @@
 #                                         outlive transcript cleanup.
 #                                         --ticket ID --journal-line [--session NAME]
 #                                         prints the one line open-pr adds to the journal
+#   kitchen.sh procs [--add <pid> "<what>" [--ticket ID]] [--prune] [--station N]
+#                    [--reap <station-N|all>] [--scan]
+#                                         the processes the kitchen started, and only those
+#                                         (Contract 7). --add registers a pid the moment a cook
+#                                         starts it (a dev server, a watcher, a tunnel, a poll):
+#                                         its start time and command line go into
+#                                         <station>/.claude/procs (out of git), from a station,
+#                                         or --station N from the main checkout. A system process,
+#                                         claude, tmux, a pane's shell, someone else's process,
+#                                         the caller's own session and a process whose working
+#                                         directory is not inside the station are refused. A cook
+#                                         can use only its own station (--reap, and --station for
+#                                         another, are the sous's). With no
+#                                         option: the register of the station it runs in, or of
+#                                         every station from the main checkout (--station N picks
+#                                         one), each line alive, dead or reused (the pid now
+#                                         belongs to another process). --prune drops the dead and
+#                                         the reused lines. --reap is
+#                                         the sous's, after ship and before clear (bk stop runs it
+#                                         for every station): each registered process that still
+#                                         has its recorded start time and command line gets TERM,
+#                                         then KILL after 5 s, and is logged in
+#                                         <station>/.claude/procs.log; anything else is left alone
+#                                         and printed. --scan lists processes standing in a station
+#                                         that are not registered and are not a kitchen session.
+#                                         It only reports; nothing it finds is ever signalled
 #   kitchen.sh live [stop|status] [--port P] [--demo [-n N]] [--no-launch]
 #                                         the Window: a live view of this kitchen on
 #                                         localhost (needs node 20+). With no word it
@@ -300,6 +326,7 @@ POS=()            # the words after rail brief|claim|move
 HERE_SESSION=""   # --fresh | --spent, for here
 HERE_WAITING=""   # --waiting, for here
 HERE_NOTE=""      # --note, for here
+PROCS_ARGS=()     # everything after `procs`: it reads its own arguments (--add takes a pid and a text there)
 SESSION_NAME=""   # --session, for budget --journal-line
 CLEAR_WHO=""      # station-N | sous, for clear
 SHIP_PR=""        # a PR number, for ship
@@ -312,6 +339,8 @@ usage() { awk 'NR>2 { if (/^# =+$/) exit; sub(/^# ?/, ""); print }' "${BASH_SOUR
 CMD="${1:-}"; shift || true
 # rail brief|claim|move take bare words (ids, statuses, station names) the flag parser below would read as other commands's
 if [[ "$CMD" == rail && "${1:-}" =~ ^(brief|claim|move)$ ]]; then POS=("$@"); set --; fi
+# procs reads its own arguments: its --add takes a pid and a text, unlike inbox's and asks'
+if [[ "$CMD" == procs ]]; then PROCS_ARGS=("$@"); set --; fi
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -n) N="$2"; N_GIVEN=true; shift 2 ;;
@@ -1342,6 +1371,7 @@ cmd_board() {
     echo ""; echo "The rail:"; cmd_rail
     echo ""; echo "Open questions:"; cmd_questions
     echo ""; echo "Decisions to file: $(cmd_decisions | grep -c ' DUE ' || true) · Inbox: $(inbox_count) unfiled · Asks open: $(asks_count open) · Gaps to fix: $(cmd_gaps | grep -c '^  ' || true)"
+    echo "Processes: $(procs_summary)"
     context_warning
     echo '```')"
   [[ -n "$rt" ]] && { rm -rf "$rt"; unset RAIL_BASE; }
@@ -2254,6 +2284,319 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# procs — the processes the kitchen started (Contract 7). A cook that starts something which
+# outlives the tool call (a dev server, a watcher, a tunnel, a poll) registers it the moment
+# it starts; the sous reaps what is still registered when the ticket is done. The kitchen
+# manages the processes it registered and only those: a system process, a kitchen session
+# (claude, tmux, a pane's shell) and anything unregistered are never signalled. The scan
+# looks for unregistered processes standing in a station and only reports them.
+#   kitchen.sh procs [--add <pid> "<what>" [--ticket ID]] [--prune] [--station N]
+#                    [--reap <station-N|all>] [--scan]
+# The register is <station>/.claude/procs (out of git), one tab-separated line per process:
+#   pid · start time · command line · what it is for · ticket · when it was added
+# and <station>/.claude/procs.log keeps what a reap did. A line is `alive` while the pid still
+# has the recorded start time and command line, `dead` when the pid is gone, and `reused`
+# when it now belongs to another process.
+# ---------------------------------------------------------------------------
+PROCS_GRACE=5   # seconds a reaped process has to leave on TERM before it gets KILL
+
+procs_clean() { tr '\t\r\n' '   ' | sed 's/  */ /g; s/^ //; s/ $//'; }   # one line: tabs and newlines squeezed
+procs_start() { LC_ALL=C ps -ww -o lstart= -p "$1" 2>/dev/null | procs_clean; }
+procs_cmd() { ps -ww -o command= -p "$1" 2>/dev/null | procs_clean; }
+procs_ppid() { ps -o ppid= -p "$1" 2>/dev/null | tr -d ' '; }
+procs_file() { printf '%s/.claude/procs' "$1"; }
+
+# procs_state <pid> <start> <command> → alive | dead | reused
+procs_state() {
+  local s c
+  s="$(procs_start "$1")"
+  [[ -n "$s" ]] || { echo dead; return 0; }
+  c="$(procs_cmd "$1")"
+  if [[ "$s" == "$2" && "$c" == "$3" ]]; then echo alive; else echo reused; fi
+}
+
+# procs_kitchen_session <pid> <command> → true for claude, tmux or a pane's shell
+procs_kitchen_session() {
+  local a1 a2 _ pp p1
+  read -r a1 a2 _ <<< "$2"
+  [[ "${a1##*/}" == claude || "${a2##*/}" == claude || "${a1##*/}" == tmux* || "$a1" == */claude/* ]] && return 0
+  case "${a1##*/}" in
+    -*|bash|zsh|sh|fish|dash|ksh)
+      [[ "$a1" == -* ]] && return 0                       # a login shell
+      pp="$(procs_ppid "$1")"; [[ -n "$pp" ]] || return 1
+      read -r p1 _ <<< "$(procs_cmd "$pp")"
+      [[ "${p1##*/}" == tmux* ]] && return 0 ;;           # the shell tmux started in a pane
+  esac
+  return 1
+}
+
+# procs_mine <pid> → true for this run's own process, its ancestors (the shell, the claude
+# session above it) and its descendants (the ps and lsof it runs)
+procs_mine() {
+  local p
+  p="$$"; while [[ -n "$p" ]] && (( p > 1 )); do [[ "$p" == "$1" ]] && return 0; p="$(procs_ppid "$p")"; done
+  p="$1"; while [[ -n "$p" ]] && (( p > 1 )); do [[ "$p" == "$$" ]] && return 0; p="$(procs_ppid "$p")"; done
+  return 1
+}
+
+# procs_protected <pid> <command> → prints why and returns 0 when this pid may never be
+# registered or reaped: a system pid, someone else's, this run's own tree, a kitchen session
+procs_protected() {
+  local uid
+  (( $1 > 2 )) || { echo "a system process"; return 0; }
+  uid="$(ps -o uid= -p "$1" 2>/dev/null | tr -d ' ')"
+  [[ "$uid" == "$(id -u)" ]] || { echo "not yours (uid ${uid:-?})"; return 0; }
+  procs_mine "$1" && { echo "this session's own process or its parent"; return 0; }
+  procs_kitchen_session "$1" "$2" && { echo "a kitchen session (claude, tmux or a pane's shell)"; return 0; }
+  return 1
+}
+
+# procs_cwd_of <pid> → the process's working directory, or nothing
+procs_cwd_of() {
+  if [[ -e "/proc/$1/cwd" ]]; then readlink "/proc/$1/cwd" 2>/dev/null
+  else lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1; fi
+}
+
+# procs_in_station <pid> <station dir> → true when the process stands inside the station;
+# its working directory is left in PROCS_CWD for the message
+procs_in_station() {
+  local root; root="$(cd "$2" && pwd -P)"; PROCS_CWD="$(procs_cwd_of "$1")"
+  [[ -n "$PROCS_CWD" ]] && [[ "$PROCS_CWD" == "$root" || "$PROCS_CWD" == "$root"/* ]]
+}
+
+# procs_dir <station-N | N | ""> → a station's directory; "" means the station this runs in
+procs_dir() {
+  local s="$1" d
+  if [[ -z "$s" ]]; then
+    [[ -n "$(rail_actor)" ]] || { echo "Run this in a station, or name one: --station N." >&2; return 1; }
+    (cd "$HERE" && pwd -P); return 0
+  fi
+  s="station-${s#station-}"; d="$KITCHEN/$s"
+  [[ -e "$d/.git" ]] || { echo "No such station: $s" >&2; return 1; }
+  printf '%s\n' "$d"
+}
+
+procs_stations() {  # procs_stations <station-N | N | all | ""> → the station dirs it names; "" is the station this runs in, else every station
+  local s="$1" d
+  if [[ -z "$s" && -n "$(rail_actor)" ]]; then procs_dir ""
+  elif [[ -z "$s" || "$s" == all ]]; then stations
+  else d="$(procs_dir "$s")" && printf '%s\n' "$d"; fi
+}
+
+procs_add() {  # procs_add <pid> <what> <ticket> <station dir>
+  local pid="$1" what="$2" ticket="$3" dir="$4" start cmd why f
+  [[ "$pid" =~ ^[0-9]+$ ]] || { echo "procs --add needs a pid (a number), got: ${pid:-nothing}" >&2; return 1; }
+  [[ -n "$what" ]] || { echo "procs --add $pid \"<what it is for>\"" >&2; return 1; }
+  start="$(procs_start "$pid")"; cmd="$(procs_cmd "$pid")"
+  [[ -n "$start" && -n "$cmd" ]] || { echo "Not registered: no process $pid (or ps cannot describe it)." >&2; return 1; }
+  if why="$(procs_protected "$pid" "$cmd")"; then echo "Not registered: $pid is $why." >&2; return 1; fi
+  if ! procs_in_station "$pid" "$dir"; then
+    echo "Not registered: $pid's cwd is ${PROCS_CWD:-unreadable}, not inside $(basename "$dir"). The kitchen registers what it started in a station: start it from there." >&2; return 1
+  fi
+  if [[ -z "$ticket" ]]; then ticket="$(branch_ticket "$(git -C "$dir" branch --show-current 2>/dev/null)")"; fi
+  what="$(printf '%s' "$what" | procs_clean)"
+  mkdir -p "$dir/.claude"; exclude_locally .claude/procs "$dir"; exclude_locally .claude/procs.log "$dir"
+  f="$(procs_file "$dir")"
+  if [[ -f "$f" ]] && awk -F'\t' -v p="$pid" -v s="$start" '$1==p && $2==s { found=1 } END { exit !found }' "$f"; then
+    echo "$(basename "$dir"): $pid is already registered."; return 0
+  fi
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$start" "$cmd" "$what" "$ticket" "$(date +%Y-%m-%dT%H:%M)" >> "$f"
+  echo "$(basename "$dir"): registered $pid ($what) · $cmd"
+}
+
+procs_list() {  # procs_list <station dir…> → every registered line with its state
+  local d f name pid start cmd what ticket added state n=0 alive=0 dead=0 reused=0
+  for d in "$@"; do
+    f="$(procs_file "$d")"; [[ -s "$f" ]] || continue; name="$(basename "$d")"
+    while IFS=$'\t' read -r pid start cmd what ticket added; do
+      [[ -n "$pid" ]] || continue
+      state="$(procs_state "$pid" "$start" "$cmd")"; n=$((n+1))
+      case "$state" in alive) alive=$((alive+1)) ;; dead) dead=$((dead+1)) ;; *) reused=$((reused+1)) ;; esac
+      printf '  %-10s %-7s %-7s %-8s %s · %s\n' "$name" "$state" "$pid" "$ticket" "$what" "$cmd"
+    done < "$f"
+  done
+  if (( n == 0 )); then echo "No processes registered."; else echo "Registered: $alive alive, $dead dead, $reused reused."; fi
+}
+
+procs_prune() {  # procs_prune <station dir…> → drop the lines whose process is gone
+  local d f name pid start cmd what ticket added keep dropped total=0
+  for d in "$@"; do
+    f="$(procs_file "$d")"; [[ -s "$f" ]] || continue; name="$(basename "$d")"; keep=""; dropped=0
+    while IFS=$'\t' read -r pid start cmd what ticket added; do
+      [[ -n "$pid" ]] || continue
+      if [[ "$(procs_state "$pid" "$start" "$cmd")" == alive ]]; then
+        keep="$keep$(printf '%s\t%s\t%s\t%s\t%s\t%s' "$pid" "$start" "$cmd" "$what" "$ticket" "$added")"$'\n'
+      else dropped=$((dropped+1)); fi
+    done < "$f"
+    printf '%s' "$keep" > "$f"; total=$((total+dropped))
+    (( dropped == 0 )) || echo "$name: pruned $dropped line(s) whose process is gone or is now another process."
+  done
+  (( total > 0 )) || echo "Nothing to prune."
+}
+
+# procs_reap <station dir> → TERM, then KILL, each registered process that is still the same
+# process and is not protected. Anything else is left alone and printed.
+procs_reap() {
+  local dir="$1" f name pid start cmd what ticket added state why how i keep="" line
+  f="$(procs_file "$dir")"; name="$(basename "$dir")"
+  [[ -s "$f" ]] || { echo "$name: nothing registered."; return 0; }
+  while IFS=$'\t' read -r pid start cmd what ticket added; do
+    [[ -n "$pid" ]] || continue
+    line="$(printf '%s\t%s\t%s\t%s\t%s\t%s' "$pid" "$start" "$cmd" "$what" "$ticket" "$added")"
+    state="$(procs_state "$pid" "$start" "$cmd")"
+    if [[ "$state" == dead ]]; then echo "$name: $pid ($what) was already gone; dropped from the register."; continue; fi
+    if [[ "$state" == reused ]]; then
+      echo "$name: $pid ($what) is no longer the registered process (its start time or command changed); left alone."
+      keep="$keep$line"$'\n'; continue
+    fi
+    if why="$(procs_protected "$pid" "$cmd")"; then
+      echo "$name: $pid ($what) skipped, it is $why; left alone."; keep="$keep$line"$'\n'; continue
+    fi
+    if ! procs_in_station "$pid" "$dir"; then
+      echo "$name: $pid ($what) skipped, its cwd is now ${PROCS_CWD:-unreadable}, outside $name; left alone."; keep="$keep$line"$'\n'; continue
+    fi
+    how="term"; kill -TERM "$pid" 2>/dev/null
+    for ((i = 0; i < PROCS_GRACE * 2; i++)); do
+      [[ "$(procs_state "$pid" "$start" "$cmd")" == alive ]] || break
+      sleep 0.5
+    done
+    if [[ "$(procs_state "$pid" "$start" "$cmd")" == alive ]]; then
+      how="kill"; kill -KILL "$pid" 2>/dev/null; sleep 0.5
+    fi
+    if [[ "$(procs_state "$pid" "$start" "$cmd")" == alive ]]; then
+      echo "$name: $pid ($what) is still running after KILL; kept in the register."; keep="$keep$line"$'\n'; continue
+    fi
+    printf '%s\treaped\t%s\t%s\t%s\n' "$(date +%Y-%m-%dT%H:%M:%S)" "$pid" "$what" "$how" >> "$dir/.claude/procs.log"
+    echo "$name: reaped $pid ($what, $how)"
+  done < "$f"
+  printf '%s' "$keep" > "$f"
+}
+
+# procs_cwds → "pid<TAB>cwd" for every process this user can see: /proc on Linux, one lsof elsewhere
+procs_cwds() {
+  local d
+  if [[ -d /proc/self ]]; then
+    for d in /proc/[0-9]*; do printf '%s\t%s\n' "${d#/proc/}" "$(readlink "$d/cwd" 2>/dev/null)"; done
+  elif command -v lsof >/dev/null 2>&1; then
+    { lsof -d cwd -Fpn 2>/dev/null || true; } | awk '/^p/ { pid = substr($0, 2) } /^n/ { print pid "\t" substr($0, 2) }'
+  else
+    return 1
+  fi
+}
+
+# procs_scan_rows → one line per unregistered process standing in a station, tab-separated:
+# station, pid, ppid, parent note, started, command. Never signals anything.
+procs_scan_rows() {
+  local reg d f name pid start cmd cwd cw root st pdirs="" pp ppcmd p1 a1 a2 note
+  reg="$(for d in $(stations); do
+    f="$(procs_file "$d")"; [[ -s "$f" ]] || continue
+    while IFS=$'\t' read -r pid start cmd _; do
+      [[ -n "$pid" && "$(procs_state "$pid" "$start" "$cmd")" == alive ]] && printf '%s\t%s\n' "$pid" "$(basename "$d")"
+    done < "$f"
+  done)"
+  while IFS= read -r d; do pdirs="$pdirs$(cd "$d" && pwd -P)"$'\n'; done < <(stations)
+  [[ -n "$pdirs" ]] || return 0
+  cw="$(procs_cwds)" || return 1   # one read of every cwd; no /proc and no lsof is a failure, not "nothing"
+  while IFS=$'\t' read -r pid cwd; do
+    [[ -n "$pid" && -n "$cwd" ]] || continue
+    st=""
+    while IFS= read -r root; do
+      [[ -n "$root" ]] || continue
+      if [[ "$cwd" == "$root" || "$cwd" == "$root"/* ]]; then st="$(basename "$root")"; break; fi
+    done <<< "$pdirs"
+    [[ -n "$st" ]] || continue
+    printf '%s\n' "$reg" | awk -F'\t' -v p="$pid" '$1==p { found=1 } END { exit !found }' && continue
+    cmd="$(procs_cmd "$pid")"; [[ -n "$cmd" ]] || continue
+    procs_mine "$pid" && continue
+    procs_kitchen_session "$pid" "$cmd" && continue
+    pp="$(procs_ppid "$pid")"; ppcmd=""; note="-"
+    if [[ -n "$pp" ]]; then
+      ppcmd="$(procs_cmd "$pp")"; read -r p1 _ <<< "$ppcmd"
+      # the shell a claude session runs a tool call in is the cook working, not a stray
+      case "$(read -r a1 _ <<< "$cmd"; echo "${a1##*/}")" in
+        bash|zsh|sh|fish|dash|ksh|-*) read -r a1 a2 _ <<< "$ppcmd"; [[ "${a1##*/}" == claude || "${a2##*/}" == claude ]] && continue ;;
+      esac
+      printf '%s\n' "$reg" | awk -F'\t' -v p="$pp" '$1==p { found=1 } END { exit !found }' && note="child of registered $pp"
+    fi
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$st" "$pid" "${pp:--}" "$note" "$(procs_start "$pid")" "$cmd"
+  done <<< "$cw"
+}
+
+procs_scan() {
+  local rows
+  rows="$(procs_scan_rows)" || { echo "Cannot read working directories: no /proc and no lsof on this machine." >&2; return 1; }
+  if [[ -z "$rows" ]]; then echo "No unregistered process stands in a station."; return 0; fi
+  echo "Unregistered processes standing in a station (reported, never killed):"
+  printf '%s\n' "$rows" | while IFS=$'\t' read -r st pid pp note start cmd; do
+    printf '  %-10s pid %-7s parent %-7s %s · started %s · %s\n' "$st" "$pid" "$pp" "$note" "$start" "$cmd"
+  done
+  echo "Ask that cook to register or stop each one; with the cook gone, tell the head chef. kitchen.sh procs --scan never signals anything."
+}
+
+procs_summary() {  # "<n> registered alive · <m> unregistered in stations", for the board
+  local d f pid start cmd _ alive=0 sus rows
+  for d in $(stations); do
+    f="$(procs_file "$d")"; [[ -s "$f" ]] || continue
+    while IFS=$'\t' read -r pid start cmd _; do
+      [[ -n "$pid" && "$(procs_state "$pid" "$start" "$cmd")" == alive ]] && alive=$((alive+1))
+    done < "$f"
+  done
+  if rows="$(procs_scan_rows)"; then sus="$(printf '%s' "$rows" | grep -c . || true)"; else sus="?"; fi
+  printf '%s registered alive · %s unregistered in stations' "$alive" "$sus"
+}
+
+cmd_procs() {
+  local act=list arg="" what="" ticket="" station="" pdirs d n me
+  set -- "${PROCS_ARGS[@]+"${PROCS_ARGS[@]}"}"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --add) act=add; arg="${2:-}"; what="${3:-}"; shift; [[ $# -gt 0 ]] && shift; [[ $# -gt 0 ]] && shift ;;
+      --prune) act=prune; shift ;;
+      --reap) act=reap; arg="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
+      --scan) act=scan; shift ;;
+      --ticket) ticket="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
+      --station) station="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
+      -h|--help) usage ;;
+      *) echo "Unknown argument for procs: $1" >&2; return 1 ;;
+    esac
+  done
+  # a cook's scope is its own station: the reap and the other stations are the sous's
+  me="$(rail_actor)"
+  if [[ -n "$me" ]]; then
+    if [[ "$act" == reap ]]; then
+      echo "procs --reap is the sous's (and bk stop's). A cook stops its own processes with kill, then procs --prune." >&2; return 1
+    fi
+    if [[ -n "$station" && "station-${station#station-}" != "$me" ]]; then
+      echo "A cook works on its own station ($me); --station $station is the sous's." >&2; return 1
+    fi
+  fi
+  case "$act" in
+    add)
+      d="$(procs_dir "$station")" || return 1
+      procs_add "$arg" "$what" "$ticket" "$d" ;;
+    reap)
+      [[ -n "$arg" ]] || { echo "Usage: kitchen.sh procs --reap <station-N|all>" >&2; return 1; }
+      pdirs="$(procs_stations "$arg")" || return 1
+      if [[ "$arg" == all ]]; then   # every station: say nothing about the ones with an empty register
+        n=0
+        while IFS= read -r d; do
+          [[ -s "$(procs_file "$d")" ]] || continue
+          procs_reap "$d"; n=$((n+1))
+        done <<< "$pdirs"
+        (( n > 0 )) || echo "No processes registered."
+      else
+        procs_reap "$pdirs"
+      fi ;;
+    prune|list)
+      pdirs="$(procs_stations "$station")" || return 1
+      # shellcheck disable=SC2086  # one station dir per line, none with spaces in a kitchen's folder names
+      set -- $pdirs
+      if [[ "$act" == prune ]]; then procs_prune "$@"; else procs_list "$@"; fi ;;
+    scan) procs_scan ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
 # budget — what the kitchen spends. The reading lives in the Window's server
 # (window/server/live/budget.js) so the terminal and the Window sum the same way; this
 # only finds node and runs it from the main checkout.
@@ -2435,5 +2778,6 @@ case "$CMD" in
   role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   decisions) cmd_decisions ;; inbox) cmd_inbox ;; asks) cmd_asks ;; gaps) cmd_gaps ;; doctor) cmd_doctor ;; index) cmd_index ;;
   record-pr) cmd_record_pr ;;
+  procs) cmd_procs ;;
   sessions) cmd_sessions ;; clear) cmd_clear ;; ship) cmd_ship ;; check) cmd_check ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; *) usage ;;
 esac

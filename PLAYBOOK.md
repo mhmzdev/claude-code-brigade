@@ -154,8 +154,10 @@ uses it. A `CLAUDE_CONFIG_DIR` already exported in your shell wins over the reco
 **Stopping for the day: `bk stop`.** It is a pause. It types `/bk:handoff` into the sous and
 every cook, waits until each has finished and gone idle (ten minutes at most, then it says
 who is still busy and goes on), saves each session's id, types `/exit`, and closes the tmux
-session and the Window. It commits nothing. The next `bk open` resumes every session where
-it stopped; `bk open --fresh` starts new ones.
+session and the Window. Before it closes, it reaps the processes the cooks registered and left
+running (`kitchen.sh procs --reap`: only registered ones, never a session or a system process).
+It commits nothing. The next `bk open` resumes every session where it stopped; `bk open --fresh`
+starts new ones.
 
 **Do I run `/bk:sous-chef` myself?** Not when tmux opened the kitchen: the sous starts with it,
 pulls trunk, reads its last handoff note, collects unanswered questions from the cooks'
@@ -257,7 +259,7 @@ If you do type in a cook's terminal, the cook does as told and records it in one
 8. On `[go]`: `/bk:clean around` (old mess nearby, drafted as hygiene tickets),
    `/bk:handoff` (the journal's closing section), `/bk:open-pr`. The cook sends `[served]`
    with the PR link.
-9. The sous merges (`kitchen.sh ship`, once CI is green and the PR is up to date) and closes the ticket. The sous clears the cook's session (`kitchen.sh clear`) before its next
+9. The sous merges (`kitchen.sh ship`, once CI is green and the PR is up to date) and closes the ticket. Then it reaps what the cook left running (`kitchen.sh procs --reap station-N`: only the processes the cook registered, never a session or a system process) and clears the cook's session (`kitchen.sh clear`) before its next
    ticket: one ticket per session.
 
 Lane C (hygiene) skips the plan and the checklist; the ticket is the plan, and the sous
@@ -335,8 +337,8 @@ job is the sous's; you can still clear any session by hand.
 
 | Where | Writes | When |
 |---|---|---|
-| a station (cook) | a `## Handoff` section appended to the ticket's journal: stage, uncommitted files, next step, pending questions, follow-ups, lessons | automatically on `[go]`, before the PR. Any other time, the sous (or you) asks for it, for example before you clear, by hand, a cook that is waiting on a sign-off (`kitchen.sh clear` refuses that case on purpose: its `[plan]` is unanswered) |
-| the main checkout (sous) | first it counts the lessons and runs the debrief (due ones become chores or plugin issues), files the record (decisions you made into ADRs, questions you haven't answered into question files, every answered question's gap into its fix, the inbox into the docs) and fetches CI minutes into the budget, then `.claude/sous-handoff.md`, gitignored, overwritten each time: your standing instructions, what it meant to assign next, walk-in holds, which session is which cook | by itself after about three passes or when the board's `Context:` line says its turns are too heavy, then `kitchen.sh clear sous`; or when you say "handoff" |
+| a station (cook) | a `## Handoff` section appended to the ticket's journal: stage, uncommitted files, next step, pending questions, follow-ups, processes still running (registered, and why), lessons | automatically on `[go]`, before the PR. Any other time, the sous (or you) asks for it, for example before you clear, by hand, a cook that is waiting on a sign-off (`kitchen.sh clear` refuses that case on purpose: its `[plan]` is unanswered) |
+| the main checkout (sous) | first it counts the lessons and runs the debrief (due ones become chores or plugin issues), files the record (decisions you made into ADRs, questions you haven't answered into question files, every answered question's gap into its fix, the inbox into the docs) and fetches CI minutes into the budget, then `.claude/sous-handoff.md`, gitignored, overwritten each time: your standing instructions, what it meant to assign next, walk-in holds, the processes still running and the ones nobody registered, which session is which cook | by itself after about three passes or when the board's `Context:` line says its turns are too heavy, then `kitchen.sh clear sous`; or when you say "handoff" |
 
 A cook cleared before `[go]` without being asked for a handoff leaves none. The journal
 still has its questions, answers and decisions, and the station still has the files.

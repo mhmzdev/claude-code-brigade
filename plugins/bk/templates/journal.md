@@ -38,6 +38,7 @@ It reaches trunk with the PR, next to the plan and checklist.
 - **Next step:** <exactly what the next session does first>
 - **Pending:** <open questions by number, findings not yet fixed, or "none">
 - **Follow-ups:** <drafted as tickets and sent to the sous, or "none">
+- **Processes:** <what is still running in this station, registered, and why, or "none">
 - lesson(repo): <key> | <one line> | <ID>
 - lesson(plugin): <key> | <one line about the Brigade itself> | <ID>
 -->

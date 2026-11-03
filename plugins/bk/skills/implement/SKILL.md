@@ -87,6 +87,7 @@ One plan phase per pass:
 
 1. **Build it** in the plan's order. Honour the repo's `CLAUDE.md` and rules; read them, don't assume.
 2. **The walk-in.** About to run a destructive command on a `walk_in:` resource (reset, reseed, tear down)? Cook → `[walk-in] about to run <command> on <resource>, OK?` and wait. Prefer the resource's `safe:` command when one exists.
+   **Processes.** Anything you start that outlives the tool call (a `&` or `nohup` job, a dev server, a watcher, `make up`, a tunnel, a background poll) is registered the moment it starts: `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" procs --add <pid> "<what it is for>"`, the pid of the process that holds the port or the CPU, not only its wrapper (Contract 7, line-cook's [Processes you start](../line-cook/SKILL.md#processes-you-start)). Stop what you started before the handoff in Step 4.
 3. **Check.** Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" check`: it runs the config's `check` once per tree (a recorded green for this exact tree is reported, not re-run), prints one line, keeps the full output in `.claude/check.out` and shows the failing tail on red, so it needs no runner. Its exit code is the check's. Then anything else the phase names; when *that* output is long, run it through the `runner` sub-agent (`subagent_type: "bk:runner"`) so only pass/fail and the failing lines reach your context.
 4. **Record** in the plan file (it survives a context clear): the phase's `**Status:** Done`, ticked automated criteria, a one-line summary of files changed.
 5. **Carry manual criteria forward — don't pause for them.** Leave them unticked; you'll list them all once in Step 3.
@@ -115,7 +116,7 @@ List the manual criteria from every phase as one numbered checklist. In a statio
 
 1. Set the plan's `status: done` (implementation finished; merge is tracked on the rail, not here). Its INDEX row has no status, so there is nothing to update there.
 2. Leave the rail at `in-progress`. `review-task` moves it to `rfr`.
-3. **Don't commit.** Commits happen in `open-pr`: after the sous's pass in a station, or when the human runs `/bk:open-pr` solo (running it is the yes).
+3. **Stop your own processes** (`kill <pid>`, then `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" procs --prune`) and note any that must stay up in the handoff's `Processes` line. Then **don't commit.** Commits happen in `open-pr`: after the sous's pass in a station, or when the human runs `/bk:open-pr` solo (running it is the yes).
 4. Hand off: lanes A/B → `/bk:review-task <plan>`. It's not optional for a feature. Never auto-chain; say it and stop (a cook continues by itself: `/bk:clean check`, then `/bk:review-task`).
 
 ## Lane C — hygiene tickets

@@ -25,6 +25,7 @@ it found.
 - [Where each question goes](#where-each-question-goes)
 - [The journal](#the-journal)
 - [The loop](#the-loop)
+- [Processes you start](#processes-you-start)
 - [Things you never do](#things-you-never-do)
 - [When the sous is wrong](#when-the-sous-is-wrong)
 
@@ -179,8 +180,10 @@ lines short; the journal is read by people later, not just by the next session.
    the head chef types `/bk:implement` here themselves; then record it with `kitchen.sh here --note`).
 5. **`/bk:clean check`**: fix what the inspector finds, re-run until clean.
 6. **`/bk:review-task`**: the checklist, and `kitchen.sh rail move <ID> rfr`.
-7. **`[handoff]`** to the sous: branch, files changed, `check` result, inspector result,
-   checklist path. **Don't commit.** Wait.
+7. **Stop your own processes** ([Processes you start](#processes-you-start)), then
+   **`[handoff]`** to the sous: branch, files changed, `check` result, inspector result,
+   checklist path. **Don't commit.** Wait. (A process you must leave running, and why, goes in
+   your handoff's `Processes` line, not in the message.)
 8. On `[findings]`: fix each numbered item, re-run `kitchen.sh check`, hand off again.
 9. On `[go]`, end of shift, in this order:
    1. **`/bk:clean around`**: old mess in the files you touched, drafted as `HYG` tickets for
@@ -205,6 +208,29 @@ the rest stays out of your context.
 implement from the ticket body straight after `pick-ticket`. The proof is `check` green plus
 the counter going down.
 
+## Processes you start
+
+The kitchen manages the processes it started, and only those (Contract 7). Anything you start
+that outlives the tool call (a `&` or `nohup` job, a dev server, a watcher, `make up`, a
+tunnel, a background poll) is **registered the moment it starts**:
+
+```bash
+"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" procs --add <pid> "<what it is for>"
+```
+
+Register the process that actually holds the port or the CPU, not only the wrapper that
+started it: the server itself (`$!` of a command you `exec`'d, or the child you find with
+`pgrep -P <wrapper pid>` right after the start; `lsof -ti :<port>` names the holder of a port).
+The reap kills only what is registered, never a registered process's children. The command
+refuses a system process, a kitchen session (claude, tmux, a pane's shell), your own session
+and any process whose working directory is not inside your station (start it from there), and
+a cook works on its own station only: `--reap` and another station's register are the
+sous's. Before `[handoff]`, stop what you started (`kill <pid>`, then
+`kitchen.sh procs --prune`), and list in your `/bk:handoff` any that must stay up, and why:
+that is its `Processes` line. The sous reaps the rest after your PR merges; if it messages
+you `[findings]` about an unregistered process in your station ("register or stop pid N"),
+do one or the other.
+
 ## Things you never do
 
 - Edit a ticket file or any other rail entry. Ask the sous.
@@ -216,6 +242,7 @@ the counter going down.
   A test that needs one reads it from an environment variable at run time.
 - Use an account that isn't in the file, make one up, or sign one up.
 - Take a second ticket in the same session.
+- Start a process that outlives the tool call and leave it unregistered, or stop a process you did not start (including one `procs --scan` shows from another station).
 - Ask the human anything, or open an `AskUserQuestion` dialog, outside a grilling the sous briefed you for or a skill the head chef typed here.
 - Send a question up without the commis's result, or settle a design fork from a fact the commis found. A fact says how it is; it never says how it should be.
 - Start `/bk:implement` yourself without an `[approved]` in your journal.

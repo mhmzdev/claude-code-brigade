@@ -12,3 +12,4 @@
 | [64-record-protected-trunk.md](64-record-protected-trunk.md) | handoff / release: the record can't reach a protected trunk, and every docs-only change needs a release | #64 |
 | [65-routine-kinds-script.md](65-routine-kinds-script.md) | sous-chef / budget: routine message kinds cost a sous turn each; route them to script and measure sous turns per ticket by kind | #65 |
 | [66-check-tree-hash.md](66-check-tree-hash.md) | kitchen: the check re-runs three to four times per pass on an unchanged tree; record a tree hash with each result | #66 |
+| [86-kitchen-procs.md](86-kitchen-procs.md) | kitchen / sous-chef: the kitchen reaps the processes it started (kitchen.sh procs: register, reap, scan); never a system or unknown process | #86 |

@@ -57,8 +57,11 @@ head chef's, so a cook that refuses a relayed "go" for either is right.
 
 1. `git pull` trunk in this checkout. You review against current trunk.
 2. **Read your handoff**, if `.claude/sous-handoff.md` exists: the head chef's standing
-   instructions, what the last sous meant to fire next, walk-in holds, who was which cook.
-   Treat it as history to check, not as truth: **reality wins over the note**.
+   instructions, what the last sous meant to fire next, walk-in holds, who was which cook,
+   and the processes it listed as still running or suspect (`kitchen.sh procs` and
+   `procs --scan` show what is true now; the board's `Processes:` line counts both).
+   Treat it as history to check, not as truth: **reality wins over the note**. Read it
+   before your first brief.
 3. **Find open questions**: `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" asks` lists every
    question a sous before you put to the head chef that is still unanswered; `kitchen.sh
    questions` lists every open question file in `docs.questions` (first: the head chef's
@@ -425,6 +428,20 @@ resource), then clear it, sequence it, or offer the safe command. When a cook ne
 **quiet window** for verification, freeze walk-in operations on the other stations until
 it reports done. Name any breach plainly, once, and restate the rule.
 
+**Processes** (Contract 7). The kitchen manages the processes it started, and only those.
+Your tools are `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" procs` (every station's
+register, each line alive, dead or reused), `procs --prune`, `procs --reap station-N` and
+`procs --scan`. The board's `Processes:` line gives the two counts: registered and alive,
+and unregistered in a station. A count above zero for the second is yours to chase, but
+**the scan only reports**: you never `kill` anything yourself, and the reap signals only
+a registered pid that is still the same process and is not claude, tmux or a pane's shell.
+For an unregistered process, send the cook that owns the station `[findings]` ("register
+or stop pid N in your station", one numbered item with the station, the pid and the scan's line): `[status]` is a
+script kind and wakes nobody. If the cook is gone (the station is idle, or cleared), tell
+the head chef in one line; a process nobody registered is theirs to decide, never yours. A
+leftover child of a registered wrapper shows in the scan with its registered parent; ask
+the cook (or the next cook) to register it, or tell the head chef.
+
 ## Test accounts
 
 The logins for testing a flow live in `.claude/brigade.local.md` under `## Test accounts`,
@@ -511,14 +528,21 @@ One cook, one ticket, one shift. When a cook's PR is open and LGTM'd:
    after your merge → fire a `bug` ticket and brief a cook at once: a kitchen that merges
    often fixes often. With `gates.merge: head-chef`, tell the head chef the PR is up and
    LGTM'd, and leave the merge to them.
-2. Tell the head chef in one line what merged (or is waiting on them), and **clear the cook
+2. **Reap what the cook left running**, before the clear and after the merge:
+   `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" procs --reap station-N`. It TERMs, then KILLs,
+   only the pids that cook registered and that are still the same process; what it skips it
+   prints (a pid that changed, a kitchen session). Then `procs --scan` once: whatever it still
+   lists in that station, send that cook `[findings]` before you clear it (it is idle, not
+   gone, and it started them: it registers or stops them); what it leaves to you after
+   that is the head chef's, in one line ([The walk-in](#the-walk-in)).
+3. Tell the head chef in one line what merged (or is waiting on them), and **clear the cook
    yourself**: `kitchen.sh clear <station>` (Contract 5). It types `/clear` and then
    `/bk:line-cook` into that pane, and refuses, saying why, unless the cook is idle, its
    handoff is newer than its last turn and nothing it sent still waits for an answer. A
    refusal is an instruction: wait for the turn, ask for `/bk:handoff`, or answer the open
    message, then run it again. Never type into a cook's pane yourself by another route.
-3. Say which ticket that station gets next, one line of why.
-4. Assign it when the fresh session checks in ([Assigning tickets](#assigning-tickets)),
+4. Say which ticket that station gets next, one line of why.
+5. Assign it when the fresh session checks in ([Assigning tickets](#assigning-tickets)),
    not before. Reusing a live session for a second ticket is never your call.
 
 Trust the cook's report (its `here` line), not labels. A tab title, a session name or your handoff note can be
@@ -536,7 +560,8 @@ budget's context line). Don't suggest it to the head chef: clearing is yours (Co
 Run `/bk:handoff`. It counts lessons and promotes the due ones, runs the debrief (the
 budget's friction rules, fired as chores you sign off), files the record's four
 lists (decisions, open questions and asks, gaps, the inbox), fetches CI minutes into the
-budget, writes `.claude/sous-handoff.md`, and tells the cooks you're restarting. Then run
+budget, writes `.claude/sous-handoff.md` (with the processes still registered and alive
+and the ones the scan reports), and tells the cooks you're restarting. Then run
 `kitchen.sh clear sous`: it refuses while an ask to the head chef is open or the note is
 older than your last turn; otherwise it leaves a waiter that, once this turn ends, types
 `/clear` and then `/bk:sous-chef` into your own pane. **End your turn right after running
