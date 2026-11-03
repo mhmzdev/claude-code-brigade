@@ -87,7 +87,7 @@ One plan phase per pass:
 
 1. **Build it** in the plan's order. Honour the repo's `CLAUDE.md` and rules; read them, don't assume.
 2. **The walk-in.** About to run a destructive command on a `walk_in:` resource (reset, reseed, tear down)? Cook → `[walk-in] about to run <command> on <resource>, OK?` and wait. Prefer the resource's `safe:` command when one exists.
-3. **Check.** Run the config's `check` plus anything the phase names. Capture the real exit code (`out=$(<cmd> 2>&1); rc=$?`), not a pipe's. When the output is long, run it through the `runner` sub-agent (`subagent_type: "bk:runner"`) so only pass/fail and the failing lines reach your context: across several phases that's the difference between finishing in the smart part of the window and not.
+3. **Check.** Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" check`: it runs the config's `check` once per tree (a recorded green for this exact tree is reported, not re-run), prints one line, keeps the full output in `.claude/check.out` and shows the failing tail on red, so it needs no runner. Its exit code is the check's. Then anything else the phase names; when *that* output is long, run it through the `runner` sub-agent (`subagent_type: "bk:runner"`) so only pass/fail and the failing lines reach your context.
 4. **Record** in the plan file (it survives a context clear): the phase's `**Status:** Done`, ticked automated criteria, a one-line summary of files changed.
 5. **Carry manual criteria forward — don't pause for them.** Leave them unticked; you'll list them all once in Step 3.
 6. **Next phase straight away.** A phase finishing is not a question.

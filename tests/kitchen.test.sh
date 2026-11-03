@@ -857,6 +857,74 @@ ok "remove clears clean worktrees" test ! -e "$W/app-stations"
 ok "the cook's branch survives removal" git -C "$A" rev-parse --verify -q bklg-001-open
 ok "git has no stale worktree records" test "$(git -C "$A" worktree list | wc -l | tr -d ' ')" = 1
 
+# ---------------------------------------------------------------------------
+section "check: the config's check runs once per tree"
+CK="$TMP/ck"; RUNS="$TMP/ck-runs"; REDFILE="$TMP/ck-fail"; MUT="$TMP/ck-mutate"; : > "$RUNS"
+# one command for the whole section: it counts its runs outside the tree, and the files that
+# make it fail or rewrite a tracked file live outside the tree too, so the config never moves it
+new_repo "$CK" "trunk: main
+check: \"echo ran >> $RUNS; test ! -f $REDFILE; r=\$?; test -f $MUT && echo x\$RANDOM >> a.txt; exit \$r\""
+echo one > "$CK/a.txt"; push_all "$CK" init
+runs() { wc -l < "$RUNS" | tr -d ' '; }
+loglines() { wc -l < "$1/.claude/check.log" | tr -d ' '; }
+out=$(cd "$CK" && "$K" check); rc=$?
+ok "the first call runs the command, green" bash -c 'test "$1" = 0 && test "$2" = 1' _ "$rc" "$(runs)"
+ok "…says it ran" has "$out" "^check: green \\(ran, [0-9]+s\\)"
+ok "…and logs the tree, the exit code and the command" has "$(cat "$CK/.claude/check.log")" "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z tree=[0-9a-f]{40} rc=0 secs=[0-9]+ cmd=[0-9a-f]{12}$"
+ok "…keeping the log and the output out of git" test -z "$(git -C "$CK" status --porcelain | grep 'check\.')"
+out=$(cd "$CK" && "$K" check); rc=$?
+ok "a second call on the unchanged tree runs nothing" bash -c 'test "$1" = 0 && test "$2" = 1' _ "$rc" "$(runs)"
+ok "…and says it trusted the record" has "$out" "^check: green on this tree, not re-run \\(recorded [0-9T:Z-]+, [0-9]+s\\)"
+ok "…and writes no log line" test "$(loglines "$CK")" = 1
+(cd "$CK" && "$K" check --force) >/dev/null
+ok "--force runs it again" test "$(runs)" = 2
+echo two > "$CK/a.txt"; (cd "$CK" && "$K" check) >/dev/null
+ok "a changed tracked file runs it again" test "$(runs)" = 3
+(cd "$CK" && "$K" check) >/dev/null
+ok "…and that tree is then trusted" test "$(runs)" = 3
+echo new > "$CK/b.txt"; (cd "$CK" && "$K" check) >/dev/null
+ok "a new untracked file runs it again" test "$(runs)" = 4
+rm "$CK/b.txt"; (cd "$CK" && "$K" check) >/dev/null
+ok "going back to a tree that already passed is trusted" test "$(runs)" = 4
+rm "$CK/a.txt"; (cd "$CK" && "$K" check) >/dev/null
+ok "a deleted tracked file runs it again" test "$(runs)" = 5
+echo two > "$CK/a.txt"
+# a green line for another command is not this command's green
+cp "$CK/.claude/check.log" "$TMP/ck-log.keep"
+sed -i.bak 's/ cmd=[0-9a-f]*/ cmd=000000000000/' "$CK/.claude/check.log"; rm -f "$CK/.claude/check.log.bak"
+(cd "$CK" && "$K" check) >/dev/null
+ok "a green recorded for another command is not trusted" test "$(runs)" = 6
+cp "$TMP/ck-log.keep" "$CK/.claude/check.log"
+# a red check is logged, and never trusted
+touch "$REDFILE"; echo three > "$CK/a.txt"
+out=$(cd "$CK" && "$K" check); rc=$?
+ok "a red check exits with its own code" test "$rc" = 1
+ok "…says RED and shows the output file" has "$out" "^check: RED \\(rc 1, [0-9]+s\\)\\. Last lines of .*check\\.out"
+ok "…and logs rc=1" has "$(tail -1 "$CK/.claude/check.log")" " rc=1 "
+(cd "$CK" && "$K" check) >/dev/null
+ok "a red result is run again, not trusted" test "$(runs)" = 8
+rm "$REDFILE"
+# a check that rewrites a tracked file is not trusted
+touch "$MUT"
+out=$(cd "$CK" && "$K" check)
+ok "a run that moves the tree is logged as moved" has "$(tail -1 "$CK/.claude/check.log")" " moved$"
+ok "…and says its green is not trusted" has "$out" "not trusted"
+(cd "$CK" && "$K" check) >/dev/null
+ok "…so the next call runs it again" test "$(runs)" = 10
+rm "$MUT"
+# a worktree station keeps its own log
+git -C "$CK" worktree add -q --detach "$TMP/ck-st1" main 2>/dev/null
+out=$(cd "$TMP/ck-st1" && "$K" check)
+ok "a station run reads the main checkout's config and runs" has "$out" "^check: green \\(ran"
+ok "…writes its log in the station" test "$(loglines "$TMP/ck-st1")" = 1
+ok "…leaving the station's git status clean" test -z "$(git -C "$TMP/ck-st1" status --porcelain)"
+ok "…and its own log is not the main checkout's" test "$(loglines "$CK")" != 1
+# no check: command
+new_repo "$TMP/ck2" "trunk: main"
+out=$(cd "$TMP/ck2" && "$K" check 2>&1); rc=$?
+ok "no check: in the config is an error" test "$rc" != 0
+ok "…that says so" has "$out" "No check: command"
+
 # =============================================================================
 echo ""
 echo "# passed $PASS · failed $FAIL · total $N"
