@@ -139,7 +139,13 @@ built-in table; `prices:` overrides any entry. Served tickets and CI results are
 `.claude/budget.jsonl` (out of git) because Claude Code deletes transcripts after its
 cleanup period. It is a meter, not a limit: nothing stops because of it. A dish's stages
 follow its messages: prep from the brief to the sign-off, cook to `[handoff]`, check to
-`[go]`, serve to `[served]`; a hygiene ticket cooks from the brief.
+`[go]`, serve to `[served]`; a hygiene ticket cooks from the brief. **Who is the sous.** The
+main checkout holds the sous and often the head chef's own sessions, so a session there
+is the sous only if it is the live session `.claude/sous` names (with no name recorded: the
+newest live one, as the Window picks), or if it sent a message only a sous sends (`[brief]`,
+`[hello]`, `[go]`, `[approved]`, `[findings]`), which keeps a past shift's sous the sous.
+Every other session in the main checkout is the **head chef's**: the budget lists it apart
+and leaves its spend out of the shift.
 
 **Where each artifact lands.** Rail artifacts (specs and tickets) are written by the sous in
 the main checkout and reach trunk straight away (`rail.commit`). Work artifacts (a ticket's
@@ -806,7 +812,8 @@ week's tickets and sessions, each with a key like a lesson's and the fix it take
 check red three times or more on one ticket; rework over a third of a ticket's spend; ten
 CI minutes or more on one PR; a gate the commis reported `nothing` on that the sous then
 answered from the record (the record holds it where the commis doesn't look); a session
-whose last ten turns average more than 150k cache-read tokens (it should have been cleared);
+whose last ten turns average more than 150k cache-read tokens (it should have been cleared;
+the head chef's own sessions in the main checkout are not counted);
 a head chef `[approved]` with no `why:` (the sous asked for a yes it should have given
 itself, Contract 5). The thresholds are the rules: no judgement, no tuning in this version. A key is **due at two
 tickets** (or two sessions), like a `repo` lesson, and `promoted` once the register lists

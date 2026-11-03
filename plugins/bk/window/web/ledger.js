@@ -11,8 +11,8 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const STAGES = [['prep', 'Prep'], ['cook', 'Cook'], ['check', 'Check'], ['serve', 'Serve']];
 const COLOR = { prep: 'var(--prep)', cook: 'var(--cook)', check: 'var(--check)', serve: 'var(--serve)', kitchen: 'var(--kitchen)' };
 const MARKS = ['#d4654f', '#e9a93c', '#6f9bd6', '#4fa86f', '#8e6bd6', '#e0843c', '#3fb0b0', '#c75a9a', '#9aa84f', '#5a7fd6', '#d6a04f', '#7a6bd6'];
-const markOf = (who) => who === 'sous' ? '#7d776c' : MARKS[(Number(String(who).replace(/\D+/g, '')) - 1 + 12) % 12] || '#7d776c';
-const nameOf = (who) => who === 'sous' ? 'Sous Chef' : /^station-/.test(who) ? `Cook ${who.replace(/\D+/g, '')}` : who;
+const markOf = (who) => who === 'sous' ? '#7d776c' : who === 'head chef' ? '#b9b2a2' : MARKS[(Number(String(who).replace(/\D+/g, '')) - 1 + 12) % 12] || '#7d776c';
+const nameOf = (who) => who === 'sous' ? 'Sous Chef' : who === 'head chef' ? 'Head Chef' : /^station-/.test(who) ? `Cook ${who.replace(/\D+/g, '')}` : who;
 
 let state = null, ui = { view: 'dishes', range: 'shift', open: null, all: null, sess: null };
 
@@ -21,7 +21,8 @@ function inWindow(b) {
   const since = b.windows?.[ui.range] ?? b.since ?? 0, now = b.computedAt || Date.now();
   const sessions = b.sessions.filter((s) => (s.lastAt || 0) >= since);
   const tickets = b.tickets.filter((t) => (t.servedAt || now) >= since);
-  return { since, now, sessions, tickets };
+  // The head chef's own sessions in the main checkout are listed, but are not the kitchen's spend.
+  return { since, now, sessions, kitchen: sessions.filter((s) => s.role !== 'head chef'), chef: sessions.filter((s) => s.role === 'head chef'), tickets };
 }
 // Spend by stage across the window's tickets, plus the kitchen's overhead: what the sessions spent that no ticket claims.
 function split(sessions, tickets) {
@@ -34,8 +35,9 @@ function split(sessions, tickets) {
 
 // ---------- the top strip ----------
 function renderSummary(b, w) {
-  const seg = split(w.sessions, w.tickets);
-  const spent = w.sessions.reduce((a, s) => a + s.allCost, 0);
+  const seg = split(w.kitchen, w.tickets);
+  const spent = w.kitchen.reduce((a, s) => a + s.allCost, 0), chefSpent = w.chef.reduce((a, s) => a + s.allCost, 0);
+  const chefLine = w.chef.length ? `<span class="sub">Head chef <b style="color:var(--ink)">${fmtUsd(chefSpent)}</b> · ${plural(w.chef.length, 'session')} of your own, not in this spend</span>` : '';
   const ci = w.tickets.reduce((a, t) => a + (t.ci?.cost || 0), 0), ciMin = w.tickets.reduce((a, t) => a + (t.ci?.minutes || 0), 0);
   const total = spent + ci, cap = b.caps?.shift_usd;
   const hours = Math.max(0.25, (w.now - w.since) / 3600000), rate = total / hours;
@@ -46,7 +48,7 @@ function renderSummary(b, w) {
       <div class="big"><b>${fmtUsd(total)}</b>${cap ? `<span>of ${fmtUsd(cap)}</span>` : `<span>since ${hhmm(w.since)}${ui.range === 'week' ? ' a week ago' : ''}</span>`}</div>
       <span class="bar">${bar(cap || total)}</span>
       <span class="sub">${fmtUsd(rate)}/h${cap ? ` · ${cap > total ? `${((cap - total) / Math.max(rate, 0.01)).toFixed(1)}h left at this rate` : 'over the shift budget'}` : ''}</span>
-      <span class="sub">Models <b style="color:var(--ink)">${fmtUsd(spent)}</b> · CI runners <b style="color:var(--ink)">${fmtUsd(ci)}</b> for ${Math.round(ciMin * 10) / 10} min</span>${unknown}
+      <span class="sub">Models <b style="color:var(--ink)">${fmtUsd(spent)}</b> · CI runners <b style="color:var(--ink)">${fmtUsd(ci)}</b> for ${Math.round(ciMin * 10) / 10} min</span>${chefLine}${unknown}
     </div>` + [...STAGES, ['kitchen', 'Kitchen']].map(([k, label]) => `<div><span class="h"><span class="sw" style="background:${COLOR[k]}"></span>${label.toUpperCase()}</span><b class="n">${fmtUsd(seg[k].cost)}</b><span class="sub">${total ? Math.round(seg[k].cost / total * 100) : 0}%${k === 'kitchen' ? ' · the sous, and work no ticket claims' : ` · ${plural(seg[k].steps, 'step')} · ${fmtSecs(seg[k].secs)}`}</span></div>`).join('');
 }
 

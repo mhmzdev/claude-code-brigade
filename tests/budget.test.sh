@@ -173,7 +173,35 @@ write(path.join(sousDir, 'sous1', 'subagents', 'agent-t1.jsonl'), [
   { type: 'user', isSidechain: true, agentId: 't1', timestamp: at(10.6), message: { role: 'user', content: 'taste' } },
   asst(10.8, 'claude-sonnet-5-5', { in: 1000000, out: 0, read: 0 }, [{ type: 'text', text: 'ship' }]),
 ]);
+// Three more conversations in the main checkout, none of them sous1 (#62). sous2 is the sous that is
+// running, named in .claude/sous and the registry, and says nothing only a sous says. chef1 is the head
+// chef's own session, heavy enough to trip the debrief's context rule if it were counted. sous0 is a past
+// shift's sous: gone from the registry, but it sent a [go]. All end before sous1's last turn (14), so the
+// shift window stays on sous1.
+write(path.join(sousDir, 'sous2.jsonl'), [
+  user(3, 'run the kitchen again'),
+  asst(4, 'claude-opus-5-5', { in: 0, out: 1000, read: 0 }, [send('app-cook-1', '[heard] Q1: yes')]),
+]);
+write(path.join(sousDir, 'chef1.jsonl'), [
+  user(5, 'triage the PRs'),
+  asst(6, 'claude-opus-5-5', { in: 0, out: 1000, read: 200000 }, [send('app-sous', '[plan] BKLG-009 ready: /x/docs/plans/BKLG-009.md')]),
+]);
+write(path.join(sousDir, 'sous0.jsonl'), [
+  user(-30, 'run the kitchen, yesterday'),
+  asst(-29, 'claude-opus-5-5', { in: 0, out: 1000, read: 0 }, [send('app-cook-1', '[go] commit and open the PR')]),
+]);
 EOF
+
+# The live registry Claude Code keeps (<config>/sessions/<pid>.json): who is running now, by name.
+# Both pids are alive (this script and its parent); sous2 is the sous by name, chef1 the newer session.
+mkdir -p "$CLAUDE_CONFIG_DIR/sessions" "$APP/.claude"
+APP_REAL="$(cd "$APP" && pwd -P)"
+registry() { # <sous2 updatedAt> <chef1 updatedAt>
+  printf '{"pid":%s,"sessionId":"sous2","name":"app-sous","cwd":"%s","updatedAt":%s}\n' "$$" "$APP_REAL" "$1" > "$CLAUDE_CONFIG_DIR/sessions/$$.json"
+  printf '{"pid":%s,"sessionId":"chef1","name":"chef","cwd":"%s","updatedAt":%s}\n' "$PPID" "$APP_REAL" "$2" > "$CLAUDE_CONFIG_DIR/sessions/$PPID.json"
+}
+registry 1000 2000
+printf 'app-sous\n' > "$APP/.claude/sous"
 
 cd "$APP" || exit 1
 # =============================================================================
@@ -195,9 +223,36 @@ ok "a session's all-in cost adds its helpers" [ "$(field "$J" 'b.sessions.find(s
 ok "a session carries its model's price table, for the Window's cost rows" [ "$(field "$J" 'b.sessions.find(s=>s.id==="cook1").price.out')" = 20 ]
 ok "an unpriced model counts its tokens and costs nothing" [ "$(field "$J" 'b.sessions.find(s=>s.id==="sous1").priced')" = false ]
 ok "the sous conversation's priced turns still add up" [ "$(field "$J" 'b.sessions.find(s=>s.id==="sous1").cost')" = 0.04 ]
-ok "the shift sums every session and helper" [ "$(field "$J" 'b.shift.cost')" = "$(field "$J" 'Math.round(b.sessions.reduce((a,s)=>a+s.allCost,0)*10000)/10000')" ]
+ok "the shift sums every session and helper of the kitchen" [ "$(field "$J" 'b.shift.cost')" = "$(field "$J" 'Math.round(b.sessions.filter(s=>s.role!=="head chef").reduce((a,s)=>a+s.allCost,0)*10000)/10000')" ]
 ok "per actor: station-1 today spans five conversations" [ "$(field "$J" 'b.actors["station-1"].sessions')" = 5 ]
 ok "the unknown model is reported" [ "$(field "$J" 'b.unknownModels.join()')" = claude-mystery-9 ]
+
+section "the head chef"
+# Two main-checkout transcripts, one named in .claude/sous: only that one is the sous (and sous1, which sent a [brief],
+# and sous0, which sent a [go], are the sous by what they said).
+role() { field "$1" "b.sessions.find(s=>s.id===\"$2\").role"; }
+ok "the live session named in .claude/sous is the sous" [ "$(role "$J" sous2)" = sous ]
+ok "another main-checkout session is the head chef, not the sous" [ "$(role "$J" chef1)" = "head chef" ]
+ok "a past sous that sent [go] stays the sous, though no registry lists it" [ "$(role "$J" sous0)" = sous ]
+ok "a sous that sent [brief] stays the sous" [ "$(role "$J" sous1)" = sous ]
+ok "per actor: the head chef is a row of its own, apart from the sous" [ "$(field "$J" 'b.actors["head chef"].sessions + "," + b.actors.sous.sessions')" = "1,3" ]
+ok "the head chef's spend is reported apart and is not in the shift" [ "$(field "$J" 'b.headChef.sessions + "," + Math.round((b.shift.cost + b.headChef.cost)*10000)/10000')" = "1,$(field "$J" 'Math.round(b.sessions.reduce((a,s)=>a+s.allCost,0)*10000)/10000')" ]
+ok "the head chef's session makes no ticket, though it sent a [plan] naming one" [ "$(field "$J" 'b.tickets.some(t=>t.id==="BKLG-009")')" = false ]
+OUT="$("$K" budget)"
+ok "kitchen.sh budget lists the head chef as its own row" has "$OUT" "^  head chef +opus"
+ok "kitchen.sh budget gives the head chef a line outside the shift" has "$OUT" "^Head chef \(not in the shift\): .*1 session"
+ok "the debrief's context rule skips the head chef's heavy session (only cook4 trips it)" [ "$(field "$("$K" debrief --json)" 'b.find(f=>f.key==="context-bloat").count')" = 1 ]
+# No name recorded: the Window's pick, the newest live main-checkout session.
+rm -f "$APP/.claude/sous"
+J2="$("$K" budget --json)"
+ok "with no name recorded, the newest live session is the sous" [ "$(role "$J2" chef1)" = sous ]
+ok "with no name recorded, the older live session is not, unless it spoke as the sous" [ "$(role "$J2" sous2)" = "head chef" ]
+# A name recorded for a session that is not running: no fallback.
+printf 'ghost\n' > "$APP/.claude/sous"
+J3="$("$K" budget --json)"
+ok "a recorded name nobody carries gets no fallback: the live sessions are the head chef's" [ "$(role "$J3" chef1)/$(role "$J3" sous2)" = "head chef/head chef" ]
+ok "a recorded name nobody carries still leaves a past sous who sent [go] the sous" [ "$(role "$J3" sous0)" = sous ]
+printf 'app-sous\n' > "$APP/.claude/sous"
 
 section "the ticket"
 T="$("$K" budget --ticket BKLG-001 --json)"
