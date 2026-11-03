@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Write this session's handoff so it can be cleared and a fresh session carries on — the role comes from where it runs. In a station (a line cook) it appends a Handoff section to the ticket's journal (stage, what's uncommitted, next step, pending questions, follow-ups, lessons). In the main checkout (the sous chef) it runs the lesson count, runs the debrief (the budget's friction rules, fired as chores), files the record (head-chef decisions into ADRs, unanswered questions and asks into question files, every answered question's gap into its fix, the inbox into the docs), fetches CI minutes into the budget's ledger, and overwrites the gitignored .claude/sous-handoff.md with what lives nowhere else. Cooks run it on [go] before open-pr; anyone can run it before a /clear. Use when the user says "handoff", "hand over", "write a handoff", "I'm going to clear you", "/bk:handoff".
+description: Write this session's handoff so it can be cleared and a fresh session carries on — the role comes from where it runs. In a station (a line cook) it appends a Handoff section to the ticket's journal (stage, what's uncommitted, next step, pending questions, follow-ups, processes, lessons). In the main checkout (the sous chef) it runs the lesson count, runs the debrief (the budget's friction rules, fired as chores), files the record (head-chef decisions into ADRs, unanswered questions and asks into question files, every answered question's gap into its fix, the inbox into the docs), fetches CI minutes into the budget's ledger, and overwrites the gitignored .claude/sous-handoff.md with what lives nowhere else. Cooks run it on [go] before open-pr; anyone can run it before a /clear. Use when the user says "handoff", "hand over", "write a handoff", "I'm going to clear you", "/bk:handoff".
 argument-hint: "(none: the role comes from the station check)"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, SendMessage, ListAgents, ToolSearch
 ---
@@ -48,7 +48,12 @@ Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`.
    sous has sent `[go]` (the journal says).
 4. **Append** a `## Handoff — <YYYY-MM-DD HH:MM> · <session name>` section with the fields in
    the template: stage, uncommitted files (`git status --short`), the next step, pending items
-   (unanswered `Qn`, unfixed findings), follow-ups, and lessons.
+   (unanswered `Qn`, unfixed findings), follow-ups, **processes**, and lessons.
+   - **Processes** (Contract 7): what is still running in this station, registered, and why:
+     `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" procs --prune`, then read what `procs` still
+     lists for your station and put each line here with the reason it stays up. Anything of
+     yours that is running and not listed is a process you forgot to register: register it
+     (`procs --add <pid> "<what>"`) or stop it now. "none" is the usual answer.
    - **Follow-ups** are drafted as tickets: write them under the handoff and send the sous one
      `[rail] fire <n> ticket(s), see journal`. Never create ticket files yourself.
    - **Lessons**: only things a future session would get wrong again. One line each, tagged
@@ -180,7 +185,8 @@ into the working tree, step 7 lands it, and step 8 tops up the budget before the
    It asks `gh` for the runs on the PR branch of every ticket worked on this week and keeps
    the minutes in `.claude/budget.jsonl`. No `gh`, or no PR yet → it says so per ticket; go on.
 9. **Overwrite** `.claude/sous-handoff.md` (make sure `.gitignore` lists it) with only what
-   lives nowhere else:
+   lives nowhere else. Run `kitchen.sh procs` and `kitchen.sh procs --scan` first, for its
+   Processes section (the lists are history to a fresh sous, which re-runs both):
    ```markdown
    # Sous handoff — <YYYY-MM-DD HH:MM> · <session name>
 
@@ -192,6 +198,10 @@ into the working tree, step 7 lands it, and step 8 tops up the budget before the
 
    ## Walk-in holds I granted
    - <station, resource, until when — or "none">
+
+   ## Processes (Contract 7)
+   - <each line `kitchen.sh procs` shows as alive, with its station and why it stays up, and
+     each line `procs --scan` reports as unregistered, and who was told — or "none">
 
    ## Cooks
    | session | station | model | ticket |

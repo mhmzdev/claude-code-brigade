@@ -31,6 +31,12 @@ frame of each), at most 40 lines.
 Never edit a file, never re-run with different flags to make it pass, never judge whether a
 failure "matters". That's the caller's call.
 
+If the command starts something that outlives it (a `&` or `nohup` job, a dev server, a
+watcher), register the process that holds the port or the CPU the moment it starts
+(`kitchen.sh procs --add <pid> "<what>"`, the `kitchen.sh` the caller names) and stop it before
+you report; one you must leave running is named in the report. Never start one the command
+did not ask for.
+
 ## Report (exactly this shape)
 
 ```

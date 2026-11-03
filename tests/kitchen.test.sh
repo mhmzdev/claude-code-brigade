@@ -29,8 +29,16 @@ unset CLAUDE_CONFIG_DIR BRIGADE_TRUNK BRIGADE_KITCHEN BRIGADE_KITCHEN_MODE BRIGA
   BRIGADE_CLAUDE_ARGS BRIGADE_VIA_BK TMUX TMUX_PANE
 mkdir -p "$HOME"
 
-cleanup() { [[ -n "${KEEP:-}" ]] && echo "kept: $TMP" || rm -rf "$TMP"; }
+SLEEPERS=()   # the processes a test started (the procs section), each killed here by its own pid
+cleanup() {
+  local p
+  for p in "${SLEEPERS[@]+"${SLEEPERS[@]}"}"; do kill "$p" 2>/dev/null; wait "$p" 2>/dev/null; done
+  [[ -n "${KEEP:-}" ]] && echo "kept: $TMP" || rm -rf "$TMP"
+}
 trap cleanup EXIT
+# a signal ends the run through the EXIT trap, so a run that is killed (by a mutation that
+# turns a reap on this very shell, say) still kills the sleepers it started
+trap 'exit 143' TERM HUP; trap 'exit 130' INT
 
 # A sealed PATH: every tool kitchen.sh uses, and nothing it must not find on this machine
 # (tmux, brew, Warp, node), so the terminal it picks depends on the test, not the laptop.
@@ -1358,6 +1366,216 @@ cp "$GR/.claude/brigade.md" "$TMP/brigade.gh.bak"; cp "$TMP/jira.md" "$GR/.claud
 out=$(cd "$G1" && "$K" rail move PROJ-1 rfr 2>&1); rc=$?
 ok "a jira rail stays a [rail] message" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "Send the sous \[rail\] instead"' _ "$rc" "$out"
 cp "$TMP/brigade.gh.bak" "$GR/.claude/brigade.md"
+
+# =============================================================================
+section "procs: the kitchen registers, reaps and scans what it started"
+# =============================================================================
+# The sleepers are the test's own: each stands in a station dir (its cwd), is killed by pid,
+# and is listed in SLEEPERS so cleanup kills what a failed test left. exec -a gives one the
+# program name of a kitchen session (claude, tmux, a login shell).
+sleeper() {  # sleeper <dir> [program name] [ignore TERM: 1] → SP = the pid of a sleep standing in <dir>
+  local d="$1" name="${2:-sleep}" ign="${3:-}" i
+  ( cd "$d" && { [[ -n "$ign" ]] && trap '' TERM; exec -a "$name" sleep 120; } ) >/dev/null 2>&1 &
+  SP=$!; SLEEPERS+=("$SP")
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do   # until the exec has happened
+    [[ "$(ps -ww -o command= -p "$SP" 2>/dev/null)" == "$name"* ]] && break; sleep 0.1
+  done
+}
+living() { local s; s="$(ps -o stat= -p "$1" 2>/dev/null | tr -d ' ')"; [[ -n "$s" && "$s" != Z* ]]; }   # a zombie is dead; the test shell has not waited for it yet
+gone() { ! living "$1"; }
+reg_has() { awk -F'\t' -v p="$2" -v w="$3" '$1==p && $2!="" && $3!="" && $4==w { f=1 } END { exit !f }' "$1/.claude/procs"; }
+reg_ticket() { awk -F'\t' -v p="$2" '$1==p { print $5 }' "$1/.claude/procs"; }
+reg_count() { if [[ -f "$1/.claude/procs" ]]; then wc -l < "$1/.claude/procs" | tr -d ' '; else echo 0; fi; }
+squeeze() { tr '\t\r\n' '   ' | sed 's/  */ /g; s/^ //; s/ $//'; }
+cwd_of() { readlink "/proc/$1/cwd" 2>/dev/null || lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1; }
+child_of() { ps -A -o pid=,ppid= | awk -v p="$1" '$2==p { print $1; exit }'; }
+
+procs_suite() {
+  local label="$1" R="$2" SD="$3" S1 S2 out rc p1 p2 u pm pc pk pd pp ch i c0
+  S1="$SD/station-1"; S2="$SD/station-2"
+  push_all "$R" "brigade setup"
+  (cd "$R" && "$K" setup >/dev/null 2>&1)
+
+  # ---- add
+  sleeper "$S1"; p1=$SP
+  out=$(cd "$S1" && "$K" procs --add "$p1" "dev server for #7" 2>&1); rc=$?
+  ok "$label: --add registers a pid from a station" bash -c 'test "$1" = 0 && printf "%s" "$2" | grep -q "registered $3 (dev server for #7)"' _ "$rc" "$out" "$p1"
+  ok "$label: …the register holds the pid, a start time, the command line and what it is for" reg_has "$S1" "$p1" "dev server for #7"
+  ok "$label: …the command line is the process's own" bash -c 'awk -F"\t" -v p="$2" "\$1==p && \$3 ~ /sleep 120/ { f=1 } END { exit !f }" "$1/.claude/procs"' _ "$S1" "$p1"
+  ok "$label: …kept out of git, and so is the reap's log" bash -c 'git -C "$1" check-ignore -q .claude/procs && git -C "$1" check-ignore -q .claude/procs.log' _ "$S1"
+  out=$(cd "$S1" && "$K" procs --add "$p1" "dev server for #7" 2>&1)
+  ok "$label: registering the same process twice writes one line" bash -c 'test "$(grep -c "" "$1/.claude/procs")" = 1 && printf "%s" "$2" | grep -q "already registered"' _ "$S1" "$out"
+  git -C "$S2" switch -q -c issue-86-procs
+  sleeper "$S2"; p2=$SP
+  out=$(cd "$R" && "$K" procs --add "$p2" "a watcher" --station 2 2>&1); rc=$?
+  ok "$label: the sous registers into a station with --station N" bash -c 'test "$1" = 0 && printf "%s" "$2" | grep -q "station-2: registered"' _ "$rc" "$out"
+  ok "$label: …the ticket comes from the station's branch" test "$(reg_ticket "$S2" "$p2")" = "#86"
+  sleeper "$S1"; u=$SP
+  (cd "$S1" && "$K" procs --add "$u" "gets a ticket" --ticket ABC-1 >/dev/null 2>&1)
+  ok "$label: --ticket sets the ticket" test "$(reg_ticket "$S1" "$u")" = ABC-1
+  kill "$u" 2>/dev/null; wait "$u" 2>/dev/null
+  c0="$(reg_count "$S1")"
+  out=$(cd "$R" && "$K" procs --add "$p1" "x" 2>&1); rc=$?
+  ok "$label: from the main checkout, --add without --station says where to run it" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "Run this in a station"' _ "$rc" "$out"
+  out=$(cd "$S1" && "$K" procs --add soon "x" 2>&1); rc=$?
+  ok "$label: a pid that is not a number is refused" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "needs a pid"' _ "$rc" "$out"
+  out=$(cd "$S1" && "$K" procs --add 99999999 "x" 2>&1); rc=$?
+  ok "$label: a pid with no process is refused" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "no process 99999999"' _ "$rc" "$out"
+  out=$(cd "$S1" && "$K" procs --add 1 "x" 2>&1); rc=$?
+  ok "$label: pid 1 is refused as a system process" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "a system process"' _ "$rc" "$out"
+  out=$(cd "$S1" && "$K" procs --add $$ "x" 2>&1); rc=$?
+  ok "$label: the caller's own session is refused" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "own process"' _ "$rc" "$out"
+  sleeper "$S1" claude; pc=$SP
+  out=$(cd "$S1" && "$K" procs --add "$pc" "x" 2>&1); rc=$?
+  ok "$label: a claude session is refused" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "a kitchen session"' _ "$rc" "$out"
+  sleeper "$S1" tmux; pk=$SP
+  out=$(cd "$S1" && "$K" procs --add "$pk" "x" 2>&1); rc=$?
+  ok "$label: tmux is refused" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "a kitchen session"' _ "$rc" "$out"
+  kill "$pk" 2>/dev/null; wait "$pk" 2>/dev/null
+  sleeper "$S1" -bash; pk=$SP
+  out=$(cd "$S1" && "$K" procs --add "$pk" "x" 2>&1); rc=$?
+  ok "$label: a login shell is refused" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "a kitchen session"' _ "$rc" "$out"
+  kill "$pk" 2>/dev/null; wait "$pk" 2>/dev/null
+  ok "$label: …none of the refusals wrote a line" test "$(reg_count "$S1")" = "$c0"
+
+  # ---- list and prune
+  sleeper "$S1"; pd=$SP
+  (cd "$S1" && "$K" procs --add "$pd" "soon gone" >/dev/null 2>&1)
+  kill "$pd"; wait "$pd" 2>/dev/null
+  out=$(cd "$R" && "$K" procs 2>&1)
+  ok "$label: the list shows every station's register with the state" bash -c 'printf "%s" "$1" | grep -qE "station-1 +alive +$2 " && printf "%s" "$1" | grep -qE "station-2 +alive +$3 " && printf "%s" "$1" | grep -qE "station-1 +dead +$4 "' _ "$out" "$p1" "$p2" "$pd"
+  ok "$label: …and counts them" has "$out" "Registered: 2 alive, 2 dead, 0 reused"
+  out=$(cd "$S1" && "$K" procs --prune 2>&1)
+  ok "$label: --prune drops the dead line" bash -c 'printf "%s" "$1" | grep -q "pruned 2" && test "$(grep -c "" "$2/.claude/procs")" = 1 && grep -q "^$3" "$2/.claude/procs"' _ "$out" "$S1" "$p1"
+  ok "$label: …and killed nothing" living "$p1"
+  sleeper "$S2"; pd=$SP
+  (cd "$S2" && "$K" procs --add "$pd" "dies in station-2" >/dev/null 2>&1); kill "$pd"; wait "$pd" 2>/dev/null
+  out=$(cd "$S1" && "$K" procs 2>&1)
+  ok "$label: the list, run in a station, shows that station only" bash -c '! printf "%s" "$1" | grep -q "station-2"' _ "$out"
+  (cd "$S1" && "$K" procs --prune >/dev/null 2>&1)
+  ok "$label: --prune, run in a station, leaves the other stations' registers alone" reg_has "$S2" "$pd" "dies in station-2"
+  # a cook's scope is its own station; the reap and the other stations are the sous's
+  out=$(cd "$S1" && "$K" procs --station 2 --prune 2>&1); rc=$?
+  ok "$label: a cook cannot name another station" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "is the sous"' _ "$rc" "$out"
+  ok "$label: …and that station's register is untouched" reg_has "$S2" "$pd" "dies in station-2"
+  out=$(cd "$S1" && "$K" procs --station all --prune 2>&1); rc=$?
+  ok "$label: …nor all of them" bash -c 'test "$1" != 0' _ "$rc"
+  out=$(cd "$S1" && "$K" procs --station station-1 --prune 2>&1); rc=$?
+  ok "$label: …but its own station, by name, passes" test "$rc" = 0
+  out=$(cd "$S1" && "$K" procs --reap all 2>&1); rc=$?
+  ok "$label: a cook cannot reap (all)" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "the sous.s"' _ "$rc" "$out"
+  out=$(cd "$S1" && "$K" procs --reap station-1 2>&1); rc=$?
+  ok "$label: …nor its own station" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "the sous.s"' _ "$rc" "$out"
+  ok "$label: …and nothing was reaped" living "$p1"
+  sleeper "$S2"; pm=$SP
+  out=$(cd "$S1" && "$K" procs --add "$pm" "x" --station 2 2>&1); rc=$?
+  ok "$label: …nor register into another station" bash -c 'test "$1" != 0' _ "$rc"
+  ok "$label: …and nothing was written there" bash -c '! grep -q "^$2" "$1/.claude/procs"' _ "$S2" "$pm"
+  kill "$pm"; wait "$pm" 2>/dev/null
+  out=$(cd "$R" && "$K" procs --prune 2>&1)
+  ok "$label: --prune from the main checkout covers every station" has "$out" "station-2: pruned 1"
+  out=$(cd "$R" && "$K" procs --prune 2>&1)
+  ok "$label: --prune with nothing dead says so" has "$out" "Nothing to prune"
+
+  # ---- the scan: report only
+  sleeper "$S1"; u=$SP        # in a station, not registered
+  sleeper "$S1" claude; pc=$SP  # a kitchen session, not registered
+  out=$(cd "$R" && "$K" procs --scan 2>&1); rc=$?
+  ok "$label: --scan lists an unregistered process standing in a station" bash -c 'test "$1" = 0 && printf "%s" "$2" | grep -qE "station-1 +pid $3 "' _ "$rc" "$out" "$u"
+  ok "$label: …not a registered one" bash -c '! printf "%s" "$1" | grep -qE "pid ($2|$3) "' _ "$out" "$p1" "$p2"
+  ok "$label: …not a kitchen session" bash -c '! printf "%s" "$1" | grep -qE "pid $2 "' _ "$out" "$pc"
+  ok "$label: …and it signals nothing" living "$u"
+  out=$(cd "$R" && "$K" board 2>&1)
+  ok "$label: the board counts the registered-alive and the unregistered" has "$out" "Processes: 2 registered alive · 1 unregistered in stations"
+
+  # ---- the reap
+  sleeper "$S1"; pm=$SP     # registered, then its recorded start time is wrong: not the same process
+  (cd "$S1" && "$K" procs --add "$pm" "other process" >/dev/null 2>&1)
+  awk -F'\t' -v OFS='\t' -v p="$pm" '$1==p { $2="Mon Jan  1 00:00:00 2001" } { print }' "$S1/.claude/procs" > "$S1/.claude/procs.tmp" && mv "$S1/.claude/procs.tmp" "$S1/.claude/procs"
+  # a claude session written into the register by hand: the reap still leaves it alone
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$pc" "$(LC_ALL=C ps -ww -o lstart= -p "$pc" | squeeze)" "$(ps -ww -o command= -p "$pc" | squeeze)" "pretend session" - now >> "$S1/.claude/procs"
+  sleeper "$S1" sleep 1; pk=$SP    # ignores TERM: it takes KILL
+  (cd "$S1" && "$K" procs --add "$pk" "stubborn poll" >/dev/null 2>&1)
+  sleeper "$S1"; pd=$SP
+  (cd "$S1" && "$K" procs --add "$pd" "gone before the reap" >/dev/null 2>&1)
+  kill "$pd"; wait "$pd" 2>/dev/null
+  out=$(cd "$R" && "$K" procs 2>&1)
+  ok "$label: the list calls a pid with another start time reused" bash -c 'printf "%s" "$1" | grep -qE "station-1 +reused +$2 "' _ "$out" "$pm"
+  out=$(cd "$R" && "$K" procs --reap station-1 2>&1); rc=$?
+  wait "$p1" "$pk" 2>/dev/null   # the zombies, and the shell's word about them
+  ok "$label: --reap exits 0" test "$rc" = 0
+  ok "$label: …a registered process is gone, by TERM" bash -c 'printf "%s" "$2" | grep -q "reaped $3 (dev server for #7, term)"' _ "$rc" "$out" "$p1"
+  ok "$label: …really dead" gone "$p1"
+  ok "$label: …one that ignores TERM is killed" bash -c 'printf "%s" "$2" | grep -q "reaped $3 (stubborn poll, kill)"' _ "$rc" "$out" "$pk"
+  ok "$label: …really dead too" gone "$pk"
+  ok "$label: …an unregistered process standing in the station survives" living "$u"
+  ok "$label: …a pid whose start time does not match is skipped, and survives" bash -c 'printf "%s" "$2" | grep -q "$3 (other process) is no longer the registered process" ' _ "$rc" "$out" "$pm"
+  ok "$label: …(the mismatched one still runs)" living "$pm"
+  ok "$label: …a kitchen session in the register is skipped, and survives" bash -c 'printf "%s" "$2" | grep -q "$3 (pretend session) skipped, it is a kitchen session" ' _ "$rc" "$out" "$pc"
+  ok "$label: …(the session still runs)" living "$pc"
+  ok "$label: …a pid that was already gone is dropped, with a word" has "$out" "$pd \\(gone before the reap\\) was already gone"
+  ok "$label: …only the skipped lines stay in the register" test "$(reg_count "$S1")" = 2
+  ok "$label: …the reap is logged" bash -c 'test "$(grep -c reaped "$1/.claude/procs.log")" = 2 && grep -q "reaped.$2" "$1/.claude/procs.log"' _ "$S1" "$p1"
+  ok "$label: …station-2's process was not touched" living "$p2"
+  out=$(cd "$S1" && "$K" procs --prune 2>&1)
+  ok "$label: --prune drops a reused line and keeps the live one" bash -c 'test "$(grep -c "" "$1/.claude/procs")" = 1 && grep -q "^$2" "$1/.claude/procs"' _ "$S1" "$pc"
+
+  # ---- the reap leaves a registered process's children alone, and the scan names their parent
+  ( cd "$S1" && exec bash -c 'sleep 120 & wait' ) >/dev/null 2>&1 & pp=$!; SLEEPERS+=("$pp"); disown "$pp"   # no job message when the reap kills it
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do ch="$(child_of "$pp")"; [[ -n "$ch" ]] && break; sleep 0.1; done
+  SLEEPERS+=("$ch")
+  (cd "$S1" && "$K" procs --add "$pp" "a wrapper" >/dev/null 2>&1)
+  out=$(cd "$R" && "$K" procs --scan 2>&1)
+  ok "$label: the scan names a leftover child's registered parent" bash -c 'printf "%s" "$1" | grep -qE "pid $2 +parent $3 +child of registered $3" && ! printf "%s" "$1" | grep -qE "pid $3 "' _ "$out" "$ch" "$pp"
+  (cd "$R" && "$K" procs --reap station-1 >/dev/null 2>&1); { wait "$pp"; } 2>/dev/null
+  ok "$label: reaping the wrapper kills the wrapper" gone "$pp"
+  ok "$label: …but not its child: it was not registered, so it lives" living "$ch"
+  ok "$label: …and the scan reports it" bash -c 'out=$(cd "$1" && "$2" procs --scan 2>&1); printf "%s" "$out" | grep -qE "pid $3 "' _ "$R" "$K" "$ch"
+
+  # ---- reap all, and nothing to reap
+  out=$(cd "$R" && "$K" procs --reap all 2>&1); wait "$p2" 2>/dev/null
+  ok "$label: --reap all reaps every station's registered process" bash -c 'printf "%s" "$1" | grep -q "station-2: reaped $2" ' _ "$out" "$p2"
+  ok "$label: …station-2's is gone" gone "$p2"
+  kill "$pc" "$u" "$ch" 2>/dev/null; wait "$pc" "$u" "$ch" 2>/dev/null
+  (cd "$S1" && "$K" procs --prune >/dev/null 2>&1)
+  out=$(cd "$R" && "$K" procs --reap all 2>&1)
+  ok "$label: --reap all with nothing registered says so" has "$out" "No processes registered"
+  out=$(cd "$R" && "$K" procs --reap station-9 2>&1); rc=$?
+  ok "$label: a station that does not exist is refused" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "No such station"' _ "$rc" "$out"
+  out=$(cd "$R" && "$K" procs --reap 2>&1); rc=$?
+  ok "$label: --reap names a station" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "Usage"' _ "$rc" "$out"
+  out=$(cd "$R" && "$K" procs --nope 2>&1); rc=$?
+  ok "$label: an unknown option is refused" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "Unknown argument for procs"' _ "$rc" "$out"
+
+  # ---- a registered pid must stand in the station: at add, and still at the reap
+  sleeper "$TMP"; po=$SP      # started outside every station
+  out=$(cd "$S1" && "$K" procs --add "$po" "somebody else's server" 2>&1); rc=$?
+  ok "$label: --add refuses a pid whose cwd is not inside the station" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -qE "$3.s cwd is .*, not inside station-1"' _ "$rc" "$out" "$po"
+  ok "$label: …and wrote nothing" bash -c '! grep -q "^$2" "$1/.claude/procs" 2>/dev/null' _ "$S1" "$po"
+  ( cd "$S1" && exec bash -c 'sleep 3; cd /; sleep 120 & wait' ) >/dev/null 2>&1 & pm=$!; SLEEPERS+=("$pm"); disown "$pm"
+  out=$(cd "$S1" && "$K" procs --add "$pm" "moves out of the station" 2>&1); rc=$?
+  ok "$label: a process inside the station registers" test "$rc" = 0
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
+    [[ "$(cwd_of "$pm")" == / || "$(cwd_of "$pm")" == /private ]] && break; sleep 0.3
+  done
+  ch="$(child_of "$pm")"; [[ -n "$ch" ]] && SLEEPERS+=("$ch")
+  out=$(cd "$R" && "$K" procs --reap station-1 2>&1)
+  ok "$label: the reap leaves a process whose cwd moved out of the station alone, and says so" bash -c 'printf "%s" "$1" | grep -q "$2 (moves out of the station) skipped, its cwd is now / *, outside station-1"' _ "$out" "$pm"
+  ok "$label: …it still runs" living "$pm"
+}
+
+PC="$TMP/procsc/app"; mkdir -p "$TMP/procsc"
+new_repo "$PC" 'trunk: main
+install: "true"
+stations: 2'
+procs_suite "clone" "$PC" "$PC/stations"
+
+PW="$TMP/procsw/app"; mkdir -p "$TMP/procsw"
+new_repo "$PW" 'trunk: main
+install: "true"
+kitchen_mode: worktree
+stations: 2'
+procs_suite "worktree" "$PW" "$TMP/procsw/app-stations"
 
 
 # =============================================================================

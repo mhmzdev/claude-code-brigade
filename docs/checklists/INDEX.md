@@ -10,5 +10,6 @@
 | [64-record-protected-trunk.md](64-record-protected-trunk.md) | The record reaches a protected trunk, and a docs-only change needs no release | #64 |
 | [65-routine-kinds-script.md](65-routine-kinds-script.md) | route routine message kinds to script; measure the sous's turns per ticket by kind (and take #59: ticket ids from the rail's own form) | #65 |
 | [66-check-tree-hash.md](66-check-tree-hash.md) | kitchen check — run the config's check once per tree, record the result with the tree's hash | #66 |
+| [86-kitchen-procs.md](86-kitchen-procs.md) | kitchen.sh procs: the kitchen registers, reaps and scans the processes it started; never a system or unknown process | #86 |
 | [gh-19-claude-dir-edits.md](gh-19-claude-dir-edits.md) | A plan that edits .claude/ is seen coming, and a denied edit is a gate, never a workaround | #19 |
 | [gh-63-generated-index.md](gh-63-generated-index.md) | Generate the INDEX.md tables of plans, journals and checklists from frontmatter, so concurrent tickets stop conflicting | #63 |

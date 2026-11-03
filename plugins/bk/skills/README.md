@@ -607,7 +607,7 @@ Keep messages short and typed. The first line is the kind, in brackets:
 | `[walk-in]` | cook → sous | sous | "about to run `<command>` on `<resource>`, OK?" |
 | `[status]` | anyone | **script** (`kitchen.sh here --note`) | a state change that needs no answer: "the head chef told me directly to …", "implement started (signed off)", a lane-C counter before/after. A cook writes it with `kitchen.sh here --note "…"`; only the sous's own broadcast to the cooks (`[status] sous restarting`) is still a message |
 | `[handoff]` | cook → sous | sous | "ready for the pass": branch, files, check result, inspector result, absolute checklist path |
-| `[findings]` | sous → cook | cook | numbered items, each with file and why |
+| `[findings]` | sous → cook | cook | numbered items, each with file and why (for an unregistered process: the station, the pid and the scan's line) |
 | `[plan]` | cook → sous | sous | the plan is ready for the sign-off: its absolute path, its protected paths, if any, and `changes the ticket: <n>` when its `## Decisions → Changes the ticket` is not "None". The cook waits for `[approved]` or `[findings]` |
 | `[approved]` | sous → cook | cook | the sign-off: start `/bk:implement`. Either the sous's own, naming its rule (`[approved] <ID>: <path> · sous, per gates.plan_approval.<kind>`), or the head chef's yes in their words with the reason it was theirs (`[approved] <ID>: <path> · head chef: "<words>" · why: <feature | migration | walk-in | production write | protected path | changes the ticket | precedent fork | config | every plan>` (`precedent fork`: a precedent plan departing from its precedent; `config`: `gates.plan_approval` sends that kind to the head chef; `every plan`: they asked to see them all); the debrief's `over-ask` rule counts a head chef `[approved]` with no `why:` against the sous). A feature plan only ever gets the second |
 | `[go]` | sous → cook | cook | commit approval after the pass |
@@ -650,6 +650,25 @@ database, a docker stack, a fixed port.
   station's own migrations, so it silently drops every other station's unmerged schema.
 - **Only one station carries a migration at a time** (`migrations:` in the config) until it
   merges.
+
+**Processes.** The kitchen manages the processes it started, and only those (the head chef's
+rule). A cook registers every process it starts that outlives the tool call (a `&` or `nohup`
+job, a dev server, a watcher, `make up`, a tunnel, a background poll) the moment it starts:
+`kitchen.sh procs --add <pid> "<what>"`, writing `<station>/.claude/procs` (out of git) with
+the pid, start time, command line, purpose and ticket. It registers the process that actually
+holds the port or the CPU (the server itself, not only the `npm` or `make` wrapper), stops its
+own before `[handoff]`, and lists any it must leave running, and why, in its handoff's
+`Processes` line. It can register only a process whose working directory is inside its own
+station, so a stale or mistyped pid never gets onto the list, and it works on its own station
+only: the reap and the other stations' registers are the sous's. The sous reaps what is left after `ship` and before `clear`
+(`kitchen.sh procs --reap station-N`), and `bk stop` reaps every station before the pause. A
+reap signals (TERM, then KILL after a grace period) only a registered pid that still has its
+recorded start time and command line, still stands inside the station, and is not a kitchen
+session (claude, tmux, a pane's shell); it never touches a system process, a process the kitchen did not register, or a
+registered process's children. Anything that fails the check is left alone and printed.
+`kitchen.sh procs --scan` is report-only: it lists processes standing in a station that nobody
+registered, and the sous asks that cook to register or stop them (`[findings]`), or tells the
+head chef when the cook is gone. The board shows both counts.
 
 ## Contract 8 — Stations
 
@@ -806,12 +825,14 @@ what cooks are waiting on: `grep` across `<kitchen>/*/docs/journal/`.
   to the sous), and lessons. It runs automatically on `[go]`, before `open-pr`, so the closing
   handoff is in the reviewed PR (the journal is the one file allowed to change after the
   pass). The head chef can also ask for it any time, e.g. before clearing a cook by hand between plan and
-  implement. A fresh cook reads its ticket's journal and resumes from the last handoff.
+  implement. A fresh cook reads its ticket's journal and resumes from the last handoff. Its
+  `Processes` line says what is still running in the station, registered, and why (Contract 7).
 - **Sous:** counts the lessons and runs the debrief, files the record (the decisions, the
   open questions and asks, the gaps, the inbox), fetches CI minutes for the week's tickets
   into the budget's ledger, then overwrites the gitignored `.claude/sous-handoff.md` with only what lives nowhere
   else: the head chef's standing instructions, what it meant to fire next, walk-in holds it
-  granted, and which session is which cook. A fresh `/bk:sous-chef` reads it first, then
+  granted, every registered process still alive across the stations and every unregistered one
+  `procs --scan` reports (Contract 7), and which session is which cook. A fresh `/bk:sous-chef` reads it first, then
   checks it against the rail, stations and journals; **reality wins over the note**.
 
 Neither handoff clears the session itself. The sous does, with `kitchen.sh clear`: a cook

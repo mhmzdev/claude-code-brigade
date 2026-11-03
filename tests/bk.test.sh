@@ -35,6 +35,9 @@ cleanup() {
   [[ -n "${KEEP:-}" ]] && echo "kept: $TMP" || rm -rf "$TMP"
 }
 trap cleanup EXIT
+# a signal ends the run through the EXIT trap, so a run that is killed (by a mutation that
+# turns a reap on this very shell, say) still kills the sleepers it started
+trap 'exit 143' TERM HUP; trap 'exit 130' INT
 
 NB="$TMP/bin"; mkdir -p "$NB"
 for t in git bash sh awk sed grep head tail cat mkdir rm cp mv ls ps kill readlink chmod sleep printf uname dirname basename sort uniq wc tr find date mktemp cut env touch xargs tee stat id lsof nohup seq ln diff paste rev python3; do p=$(command -v "$t" 2>/dev/null) && ln -sf "$p" "$NB/$t"; done
@@ -175,9 +178,17 @@ pS=$(start_session "$C" sid-sous idle); p1=$(start_session "$S1" sid-one busy)
 printf '%s %%0 sous\n%s %%1 station-1\n' "$pS" "$p1" > "$ST/panes"   # station-2 has a window but no session
 sleep 300 >/dev/null 2>&1 & SLEEPERS+=("$!"); printf '{"pid":%s,"sessionId":"sid-other","cwd":"/elsewhere","status":"idle"}\n' "$!" > "$REG/$!.json"   # another kitchen's session
 ( sleep 3; sed -i.bak 's/"busy"/"idle"/' "$REG/$p1.json" ) &
+# a process a cook registered and left running, and one nobody registered, both standing in station-1
+( cd "$S1" && exec sleep 120 ) >/dev/null 2>&1 & reg_pid=$!; SLEEPERS+=("$reg_pid"); disown "$reg_pid"
+( cd "$S1" && exec sleep 120 ) >/dev/null 2>&1 & stray_pid=$!; SLEEPERS+=("$stray_pid")
+for _ in 1 2 3 4 5 6 7 8 9 10; do [[ "$(ps -ww -o command= -p "$reg_pid" 2>/dev/null)" == "sleep 120" ]] && break; sleep 0.1; done
+( cd "$S1" && "$K" procs --add "$reg_pid" "dev server" >/dev/null 2>&1 )
 : > "$ST/log"
 out=$("$BK" stop --timeout 30 2>&1); rc=$?
 ok "stop exits 0" test "$rc" -eq 0
+ok "stop reaps a process a cook registered in a station" bash -c 's=$(ps -o stat= -p "$1" 2>/dev/null | tr -d " "); [ -z "$s" ] || [ "${s#Z}" != "$s" ]' _ "$reg_pid"
+ok "…and says so" has "$out" "station-1: reaped $reg_pid \\(dev server, term\\)"
+ok "…but not a process nobody registered" bash -c 's=$(ps -o stat= -p "$1" 2>/dev/null | tr -d " "); [ -n "$s" ] && [ "${s#Z}" = "$s" ]' _ "$stray_pid"
 ok "stop types /bk:handoff into the sous and every cook" bash -c 'grep -q "send-keys -t %0 -l /bk:handoff" "$1" && grep -q "send-keys -t %1 -l /bk:handoff" "$1"' _ "$ST/log"
 ok "…not into a session outside this kitchen" bash -c '! grep -q "elsewhere" "$1"' _ "$ST/log"
 ok "…waits for the busy cook to go idle" has "$out" "Waiting for each session"

@@ -342,6 +342,10 @@ cmd_stop() {
     done
     [[ -n "$pending" ]] && say "Not out after 20s:$pending (closing the tmux session ends them)."
   fi
+  # 5. the processes the cooks registered and left running (kitchen.sh procs, Contract 7): reaped
+  # now that every handoff has listed them; only registered ones that are still the same
+  # process, never a session. A pause that fails to reap is still a pause.
+  "$KITCHEN" procs --reap all 2>&1 | sed 's/^/  /' || true
   tmux kill-session -t "$SESS" 2>/dev/null
   "$KITCHEN" live stop 2>/dev/null | grep -v '^The Window is closed\.$' || true
   if (( ${#ids[@]} > 0 )); then say "Paused: ${ids[*]} saved. bk open picks each one up where it stopped."
