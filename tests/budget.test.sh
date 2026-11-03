@@ -125,6 +125,7 @@ write(path.join(cookDir, 'cook5.jsonl'), [
   peer(60, 'app-sous', '[brief] BKLG-004 A fourth thing, a chore.'),
   asst(61, 'claude-sonnet-5-5', { in: 0, out: 1000, read: 1000 }, [send('sous', '[plan] BKLG-004 ready: /x/docs/plans/BKLG-004.md')]),
   peer(62, 'app-sous', '[approved] BKLG-004: /x/docs/plans/BKLG-004.md · head chef: "Approve"'),
+  peer(63, 'app-sous', "[findings] BKLG-004 1. scripts/x.sh — outside the plan's files: scripts/x.sh; add it to the plan with why, or revert"),
 ]);
 // A sixth cook conversation on BKLG-005, served before the others begin: three runners that read as red
 // (the old reading would count three reds), but the station's check.log holds the real runs inside its span:
@@ -350,7 +351,11 @@ J="$("$K" debrief --json)"
 ok "a head chef [approved] with no why is an over-ask, per ticket" has "$OUT" "^plugin +over-ask +1 +watch +the head chef signed a plan with no reason.*
  +BKLG-004: a head chef \[approved\] with no why:"
 ok "a head chef [approved] that names its why is not" fails has "$OUT" "BKLG-002: a head chef"
-ok "--json carries the same findings" [ "$(field "$J" 'b.map(f=>f.key+":"+f.status).join()')" = "check-red-repeat:watch,rework-heavy:watch,record-missed:DUE,over-ask:watch,context-bloat:watch" ]
+ok "a pass finding outside the plan's files is a repo finding, per ticket, with its fix" has "$OUT" "^repo +scope-drift +1 +watch +a ticket's diff at the pass was outside.*
+ +BKLG-004: 1 pass finding outside the plan's files
+ +fix: a plan whose files: is honest, and a smaller ticket"
+ok "a ticket whose findings were about something else is not scope drift" bash -c '! printf "%s" "$1" | grep -qE "BKLG-00[123]: .*outside the plan"' _ "$OUT"
+ok "--json carries the same findings" [ "$(field "$J" 'b.map(f=>f.key+":"+f.status).join()')" = "check-red-repeat:watch,rework-heavy:watch,record-missed:DUE,over-ask:watch,scope-drift:watch,context-bloat:watch" ]
 mkdir -p "$APP/docs"; printf '| key | scope | ticket |\n|---|---|---|\n| `record-missed` | repo | BKLG-010 |\n' > "$APP/docs/lessons.md"
 ok "a key the register lists is promoted, not due" has "$("$K" debrief)" "^repo +record-missed +2 +promoted"
 rm "$APP/docs/lessons.md"

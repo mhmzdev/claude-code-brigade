@@ -15,3 +15,4 @@
 | [85-worktrees-only.md](85-worktrees-only.md) | kitchen: worktrees only; drop clone mode; a station's ticket branch is deleted and the station reset when the ticket is done | #85 |
 | [86-kitchen-procs.md](86-kitchen-procs.md) | kitchen / sous-chef: the kitchen reaps the processes it started (kitchen.sh procs: register, reap, scan); never a system or unknown process | #86 |
 | [90-gate-receipts.md](90-gate-receipts.md) | gate receipts: every check run writes a receipt naming the tree, the command and its exit; the pass trusts the receipt | #90 |
+| [92-write-scope.md](92-write-scope.md) | kitchen / taster: the plan's files: is the ticket's write scope; a diff outside it is a finding, overlapping scopes don't run at once | #92 |

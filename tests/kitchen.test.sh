@@ -1746,6 +1746,113 @@ procs_suite "worktree" "$PW" "$TMP/procsw/app-stations"
 
 
 # =============================================================================
+section "scope: the plan's files: is the ticket's write scope (#92)"
+# =============================================================================
+SC="$TMP/scope/app"; mkdir -p "$TMP/scope"
+new_repo "$SC" 'trunk: main
+install: "true"
+stations: 3
+scope:
+  always_inside: ["changelog.d/<id>-*.md"]   # this repo'"'"'s fragment'
+mkdir -p "$SC/src" "$SC/lib" "$SC/web" "$SC/docs/plans" "$SC/docs/journal" "$SC/docs/checklists"
+touch "$SC/src/a.txt" "$SC/lib/x.sh" "$SC/web/i.js"
+push_all "$SC" "scope fixture"
+( cd "$SC" && "$K" setup >/dev/null 2>&1 )
+SCS="$TMP/scope/app-stations"; X1="$SCS/station-1"
+scope_plan() {  # scope_plan <station> <ticket> <files block…> → the plan, in the station's docs/plans
+  local st="$1" id="$2" f; shift 2
+  mkdir -p "$st/docs/plans"
+  { printf -- '---\nticket: "%s"\ntitle: t\nstatus: active\nlane: B\nopen_questions: none\n' "$id"; printf '%s\n' "$@"; printf -- 'created: 2026-11-03\n---\n\n# plan\n'; } > "$st/docs/plans/${id#\#}-x.md"
+}
+git -C "$X1" switch -q -c issue-92-x origin/main
+scope_plan "$X1" '#92' 'files:' '  - src/a.txt' '  - "lib/*.sh"' '  - web/   # a folder' '  - docs/guide.md (new)'
+mkdir -p "$X1/lib/deep" "$X1/web/x" "$X1/changelog.d" "$X1/docs/journal" "$X1/docs/checklists"
+echo 1 > "$X1/src/a.txt"; echo 1 > "$X1/lib/deep/b.sh"; echo 1 > "$X1/web/x/y.js"; echo 1 > "$X1/docs/guide.md"
+echo 1 > "$X1/docs/journal/92-x.md"; echo 1 > "$X1/docs/checklists/92-x.md"; echo 1 > "$X1/changelog.d/92-x.md"
+echo 1 > "$X1/docs/plans/INDEX.md"
+out=$(cd "$X1" && "$K" scope); rc=$?
+ok "scope: a diff inside the plan's files: exits 0" test "$rc" -eq 0
+ok "scope: it names the plan and counts its entries" has "$out" "Scope of station-1 \(#92\): plan docs/plans/92-x\.md, 4 entries in files:"
+ok "scope: an exact path is inside" has "$out" "^  src/a\.txt$"
+ok "scope: a glob is inside, and * crosses /" has "$out" "^  lib/deep/b\.sh$"
+ok "scope: a folder pattern covers what is under it" has "$out" "^  web/x/y\.js$"
+ok "scope: a trailing (new) and a comment on an entry are ignored" has "$out" "^  docs/guide\.md$"
+ok "scope: the ticket's journal and checklist are inside, as record" has "$out" "docs/journal/92-x\.md  \(record\)" 
+ok "scope: …and the checklist" has "$out" "docs/checklists/92-x\.md  \(record\)"
+ok "scope: the INDEX files, the plan itself and the config's changelog glob are inside" bash -c 'printf "%s" "$1" | grep -q "docs/plans/INDEX.md  (record)" && printf "%s" "$1" | grep -q "docs/plans/92-x.md  (record)" && printf "%s" "$1" | grep -q "changelog.d/92-x.md  (record)"' _ "$out"
+ok "scope: nothing is outside" has "$out" "^outside \(0\):$"
+echo 1 > "$X1/src/other.txt"; echo 1 > "$X1/docs/journal/93-y.md"
+out=$(cd "$X1" && "$K" scope); rc=$?
+ok "scope: a path the plan never named is outside, and the exit is 1" bash -c 'test "$1" = 1 && printf "%s" "$2" | grep -q "^outside (2):$" && printf "%s" "$2" | grep -q "^  src/other.txt$"' _ "$rc" "$out"
+ok "scope: another ticket's journal is not the record of this one" has "$out" "^  docs/journal/93-y\.md$"
+ok "scope: the finding says what to do" has "$out" "2 path\(s\) outside the plan's files: add each to the plan's files: with a line of why in Decisions → How, or revert it\."
+ok "scope: from the main checkout, a station is named" bash -c 'cd "$1" && "$2" scope station-1 | grep -q "^  src/other.txt$"' _ "$SC" "$K"
+ok "scope: an unknown station is refused, exit 2" bash -c 'cd "$1" && "$2" scope station-9 >/dev/null 2>&1; test $? = 2' _ "$SC" "$K"
+rm "$X1/src/other.txt" "$X1/docs/journal/93-y.md"
+ok "scope: back inside, the exit is 0 again" bash -c 'cd "$1" && "$2" scope >/dev/null' _ "$X1" "$K"
+cp "$SC/.claude/brigade.md" "$TMP/scope-brigade.md"
+awk '/^scope:/{skip=1;next} skip&&/^  /{next} {skip=0; print}' "$TMP/scope-brigade.md" > "$SC/.claude/brigade.md"
+ok "scope: without the config's always_inside:, a changelog fragment is outside (nothing repo-specific in the plugin)" bash -c 'cd "$1" && "$2" scope | grep -q "^  changelog.d/92-x.md$"' _ "$X1" "$K"
+awk '/^scope:/{print; print "  always_inside:"; print "    - \"changelog.d/<id>-*.md\"   # the block form"; skip=1; next} skip&&/^  /{next} {skip=0; print}' "$TMP/scope-brigade.md" > "$SC/.claude/brigade.md"
+ok "scope: the block form of always_inside: reads the same as the inline form" bash -c 'cd "$1" && "$2" scope | grep -q "changelog.d/92-x.md  (record)"' _ "$X1" "$K"
+cp "$TMP/scope-brigade.md" "$SC/.claude/brigade.md"
+scope_plan "$X1" '#92' 'files: [src/a.txt, "lib/*.sh", web/]'
+ok "scope: an inline files: [a, b] reads the same" has "$(cd "$X1" && "$K" scope | head -1)" "3 entries in files:"
+scope_plan "$X1" '#92' 'files: []'
+ok "scope: an empty files: puts every non-record change outside" bash -c 'cd "$1" && "$2" scope | grep -q "^outside (4):$"' _ "$X1" "$K"
+rm "$X1/docs/plans/92-x.md"
+out=$(cd "$X1" && "$K" scope); rc=$?
+ok "scope: no plan names the ticket: exit 1, and it says so" bash -c 'test "$1" = 1 && printf "%s" "$2" | grep -q "no plan in docs/plans names this ticket"' _ "$rc" "$out"
+X2="$SCS/station-2"; git -C "$X2" switch -q -c hyg-001-clean origin/main; echo 1 > "$X2/anything.txt"
+ok "scope: a HYG ticket has no plan and is skipped, exit 0" bash -c 'cd "$1" && "$2" scope | grep -q "hygiene ticket has no plan"' _ "$X2" "$K"
+ok "scope: a detached station has no ticket, exit 0" bash -c 'cd "$1" && "$2" scope | grep -q "no ticket on the branch (detached)"' _ "$SCS/station-3" "$K"
+
+# ---- scope --overlap: two scopes that share a path do not run at once
+OV="$TMP/overlap/app"; mkdir -p "$TMP/overlap"
+new_repo "$OV" 'trunk: main
+install: "true"
+stations: 3'
+mkdir -p "$OV/src" "$OV/lib" "$OV/web" "$OV/docs/plans"; touch "$OV/src/a.txt" "$OV/src/b.txt" "$OV/lib/x.sh" "$OV/web/i.js" "$OV/docs/plans/INDEX.md"
+for t in "BKLG-010 [src/b.txt]" "BKLG-011 [web/]" "BKLG-012 []"; do
+  printf -- '---\nid: %s\ntitle: Ready %s\nlane: B\nkind: bug\nstatus: backlog\ncook: null\nfiles: %s\n---\n' "${t%% *}" "${t%% *}" "${t#* }" > "$OV/docs/backlog/${t%% *}-ready.md"
+done
+push_all "$OV" "overlap fixture"
+( cd "$OV" && "$K" setup >/dev/null 2>&1 )
+OS="$TMP/overlap/app-stations"; Y1="$OS/station-1"; Y2="$OS/station-2"
+git -C "$Y1" switch -q -c bklg-001-a origin/main
+git -C "$Y2" switch -q -c bklg-013-b origin/main
+scope_plan "$Y1" 'BKLG-001' 'files:' '  - src/a.txt' '  - lib/*.sh'
+scope_plan "$Y2" 'BKLG-013' 'files:' '  - src/a.txt' '  - web/'
+echo 1 > "$Y2/web/new.js"; echo 1 > "$Y2/docs/plans/INDEX.md"; echo 1 > "$Y1/docs/plans/INDEX.md"
+out=$(cd "$OV" && "$K" scope --overlap); rc=$?
+ok "overlap: a collision exits 1" test "$rc" -eq 1
+ok "overlap: a plan written but not built collides with a build, each side with its stage" has "$out" "BKLG-001 \(station-1, planned\) × BKLG-013 \(station-2, building\)   1 path\(s\)"
+ok "overlap: …and the colliding path is listed" has "$out" "^      src/a\.txt$"
+ok "overlap: a ready ticket's own files: is compared with a station's plan and diff" has "$out" "BKLG-013 \(station-2, building\) × BKLG-011 \(ready\)   1 path\(s\)"
+ok "overlap: a folder pattern is expanded against the files on trunk" has "$out" "^      web/i\.js$"
+ok "overlap: a ready ticket that collides with nobody is not listed" bash -c '! printf "%s" "$1" | grep -q "BKLG-010"' _ "$out"
+ok "overlap: a ready ticket with no plan and no files: is named, not guessed" has "$out" "No scope known \(no plan, no files:\): BKLG-012"
+ok "overlap: a ticket a station already holds is not a candidate" bash -c '! printf "%s" "$1" | grep -q "BKLG-001 (ready)"' _ "$out"
+ok "overlap: the record (INDEX files) is never a collision" bash -c '! printf "%s" "$1" | grep -q "INDEX.md"' _ "$out"
+ok "overlap: it says what to do" has "$out" "the second waits for the first to merge, or goes to the same cook"
+out=$(cd "$OV" && "$K" scope --overlap --ticket BKLG-010 2>&1)
+ok "overlap: --ticket limits the candidates to the ids named" bash -c '! printf "%s" "$1" | grep -q "BKLG-011"' _ "$out"
+scope_plan "$Y1" 'BKLG-001' 'files:' '  - lib/*.sh'
+scope_plan "$Y2" 'BKLG-013' 'files:' '  - web/'
+out=$(cd "$OV" && "$K" scope --overlap --ticket BKLG-010); rc=$?
+ok "overlap: disjoint scopes exit 0" test "$rc" -eq 0
+ok "overlap: …and say how many scopes were compared" has "$out" "No collisions among 3 scope\(s\)\."
+ok "overlap: from inside a station it reads the whole kitchen" bash -c 'cd "$1" && "$2" scope --overlap --ticket BKLG-010 | grep -q "No collisions among 3"' _ "$Y1" "$K"
+scope_plan "$Y1" 'BKLG-001' 'files:' '  - docs/plans/'
+scope_plan "$Y2" 'BKLG-013' 'files:' '  - docs/*'
+out=$(cd "$OV" && "$K" scope --overlap --ticket BKLG-010 2>&1)
+ok "overlap: record files that a glob or folder pattern expands to (INDEX files, the stations' own plans) are never a collision" bash -c '! printf "%s" "$1" | grep -qE "INDEX.md|docs/plans"' _ "$out"
+rm -f "$Y2/docs/plans/BKLG-013-x.md"; echo 2 > "$Y2/web/i.js"
+out=$(cd "$OV" && "$K" scope --overlap --ticket BKLG-011)
+ok "overlap: a station with no plan falls back to what it has changed (stage building)" has "$out" "BKLG-013 \(station-2, building\) × BKLG-011 \(ready\)   1 path\(s\)"
+git -C "$Y2" checkout -q -- web/i.js
+
+# =============================================================================
 echo ""
 echo "# passed $PASS · failed $FAIL · total $N"
 [[ "$HOME" != "$REAL_HOME" ]] || { echo "# BUG: HOME was not isolated"; exit 1; }

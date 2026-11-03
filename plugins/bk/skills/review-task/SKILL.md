@@ -49,13 +49,14 @@ exactly what to look at.
    git diff "$BASE"
    git ls-files --others --exclude-standard
    ```
-2. **Run the inspector** (skip with `--no-inspector`). Do exactly what `/bk:clean check` does: write the diff and file list to tempfiles, find the repo's own "what not to add" list, spawn `bk:inspector` by its namespaced name, print its report verbatim. Findings are hygiene, not acceptance. They never become `[!]` items. Carry them into the report as work to fix before the handoff.
-3. **Seed criteria from the source of truth**: the ticket's `## Done when` boxes, the plan's success criteria, the spec's decisions for lane A. Then add what the diff implies, including anything the intent asked for that the diff **doesn't** contain.
-4. **Run the check** once: `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" check`. A green receipt for this exact tree counts (say whether this call ran the check or found the receipt already there); a red check is an `[!]` on its own line. Writing the checklist and its INDEX row in the steps below changes the tree, so a cook runs `kitchen.sh check` once more as step 7's last act, after every write (see below).
-5. **Route every criterion** on the ladder below. Write a test when one is cheap. That is the best `[x]` you can get.
-6. **Write or update** `<checklists>/<id>-<slug>.md` (same slug as the plan), with `ticket:`, `title:` (the plan's), `plan:` and `last_verified:` in its frontmatter, then run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" index` for its row in `<checklists>/INDEX.md` (never type one, Contract 12; if it says that INDEX is hand-written, add the row by hand). If the file exists, **append and re-verify**: flip every item the diff touches back to `[ ]` and prove it again. Never regenerate it.
-7. **Move the ticket and hand off** (below).
-8. **Report**: counts of `[x]` / `[?]` / `[!]`, every `[!]` in full, every `[?]` recipe, the inspector's findings, and the next step.
+2. **Check the scope.** The plan's `files:` is the ticket's write scope (Contract 4): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" scope` and list the result in the checklist under **Scope**. Nothing outside → one `[x]` ("every changed path is inside the plan's files:", with the count). Each `outside` path → its own `[!]`: "outside the plan's files: <path>"; widen the plan on purpose (add it to `files:` with a line of why under Decisions → How) or revert it. No plan names the ticket → a `[!]` too (HYG tickets have no plan and no scope).
+3. **Run the inspector** (skip with `--no-inspector`). Do exactly what `/bk:clean check` does: write the diff and file list to tempfiles, find the repo's own "what not to add" list, spawn `bk:inspector` by its namespaced name, print its report verbatim. Findings are hygiene, not acceptance. They never become `[!]` items. Carry them into the report as work to fix before the handoff.
+4. **Seed criteria from the source of truth**: the ticket's `## Done when` boxes, the plan's success criteria, the spec's decisions for lane A. Then add what the diff implies, including anything the intent asked for that the diff **doesn't** contain.
+5. **Run the check** once: `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" check`. A green receipt for this exact tree counts (say whether this call ran the check or found the receipt already there); a red check is an `[!]` on its own line. Writing the checklist and its INDEX row in the steps below changes the tree, so a cook runs `kitchen.sh check` once more as step 8's last act, after every write (see below).
+6. **Route every criterion** on the ladder below. Write a test when one is cheap. That is the best `[x]` you can get.
+7. **Write or update** `<checklists>/<id>-<slug>.md` (same slug as the plan), with `ticket:`, `title:` (the plan's), `plan:` and `last_verified:` in its frontmatter, then run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" index` for its row in `<checklists>/INDEX.md` (never type one, Contract 12; if it says that INDEX is hand-written, add the row by hand). If the file exists, **append and re-verify**: flip every item the diff touches back to `[ ]` and prove it again. Never regenerate it.
+8. **Move the ticket and hand off** (below).
+9. **Report**: counts of `[x]` / `[?]` / `[!]`, every `[!]` in full, every `[?]` recipe, the inspector's findings, and the next step.
 
 ## The evidence ladder
 

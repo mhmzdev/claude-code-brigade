@@ -53,7 +53,7 @@ repo-specific. Never guess a trunk, a check command or a path that the config na
 the file is missing, say so and offer `/bk:setup`.
 
 The frontmatter has two parts. **Flat keys** are read by `kitchen.sh` as well as by the
-skills, so they stay one line each. **Nested blocks** are read only by the skills.
+skills, so they stay one line each. **Nested blocks** are read by the skills, and the few that `kitchen.sh` also needs (`gates:`, `docs:`, `rail:`, `scope:`) by the script too.
 
 ```yaml
 ---
@@ -91,6 +91,8 @@ gates:
   merge: sous-chef                       # sous-chef (merges a PR that passed its pass and is green: kitchen.sh ship) | head-chef
   merge_method: merge                    # merge | squash | rebase: what kitchen.sh ship passes to gh
   deploy: head-chef
+scope:                                   # the write scope the pass enforces (Contract 4); optional
+  # always_inside: ["changelog.d/<id>-*.md"]   # globs that are always inside, on top of the record files; <id> is the ticket's key (92, bklg-004)
 clean:                                   # lane C counters; each command prints one finding per line
   counters:
     - name: unused-code
@@ -123,7 +125,9 @@ Free-text repo notes the skills should respect.
 
 `gates.plan_approval` may also be the one word `head-chef`, which brings every plan to the
 head chef. A missing block means `feature: head-chef` and the rest `sous-chef`. `feature`
-is always `head-chef`: a config that says otherwise is read as the default. A `docs`
+is always `head-chef`: a config that says otherwise is read as the default. `scope.always_inside` names
+the repo's own files that travel with every PR (a changelog fragment); the plugin's list is only
+the record (Contract 4), so nothing repo-specific lives in it. A `docs`
 key set to `none` means the repo keeps no such store; `.claude/inbox.md` (Contract 12) is
 not under `docs` because it never reaches git.
 
@@ -395,10 +399,21 @@ lane: B
 status: draft            # draft | approved | active | done
 open_questions: none     # must be `none` before implement will start
 migration: false
-files: []
+files: []                # the ticket's write scope (below)
 created: YYYY-MM-DD
 ---
 ```
+
+**A plan's `files:` is the ticket's write scope, and the pass enforces it.** An entry is an
+exact path, a glob (`*` also crosses `/`) or a folder ending in `/`. `kitchen.sh scope` compares
+the station's changed files with it and prints `inside` and `outside`; it exits 1 when anything
+is outside, or when no plan names the ticket (a `HYG` ticket has none). The record is always
+inside: the plan, the ticket's journal and checklist, the INDEX files `kitchen.sh index` writes,
+and the globs under the config's `scope.always_inside` (a changelog fragment). The taster runs it
+first and every `outside` path is a numbered finding (`outside the plan's files: <path>; add it to
+the plan with why, or revert`); `review-task` lists the result in the checklist. A cook widens the
+scope on purpose, by adding the path to `files:` with a line of why under Decisions → How, never
+by drift, and the budget's debrief counts the drift (`scope-drift`, Contract 11).
 
 Templates for spec, ticket, plan, checklist, journal, decision, question, `SCHEMA.md` and `brigade.local.md` ship with the plugin at
 `${CLAUDE_SKILL_DIR}/../../templates/` (from inside any skill).
@@ -736,6 +751,14 @@ this branch's deletions. The three-dot `origin/<trunk>...HEAD` alone is no bette
 sous's `[go]` nothing is committed, so it reads empty. `/bk:clean check` and `around`,
 `/bk:review-task` and the taster all use this form.
 
+**A station's write scope is its plan's `files:`** (Contract 4), and two scopes that share a path
+do not run at once. `kitchen.sh scope --overlap` compares every station's plan and in-flight
+diff with every other station's and with every ready ticket's plan (else its own `files:`), and
+prints each collision as ticket (station, stage) × ticket with the paths, `planned` or `building`
+on each side; `--ticket <ID>[,<ID>]` names candidates a tracker rail can't list. Two globs that
+share no file that exists on trunk do not collide. The sous assigns the second after the first
+merges, or to the same cook.
+
 ## Contract 9 — The three lanes
 
 A lane is defined by **where its tickets come from**.
@@ -761,8 +784,10 @@ handoff is newer than its last turn and nothing it sent still waits for an answe
 Clearing is deterministic, so it is the sous's, not the head chef's; the head chef still
 can. A second ticket never goes onto a live context.
 
-**Two tickets that touch the same files go to one cook, in sequence.** The `files:` field and
-`kitchen.sh files` are how the sous sees overlap.
+**Two tickets that touch the same files go to one cook, in sequence.** A plan's `files:` is a
+ticket's write scope (Contract 4), and `kitchen.sh scope --overlap` (Contract 8) is how the
+sous sees the overlap, ahead of the second ticket's brief; `kitchen.sh files` shows what is
+already changed.
 
 **Clean as you go has three scopes**, all run by cooks, none by the sous (scan output is
 exactly the noise that fills a sous's context):
@@ -879,7 +904,8 @@ answered from the record (the record holds it where the commis doesn't look); a 
 whose last ten turns average more than 150k cache-read tokens (it should have been cleared;
 the head chef's own sessions in the main checkout are not counted);
 a head chef `[approved]` with no `why:` (the sous asked for a yes it should have given
-itself, Contract 5). The thresholds are the rules: no judgement, no tuning in this version. A key is **due at two
+itself, Contract 5); a ticket whose pass found a changed path outside its plan's `files:`
+(`scope-drift`, a `repo` rule: fix by a plan whose `files:` is honest, and a smaller ticket). The thresholds are the rules: no judgement, no tuning in this version. A key is **due at two
 tickets** (or two sessions), like a `repo` lesson, and `promoted` once the register lists
 it. **Action for a due `repo` row:** fire a `BKLG` chore with the rule's fix and its
 evidence (ticket ids, numbers), sign it off yourself, add `` | `<key>` | repo | <ticket> | ``

@@ -31,6 +31,8 @@ gates:
   pre_commit: sous-chef
   merge: sous-chef
   deploy: head-chef
+scope:
+  always_inside: ["changelog.d/<id>-*.md"]   # a PR here carries its changelog fragment
 clean:
   counters:
     - name: shellcheck-info

@@ -290,6 +290,7 @@ export function createBudget({ root, stations = () => [], adapter = 'markdown', 
       if (m.kind === 'approved' && m.dir === 'in') cur.approvedText ||= m.text;   // who signed, and why it was theirs (the over-ask rule)
       if (m.kind === 'served' && m.dir === 'out') { cur.servedAt = m.t; cur.served++; }
       if (m.kind === 'findings' && m.dir === 'in' && cur.servedAt) cur.findingsAfterServed++;   // the pass again after the PR is up: a round
+      if (m.kind === 'findings' && m.dir === 'in' && /outside the plan'?s files/i.test(m.text || '')) cur.scopeDrift = (cur.scopeDrift || 0) + 1;   // the taster's finding: the diff left the plan's files:
       if (m.kind === 'gate' && m.dir === 'out') cur._asks.push({ t: m.t, q: (m.text.match(/\bQ\d+\b/) || [])[0] || null, commis: commisOf(m.text), text: m.text.replace(/^\[gate\]\s*/i, '').slice(0, 160), answeredAt: null, by: null, secs: null });
       if (m.kind === 'heard' && m.dir === 'in') {
         const open = cur._asks.filter((a) => !a.answeredAt);
@@ -314,7 +315,7 @@ export function createBudget({ root, stations = () => [], adapter = 'markdown', 
   const merge = (a, b) => {
     const [x, y] = (a.startedAt || 0) <= (b.startedAt || 0) ? [a, b] : [b, a];
     const marks = { ...y.marks, ...x.marks }; if (y.marks.served) marks.served = y.marks.served;
-    const m = { ...x, marks, approvedText: x.approvedText || y.approvedText || null, session: y.session, servedAt: y.servedAt || x.servedAt, served: (x.served || 0) + (y.served || 0), findingsAfterServed: (x.findingsAfterServed || 0) + (y.findingsAfterServed || 0), status: y.servedAt || x.servedAt ? 'served' : 'open', tokens: add(zero(), x.tokens), total: x.total + y.total, cost: round(x.cost + y.cost), _runs: [...x._runs, ...y._runs], _turns: [...x._turns, ...y._turns], _asks: [...(x._asks || []), ...(y._asks || [])], model: y.model || x.model };
+    const m = { ...x, marks, approvedText: x.approvedText || y.approvedText || null, session: y.session, servedAt: y.servedAt || x.servedAt, served: (x.served || 0) + (y.served || 0), findingsAfterServed: (x.findingsAfterServed || 0) + (y.findingsAfterServed || 0), scopeDrift: (x.scopeDrift || 0) + (y.scopeDrift || 0), status: y.servedAt || x.servedAt ? 'served' : 'open', tokens: add(zero(), x.tokens), total: x.total + y.total, cost: round(x.cost + y.cost), _runs: [...x._runs, ...y._runs], _turns: [...x._turns, ...y._turns], _asks: [...(x._asks || []), ...(y._asks || [])], model: y.model || x.model };
     add(m.tokens, y.tokens);
     m.secs = Math.max(0, Math.round(((m.servedAt || now()) - m.startedAt) / 1000));
     m.phases = Object.fromEntries(PHASES.map(([name, p, q]) => [name, marks[p] && marks[q] ? Math.max(0, Math.round((marks[q] - marks[p]) / 1000)) : null]));
@@ -472,6 +473,9 @@ export const DEBRIEF_RULES = [
   { key: 'ship-rounds', scope: 'plugin', unit: 'ticket', about: 'a ticket was pushed again after its first [served] (trunk moved under it, or the pass came back)',
     fix: 'merge sooner, and assign the version at merge (a changelog fragment) so a moved main does not cost a round',
     test: (t) => { const n = Math.max(t.findingsAfterServed || 0, (t.served || 0) - 1); return n >= 1 ? `${n} round${n > 1 ? 's' : ''} after the first [served]` : null; } },
+  { key: 'scope-drift', scope: 'repo', unit: 'ticket', about: 'a ticket\'s diff at the pass was outside its plan\'s files: (the write scope, Contract 4)',
+    fix: 'a plan whose files: is honest, and a smaller ticket',
+    test: (t) => t.scopeDrift ? `${t.scopeDrift} pass finding${t.scopeDrift > 1 ? 's' : ''} outside the plan's files` : null },
   { key: 'context-bloat', scope: 'plugin', unit: 'session', about: `a session's last turns averaged more than ${CONTEXT_LINE / 1000}k cache-read tokens each`,
     fix: 'hand off and clear sooner: the sous after about three passes, a cook between the plan and implement when the plan took long',
     test: (s) => s.context && s.context.lastRead > CONTEXT_LINE ? `${fmtTokens(s.context.lastRead)} per turn over the last ${Math.min(10, s.context.turns)}, ${s.context.over} turns over the line` : null },

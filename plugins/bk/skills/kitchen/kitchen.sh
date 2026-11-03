@@ -70,6 +70,15 @@
 #                                         e.g. a PR body) for any test-account secret in
 #                                         .claude/brigade.local.md. Prints file:line only,
 #                                         never the value; exits 1 on a hit
+#   kitchen.sh scope [station-N]          the plan's files: is the ticket's write scope (Contract 4):
+#                                         the station's changed files against it, printed inside and
+#                                         outside; exits 1 when anything is outside, or no plan names
+#                                         the ticket. The record (plan, journal, checklist, INDEX files,
+#                                         the config's scope: always_inside: globs) is always inside
+#   kitchen.sh scope --overlap [--ticket ID[,ID…]]
+#                                         every collision between two scopes (each station's plan files
+#                                         and diff, each ready ticket's plan or files:) as ticket (station,
+#                                         stage) × ticket, with the paths; exits 1 on any
 #   kitchen.sh check [--force]            the config's check command, run once per tree. It
 #                                         hashes this checkout's working state (tracked,
 #                                         deleted and untracked files, minus what git
@@ -389,6 +398,7 @@ while [[ $# -gt 0 ]]; do
     [0-9]*|'#'[0-9]*) SHIP_PR="${1#\#}"; shift ;;
     --check) CHECK_INDEX=true; shift ;;
     --adopt) ADOPT=true; shift ;;
+    --overlap) OVERLAP=true; shift ;;
     -m|--model) shift
       while [[ $# -gt 0 && "$1" != -* ]]; do
         for tok in ${1//,/ }; do MODELS+=("$tok"); done; shift
@@ -985,6 +995,224 @@ cmd_files() {
   done < <(stations)
   $found || echo "  (none — run setup)"
 }
+
+# ---------------------------------------------------------------------------
+# scope — the plan's files: is the ticket's write scope (Contract 4 and 8)
+#
+#   kitchen.sh scope [station-N]   the station's changed files (changed_files) against its plan's
+#                                  files: (the plan whose ticket: is the branch's id, in the
+#                                  station's docs.plans): prints inside and outside, exits 1 when
+#                                  anything is outside, or when no plan names the ticket (a HYG
+#                                  ticket has none and is skipped). A pattern is an exact path,
+#                                  a glob (* also crosses /) or a folder ending in /.
+#                                  Always inside: the plan, the ticket's journal and checklist, the
+#                                  INDEX files kitchen.sh index writes, and the globs under scope:
+#                                  always_inside: in the config (<id> is the ticket's key).
+#   kitchen.sh scope --overlap [--ticket ID[,ID…]]   see scope_overlap below.
+# ---------------------------------------------------------------------------
+cfg_scope_always() {  # the globs of scope: → always_inside: in the config (inline [a, b] or a block list), one per line
+  [[ -f "$CONFIG" ]] || return 0
+  awk '
+    function emit(g) { sub(/[ ]+#.*$/, "", g); gsub(/^[ ]*["\047]?|["\047]?[ ]*$/, "", g); if (g != "") print g }
+    NR==1 && $0=="---" { inside=1; next }
+    inside && $0=="---" { exit }
+    inside && /^scope:/ { ing=1; next }
+    ing && /^[^ ]/ { ing=0 }
+    ing && blk && /^[ ]+-[ ]/ { l=$0; sub(/^[ ]+-[ ]+/, "", l); emit(l); next }
+    ing && blk { exit }
+    ing && /^  always_inside:/ {
+      v=$0; sub(/^  always_inside:[ ]*/, "", v); sub(/[ ]+#.*$/, "", v)
+      if (v == "") { blk=1; next }
+      gsub(/^\[|\]$/, "", v); n=split(v, a, ",")
+      for (i=1; i<=n; i++) emit(a[i])
+      exit
+    }' "$CONFIG"
+}
+
+scope_plan_files() {  # a plan's (or a ticket's) frontmatter on stdin → its files: entries, one per line
+  awk '
+    function emit(s) { sub(/[ \t]+#.*$/, "", s); gsub(/^[ \t`"\047]+|[ \t`"\047]+$/, "", s); sub(/[ \t]+\(.*\)$/, "", s)
+                       if (s != "" && s !~ /^</) print s }
+    NR == 1 { if ($0 != "---") exit; next }
+    $0 == "---" { exit }
+    /^files:/ { v = $0; sub(/^files:[ \t]*/, "", v); sub(/[ \t]+#.*$/, "", v)
+                if (v ~ /^\[/) { gsub(/^\[|\]$/, "", v); n = split(v, a, ","); for (i = 1; i <= n; i++) emit(a[i]) }
+                list = 1; next }
+    list && /^[ \t]*-[ \t]/ { l = $0; sub(/^[ \t]*-[ \t]+/, "", l); emit(l); next }
+    list && /^[^ \t-]/ { list = 0 }'
+}
+
+scope_covers() {  # scope_covers <path> <pattern…> → 0 when a pattern covers the path
+  local p="$1" pat; shift
+  for pat in "$@"; do
+    # shellcheck disable=SC2053  # the pattern is meant to glob
+    case "$pat" in */) [[ "$p" == "$pat"* ]] && return 0 ;; *) [[ "$p" == $pat ]] && return 0 ;; esac
+  done
+  return 1
+}
+
+scope_record() {  # scope_record <ticket> <path> → 0 when the path is the record that travels with the PR
+  local key="${1#\#}" d p="$2" base g restore=false
+  [[ -n "${SCOPE_RECORD_DIRS+x}" ]] || { SCOPE_RECORD_DIRS="$(cfg_docs plans) $(cfg_docs journal) $(cfg_docs checklists)"; SCOPE_RECORD_GLOBS="$(cfg_scope_always)"; }
+  shopt -q nocasematch || { shopt -s nocasematch; restore=true; }   # ids and file names compare without case
+  base="${p##*/}"
+  for d in $SCOPE_RECORD_DIRS; do
+    d="${d%/}"; [[ -z "$d" || "$d" == none ]] && continue
+    if [[ "$p" == "$d/INDEX.md" ]] || [[ "$p" == "$d/"* && "${p#"$d"/}" != */* && ( "$base" == "$key-"* || "$base" == "gh-$key-"* ) ]]; then
+      $restore && shopt -u nocasematch; return 0
+    fi
+  done
+  while IFS= read -r g; do
+    [[ -n "$g" ]] || continue
+    if scope_covers "$p" "${g//<id>/$key}"; then $restore && shopt -u nocasematch; return 0; fi
+  done <<< "$SCOPE_RECORD_GLOBS"
+  $restore && shopt -u nocasematch
+  return 1
+}
+
+scope_plan_of() {  # scope_plan_of <ticket> <checkout> → the path of the plan in its docs.plans whose ticket: is the id
+  local id="$1" dir="$2" f
+  for f in "$dir/$(cfg_docs plans)"/*.md; do
+    [[ -f "$f" && "${f##*/}" != INDEX.md ]] || continue
+    [[ "$(fm_text_get ticket < "$f")" == "$id" ]] && { printf '%s\n' "$f"; return 0; }
+  done
+  return 1
+}
+
+cmd_scope() {
+  if ${OVERLAP:-false}; then scope_overlap; return; fi
+  local st="${CLEAR_WHO:-}" dir branch id plan planrel f pats=() inside=() outside=()
+  if [[ -n "$st" ]]; then
+    [[ "$st" == station-* && -e "$KITCHEN/$st/.git" ]] || { echo "kitchen.sh scope: no station named $st." >&2; return 2; }
+    dir="$KITCHEN/$st"
+  else
+    st="$(rail_actor)"
+    [[ -n "$st" ]] || { echo "kitchen.sh scope: name a station (scope station-N), or run it inside one." >&2; return 2; }
+    dir="$HERE"
+  fi
+  branch="$(git -C "$dir" branch --show-current 2>/dev/null)"
+  id="-"; [[ -n "$branch" ]] && id="$(branch_ticket "$branch")"
+  [[ "$id" == - ]] && { echo "Scope of $st: no ticket on the branch (${branch:-detached}); nothing to check."; return 0; }
+  case "$id" in HYG-*) echo "Scope of $st ($id): a hygiene ticket has no plan, so no scope to check."; return 0 ;; esac
+  plan="$(scope_plan_of "$id" "$dir")" || {
+    echo "Scope of $st ($id): no plan in $(cfg_docs plans) names this ticket, so the diff has no scope to be checked against."
+    echo "Write the plan (ticket: $id), or say why there is none."
+    return 1; }
+  planrel="${plan#"$dir"/}"
+  while IFS= read -r f; do [[ -n "$f" ]] && pats+=("$f"); done < <(scope_plan_files < "$plan")
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    if [[ "$f" == "$planrel" ]] || scope_record "$id" "$f"; then inside+=("$f  (record)")
+    elif (( ${#pats[@]} > 0 )) && scope_covers "$f" "${pats[@]}"; then inside+=("$f")
+    else outside+=("$f"); fi
+  done < <(changed_files "$dir")
+  echo "Scope of $st ($id): plan $planrel, ${#pats[@]} entr$([[ ${#pats[@]} == 1 ]] && echo y || echo ies) in files:"
+  echo "inside (${#inside[@]}):"
+  for f in "${inside[@]+"${inside[@]}"}"; do echo "  $f"; done
+  echo "outside (${#outside[@]}):"
+  for f in "${outside[@]+"${outside[@]}"}"; do echo "  $f"; done
+  if (( ${#outside[@]} > 0 )); then
+    echo "${#outside[@]} path(s) outside the plan's files: add each to the plan's files: with a line of why in Decisions → How, or revert it."
+    return 1
+  fi
+  return 0
+}
+
+# scope --overlap: two scopes that share a path do not run at once (Contract 8). The parties are
+# every station on a ticket (its plan's files: and what it has changed so far, so a plan written
+# but not yet built counts, stage planned, and so does a build, stage building) and the candidates
+# (the --ticket ids, else every ready ticket of a markdown rail; scope = its plan on origin/<trunk>,
+# else the ticket's own files:). A scope is expanded to concrete paths (an exact path as written, a
+# glob or folder against the files on origin/<trunk> and the station's changes); two scopes collide
+# on the paths they share. Two globs that share no existing file do not collide. Output: one block
+# per collision, ticket (station, stage) × ticket, then the paths. Exit 1 on any.
+scope_expand() {  # scope_expand <ticket> <patterns-file> <changes-file> <tree-file> → concrete paths, sorted, record files left out
+  local id="$1" pfile="$2" chg="$3" tree="$4" pat pre p
+  {
+    while IFS= read -r pat; do
+      [[ -n "$pat" ]] || continue
+      case "$pat" in
+        *'*'*|*'?'*|*'['*|*/)
+          pre="${pat%%[*?[]*}"; [[ "$pat" == */ ]] && pre="$pat"
+          while IFS= read -r p; do scope_covers "$p" "$pat" && ! scope_record "$id" "$p" && echo "$p"; done < <(awk -v p="$pre" 'index($0, p) == 1' "$tree") ;;
+        *) scope_record "$id" "$pat" || echo "$pat" ;;
+      esac
+    done < "$pfile"
+    cat "$chg"
+  } | LC_ALL=C sort -u
+}
+
+scope_plan_at_origin() {  # scope_plan_at_origin <ticket> → the plan for it as origin/<trunk> has it, on stdout
+  local id="$1" f
+  while IFS= read -r f; do
+    [[ "$f" == *.md && "${f##*/}" != INDEX.md ]] || continue
+    [[ "$(git -C "$ROOT" show "origin/$TRUNK:$f" 2>/dev/null | fm_text_get ticket)" == "$id" ]] && { git -C "$ROOT" show "origin/$TRUNK:$f"; return 0; }
+  done < <(git -C "$ROOT" ls-tree --name-only "origin/$TRUNK" "$(cfg_docs plans)/" 2>/dev/null)
+  return 1
+}
+
+scope_ticket_file() {  # scope_ticket_file <ticket> → the markdown rail's file for it, or nothing
+  grep -rlE "^id:[ ]*[\"']?$1[\"']?[ ]*$" "$ROOT/$(cfg_docs specs)" "$ROOT/$(cfg_docs backlog)" 2>/dev/null | head -n 1
+}
+
+scope_overlap() (
+  export LC_ALL=C
+  local T s branch id plan planrel f stage n=0 i j k common ids adapter tf header=false hits=0 unknown="" ids_held=" "
+  local -a sc_label sc_kind
+  sc_label=(); sc_kind=()
+  T="$(mktemp -d "${TMPDIR:-/tmp}/brigade-scope.XXXXXX")" || return 2
+  trap 'rm -rf "$T"' EXIT
+  git -C "$ROOT" ls-tree -r --name-only "origin/$TRUNK" > "$T/tree" 2>/dev/null || : > "$T/tree"
+  while IFS= read -r s; do
+    branch="$(git -C "$s" branch --show-current 2>/dev/null)"
+    id="-"; [[ -n "$branch" ]] && id="$(branch_ticket "$branch")"
+    [[ "$id" == - ]] && continue
+    ids_held="$ids_held$id "
+    : > "$T/p"; planrel=""
+    if [[ "$id" != HYG-* ]] && plan="$(scope_plan_of "$id" "$s")"; then planrel="${plan#"$s"/}"; scope_plan_files < "$plan" > "$T/p"; fi
+    : > "$T/c"
+    while IFS= read -r f; do
+      [[ -n "$f" && "$f" != "$planrel" ]] && ! scope_record "$id" "$f" && echo "$f" >> "$T/c"
+    done < <(changed_files "$s")
+    [[ -s "$T/p" || -s "$T/c" ]] || continue   # a cook with no plan and no change yet holds nothing
+    stage=building; [[ -s "$T/c" ]] || stage=planned
+    n=$((n+1)); sc_label[n]="$id (${s##*/}, $stage)"; sc_kind[n]=station
+    scope_expand "$id" "$T/p" "$T/c" "$T/tree" > "$T/$n"
+  done < <(stations)
+  ids="${TICKET:-}"
+  if [[ -z "$ids" ]]; then
+    adapter="$(cfg_rail adapter)"
+    case "${adapter:-markdown}" in markdown|mixed) ids="$(cmd_rail 2>/dev/null | awk 'NR>1 && $5=="yes" { print $1 }' | paste -sd, -)" ;; esac
+  fi
+  for id in ${ids//,/ }; do
+    [[ "$ids_held" == *" $id "* ]] && continue
+    : > "$T/p"; : > "$T/c"
+    if plan="$(scope_plan_at_origin "$id")"; then printf '%s\n' "$plan" | scope_plan_files > "$T/p"
+    else tf="$(scope_ticket_file "$id")"; [[ -n "$tf" ]] && scope_plan_files < "$tf" > "$T/p"; fi
+    [[ -s "$T/p" ]] || { unknown="$unknown $id"; continue; }
+    n=$((n+1)); sc_label[n]="$id (ready)"; sc_kind[n]=candidate
+    scope_expand "$id" "$T/p" "$T/c" "$T/tree" > "$T/$n"
+  done
+  for ((i=1; i<=n; i++)); do
+    for ((j=i+1; j<=n; j++)); do
+      [[ "${sc_kind[i]}" == candidate && "${sc_kind[j]}" == candidate ]] && continue
+      common="$(comm -12 "$T/$i" "$T/$j")"
+      [[ -n "$common" ]] || continue
+      $header || { echo "Scope collisions (vs origin/$TRUNK as last fetched):"; header=true; }
+      hits=$((hits+1)); k="$(printf '%s\n' "$common" | wc -l | tr -d ' ')"
+      echo "  ${sc_label[i]} × ${sc_label[j]}   $k path(s)"
+      printf '%s\n' "$common" | sed 's/^/      /'
+    done
+  done
+  (( n == 0 )) && echo "Nothing in flight and no ready ticket with a scope: nothing to compare."
+  (( n > 0 && hits == 0 )) && echo "No collisions among $n scope(s)."
+  [[ -z "$unknown" ]] || echo "No scope known (no plan, no files:):$unknown"
+  if (( hits > 0 )); then
+    echo "Two scopes that collide do not run at once (Contract 8): the second waits for the first to merge, or goes to the same cook."
+    exit 1
+  fi
+  exit 0
+)
 
 # ---------------------------------------------------------------------------
 # rail — the board, computed from ticket frontmatter
@@ -2887,6 +3115,6 @@ case "$CMD" in
   role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   decisions) cmd_decisions ;; inbox) cmd_inbox ;; asks) cmd_asks ;; gaps) cmd_gaps ;; doctor) cmd_doctor ;; index) cmd_index ;;
   record-pr) cmd_record_pr ;;
-  procs) cmd_procs ;;
+  procs) cmd_procs ;; scope) cmd_scope ;;
   sessions) cmd_sessions ;; clear) cmd_clear ;; ship) cmd_ship ;; done) cmd_done ;; check) cmd_check ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; *) usage ;;
 esac

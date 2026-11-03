@@ -13,5 +13,6 @@
 | [85-worktrees-only.md](85-worktrees-only.md) | worktrees only; drop clone mode; `kitchen.sh done` deletes a merged ticket's branch and resets the station | #85 |
 | [86-kitchen-procs.md](86-kitchen-procs.md) | kitchen.sh procs: the kitchen registers, reaps and scans the processes it started; never a system or unknown process | #86 |
 | [90-gate-receipts.md](90-gate-receipts.md) | gate receipts: every check run writes a receipt naming the tree, the command and its exit; the pass trusts the receipt | #90 |
+| [92-write-scope.md](92-write-scope.md) | the plan's files: is the ticket's write scope; kitchen.sh scope checks the diff against it and finds colliding scopes | #92 |
 | [gh-19-claude-dir-edits.md](gh-19-claude-dir-edits.md) | A plan that edits .claude/ is seen coming, and a denied edit is a gate, never a workaround | #19 |
 | [gh-63-generated-index.md](gh-63-generated-index.md) | Generate the INDEX.md tables of plans, journals and checklists from frontmatter, so concurrent tickets stop conflicting | #63 |
