@@ -502,6 +502,10 @@ what fills a sous's context fastest, so **the taster does the reading**:
    `[go]`. That is the commit approval, and the grant is what lets the cook's `git commit`,
    `git push` and `gh pr create` past the guard (Contract 5); until it is written the cook
    can do none of them. `merge` is never granted: you ship.
+6. **Don't ask for trunk before `[go]`.** The taster diffs from the merge base and `open-pr`
+   brings trunk in after the commit. If you hold a ticket and must have it current, ask for
+   `git merge --ff-only origin/<trunk>` (or `git pull --ff-only`; Contract 8): a plain merge
+   is a commit, and the cook has no grant for it yet.
 
 **After the PR opens** (the cook's `[served]` message): take the grant back first,
 `kitchen.sh grant station-N --none`; then the branch includes current trunk (`git -C <station> log --oneline

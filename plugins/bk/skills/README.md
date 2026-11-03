@@ -770,6 +770,29 @@ this branch's deletions. The three-dot `origin/<trunk>...HEAD` alone is no bette
 sous's `[go]` nothing is committed, so it reads empty. `/bk:clean check` and `around`,
 `/bk:review-task` and the taster all use this form.
 
+**Trunk moves while nothing is committed.** Nobody asks a cook to bring trunk in before
+`[go]` as a routine step: the pass reads the merge base, and `/bk:open-pr` brings trunk in
+after the commit. When the sous holds a ticket and asks anyway, the only form is
+`git merge --ff-only origin/<trunk>` (`git pull --ff-only` is the same fast-forward), on a
+branch with no commits of its own: a plain `git merge` or `git pull`, `rebase` and
+`cherry-pick` make a commit by another route, so they need the `commit` grant (Contract 5)
+and a cook has none before `[go]`; `--ff-only` passes the guard. If it refuses because the working tree clashes with what trunk changed,
+park the tree and put it back:
+
+```bash
+git stash push -u -m "<station>: trunk"
+git stash list --format='%H %gs' | grep '<station>: trunk'     # note the sha
+git fetch origin && git merge --ff-only origin/<trunk>
+git stash apply <sha>                                          # then drop that entry by its message
+```
+
+Two traps: a file you added that trunk now tracks comes back as trunk's copy, and yours stays
+only in the stash (`git show <sha>^3:<path>`), so compare before you drop it; and a generated
+`INDEX.md` the apply leaves conflicted is rewritten by `kitchen.sh index` (Contract 12), then
+`git reset -q` unstages. The tree changed, so its receipt is stale: run `kitchen.sh check`
+again before `[handoff]`, and say in the journal that trunk came in. A branch that already has
+commits waits for a grant.
+
 **A station's write scope is its plan's `files:`** (Contract 4), and two scopes that share a path
 do not run at once. `kitchen.sh scope --overlap` compares every station's plan and in-flight
 diff with every other station's and with every ready ticket's plan (else its own `files:`), and

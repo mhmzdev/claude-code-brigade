@@ -5,6 +5,7 @@
 | File | Summary | Ticket |
 |---|---|---|
 | [13-merge-base-diff.md](13-merge-base-diff.md) | Diff a station against its merge base with trunk, not the trunk tip | #13 |
+| [28-ff-trunk-before-go.md](28-ff-trunk-before-go.md) | Bringing trunk in before [go] is a fast-forward, written down once | #28 |
 | [50-test-env-leaks.md](50-test-env-leaks.md) | tests/kitchen.test.sh is safe inside a kitchen: seal the env, pick a free port for the Window test | #50 |
 | [62-budget-sous-role.md](62-budget-sous-role.md) | The budget counts only the real sous as the sous; the head chef's sessions are their own rows | #62 |
 | [64-record-protected-trunk.md](64-record-protected-trunk.md) | The record reaches a protected trunk, and a docs-only change needs no release | #64 |
