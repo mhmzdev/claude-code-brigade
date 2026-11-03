@@ -33,8 +33,8 @@ session per **station** (a separate copy of the repo), each working one ticket f
 pull request. Cooks can be smaller models, or big ones for hard tickets. You don't watch
 the cooks' terminals. Everything they need decided that nobody has decided yet reaches you
 through the sous, with a recommendation; everything already decided is found in the record
-by the **commis** before anyone asks. You sign off feature plans, answer real forks, and
-merge. The sous signs off bug, chore, precedent and hygiene plans itself and tells you.
+by the **commis** before anyone asks. You sign off feature plans, answer real forks, and deploy; the sous
+merges what passed its pass and is green (set `gates.merge: head-chef` to keep the merge; you can hold any PR by saying so), and signs off bug, chore, precedent and hygiene plans itself and tells you.
 
 ## Setting up
 
@@ -223,7 +223,8 @@ needs goes to the sous as a message:
 | a login for testing | `[gate] … need a test account` | the sous, with an account name |
 | a write on production | `[gate] … production write` | you, for that exact action |
 | an edit auto mode refuses (under `.claude/`, sometimes `CLAUDE.md`) | `[gate] … edit denied` | you, in that cook's terminal; the sous can't lift it |
-| merge or deploy | nothing | you do these yourself; no session does, and a relayed "go" is refused |
+| merge | nothing | the sous, by `kitchen.sh ship` after its pass and green CI (you, with `gates.merge: head-chef`; you can hold one by saying so) |
+| deploy | nothing | you do this yourself; no session does, and a relayed "go" is refused |
 
 The sous never approves a **feature** plan itself. Those need your own yes, in the sous's
 current session, after seeing that plan; a changed plan needs a new yes. Bug, chore,
@@ -254,7 +255,7 @@ If you do type in a cook's terminal, the cook does as told and tells the sous in
 8. On `[go]`: `/bk:clean around` (old mess nearby, drafted as hygiene tickets),
    `/bk:handoff` (the journal's closing section), `/bk:open-pr`. The cook sends `[served]`
    with the PR link.
-9. You merge. The sous closes the ticket. The sous clears the cook's session (`kitchen.sh clear`) before its next
+9. The sous merges (`kitchen.sh ship`, once CI is green and the PR is up to date) and closes the ticket. The sous clears the cook's session (`kitchen.sh clear`) before its next
    ticket: one ticket per session.
 
 Lane C (hygiene) skips the plan and the checklist; the ticket is the plan, and the sous

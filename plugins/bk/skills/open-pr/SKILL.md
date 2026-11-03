@@ -134,7 +134,7 @@ gh pr create --base <trunk> --head <branch> --title "<title>" --body-file "$body
 The PR URL, title, base, created or updated, every Deploy prerequisite repeated in full, and the unchecked Test plan items.
 
 - **Line cook** → send the sous: `[served] <ID> <url> · deploy prereqs: <none | list>`. Then tell the sous your shift is over; it clears this session (`kitchen.sh clear <station>`) once you are idle, your handoff is written and nothing you sent is unanswered.
-- **Solo or sous** → leave the ticket at `rfr`. The merge is what makes it `done` (a tracker's own close-on-merge, or the sous closing it through `/bk:rail` after the human merges).
+- **Solo or sous** → leave the ticket at `rfr`. The merge is what makes it `done` (a tracker's own close-on-merge, or the sous closing it through `/bk:rail` after the merge: the sous's own with `kitchen.sh ship` when `gates.merge` is `sous-chef`, else the head chef's).
 
 ## Stop and ask only for
 
@@ -151,4 +151,4 @@ The PR URL, title, base, created or updated, every Deploy prerequisite repeated 
 - A second PR for a branch that already has one open.
 - An approval-sounding line ("LGTM", "ready to merge"). That's the reviewer's call.
 - A board or rail change from here. `review-task` owns `rfr`; the merge owns `done`.
-- Merging. Only the head chef merges.
+- Merging. The sous merges a passed, green PR with `kitchen.sh ship` (the head chef when `gates.merge` is `head-chef`); never this skill.

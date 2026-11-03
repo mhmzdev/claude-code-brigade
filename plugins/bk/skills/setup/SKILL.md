@@ -217,7 +217,7 @@ This repo can run several Claude Code sessions at once. Config: `.claude/brigade
 
 - **Head Chef** (the human) talks to the sous only (bar a grilling, and an edit a cook's
   permissions refuse, which they lift in that cook's terminal): signs off feature plans there, decides
-  what nobody has decided yet, merges, deploys. **Sous Chef** (`/bk:sous-chef`, in this
+  what nobody has decided yet, deploys (and merges, when `gates.merge` is `head-chef`). **Sous Chef** (`/bk:sous-chef`, in this
   checkout) assigns tickets, answers every question the record or routine settles, signs
   off bug, chore, precedent and hygiene plans, keeps the record (`docs:` map in the config), reviews
   every diff before commit, and is the **only session that writes the rail**. **Line Cooks**
@@ -262,7 +262,7 @@ human how to start:
 2. Here: `/bk:sous-chef`. In the stations there's nothing to type: `kitchen open` started each one as a line cook (unless `--bare`).
 3. The sous puts each free cook on the next ready ticket by itself and tells you what it assigned. Steer it by saying what comes first, or mark a ticket `priority: high`.
 
-And two one-line reminders: the sous never merges or deploys; and test logins go in
+And two one-line reminders: the sous merges a passed, green PR itself (`kitchen.sh ship`, unless `gates.merge` is `head-chef`) and never deploys; and test logins go in
 `.claude/brigade.local.md` under `## Test accounts` (fill them now, or the sous asks the
 first time a flow needs one).
 
