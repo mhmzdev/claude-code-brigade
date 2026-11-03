@@ -1568,7 +1568,7 @@ cmd_sessions() {
 # ---------------------------------------------------------------------------
 json_str() { sed -n "s/.*\"$2\":\"\\([^\"]*\\)\".*/\\1/p" "$1" | head -1; }      # a string field of a flat JSON file
 json_num() { sed -n "s/.*\"$2\":\\([0-9][0-9]*\\).*/\\1/p" "$1" | head -1; }     # a number field
-mtime_ms() { local s; s="$(stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null)"; printf '%s000' "${s:-0}"; }
+mtime_ms() { local s; s="$(stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null)"; printf '%s000' "${s:-0}"; }   # GNU first: BSD stat -c fails, GNU stat -f %m is the mount point
 # registry_of <checkout> [name] → the registry file of the live session running there: the one
 # named <name> when given, else the most recently active. Nothing when none is running.
 registry_of() {
