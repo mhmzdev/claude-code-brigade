@@ -799,7 +799,13 @@ check passing and the counter going down.
 that session before its next ticket: first `kitchen.sh done <station>` (the station goes back
 to trunk), then `kitchen.sh clear <station>`, which types `/clear`
 and then `/bk:line-cook` into the cook's pane, and refuses unless the cook is idle, its
-handoff is newer than its last turn and nothing it sent still waits for an answer.
+handoff is newer than its last turn and nothing it sent still waits for an answer. The proof
+that a handoff is newer is its own `## Handoff — YYYY-MM-DD HH:MM` stamp (the file's mtime
+only for a handoff with no stamp: a `git checkout` refreshes it). A cook that is **served**
+needs no newer handoff: `kitchen.sh done` leaves `.claude/served` (the ticket and PR), and a
+station that is clean, detached at trunk, with that ticket's journal committed there and a
+`## Handoff` in it has nothing left to hand off, so an ack answered after the handoff (a new
+turn) doesn't undo it. The open-message check still applies to it.
 Clearing is deterministic, so it is the sous's, not the head chef's; the head chef still
 can. A second ticket never goes onto a live context.
 
@@ -884,7 +890,8 @@ what cooks are waiting on: `grep` across `<kitchen>/*/docs/journal/`.
 Neither handoff clears the session itself. The sous does, with `kitchen.sh clear`: a cook
 after its `[served]` and handoff (or the grilling it held), itself (`kitchen.sh clear sous`, which waits for its turn to end and types `/bk:sous-chef` after the `/clear`) after about three passes
 or when the board says its turns are over the context line, handoff first. The command
-refuses a busy session, a stale handoff or an open question, so nothing is lost by it; the
+refuses a busy session, a stale handoff (one stamped before its last turn, unless the cook is
+served and its handoff is on trunk) or an open question, so nothing is lost by it; the
 head chef can still clear any session by hand, and a cook waiting on a sign-off (an open `[plan]`) is only ever cleared that way.
 
 **Lessons are promoted mechanically, never by judgement.** A lesson is one tagged line in a

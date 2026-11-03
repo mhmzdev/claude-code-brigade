@@ -12,6 +12,7 @@
 | [66-check-tree-hash.md](66-check-tree-hash.md) | kitchen check — run the config's check once per tree, record the result with the tree's hash | #66 |
 | [85-worktrees-only.md](85-worktrees-only.md) | worktrees only; drop clone mode; `kitchen.sh done` deletes a merged ticket's branch and resets the station | #85 |
 | [86-kitchen-procs.md](86-kitchen-procs.md) | kitchen.sh procs: the kitchen registers, reaps and scans the processes it started; never a system or unknown process | #86 |
+| [89-clear-served-cook.md](89-clear-served-cook.md) | kitchen.sh clear passes a served cook on trunk, and no longer trusts a journal's mtime alone | #89 |
 | [90-gate-receipts.md](90-gate-receipts.md) | gate receipts: every check run writes a receipt naming the tree, the command and its exit; the pass trusts the receipt | #90 |
 | [91-positive-authorization.md](91-positive-authorization.md) | Positive authorization: a cook may commit, push or open a PR only on a grant the sous writes (kitchen.sh grant); merge never | #91 |
 | [92-write-scope.md](92-write-scope.md) | the plan's files: is the ticket's write scope; kitchen.sh scope checks the diff against it and finds colliding scopes | #92 |

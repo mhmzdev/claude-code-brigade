@@ -202,6 +202,8 @@ lines short; the journal is read by people later, not just by the next session.
     second ticket on this context. After the merge the sous runs `kitchen.sh done <station>`: it
     deletes your ticket branch (local and origin) and detaches this station at trunk, so don't be
     on that branch or hold unpushed commits you still want; the folder and this session stay.
+    Once that has run, your closing handoff is on trunk and `kitchen.sh clear` reads it there: answering the sous's
+    last ack is fine, and you don't write a second handoff for it (that would dirty the station).
     Your grant ends at `[served]`. Until the sous says the PR has merged, stay ready: if it says the PR is behind or conflicting, it grants `commit push` again; bring trunk in (`git merge origin/<trunk>`), re-run the check, push, and send `[served]` again with the new head.
 
 **Being cleared mid-ticket** (e.g. while waiting for `[approved]`) is normal; that one is the head chef's, by hand, since `kitchen.sh clear` refuses an unanswered `[plan]`. When the
