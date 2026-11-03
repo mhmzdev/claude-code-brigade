@@ -35,14 +35,14 @@ Always the **human**. Grilling is a design conversation, so it happens wherever 
 
 **The sous sent you a grilling `[brief]`, or the human typed `/bk:grill-me` in your station themselves?** Then the human is coming to this terminal: grill them, and ask with `AskUserQuestion` as this skill says. This is the one job where a cook asks the human directly. Four things differ from a sous session:
 
-- Write `.claude/grilling` in your station first (`mkdir -p .claude && touch .claude/grilling`): the plugin's hook refuses `AskUserQuestion` in a station without it. The hook ignores a marker idle for four hours (so a cleared session can't leave the guard off), so `touch` it again before each round: the cap then measures idle time, not the grilling's length. Remove it when the grilling ends, before the `[status]` below.
-- Send the sous `[status] grilling <ID> with the head chef` at the start.
+- Write `.claude/grilling` in your station first (`mkdir -p .claude && touch .claude/grilling`): the plugin's hook refuses `AskUserQuestion` in a station without it. The hook ignores a marker idle for four hours (so a cleared session can't leave the guard off), so `touch` it again before each round: the cap then measures idle time, not the grilling's length. Remove it when the grilling ends, before the `[rail] … grilled` message below.
+- Tell the sous at the start, by script: `kitchen.sh here --waiting "the head chef (grilling <ID>)" --note "grilling <ID> with the head chef"`.
 - You can't write the rail, and specs and tickets live in the main checkout. So **log every decision where the brief says**:
   - a backlog item that needs a spec → go straight on to `/bk:spec`. It writes `<docs.specs>/draft-<slug>.md` in your station with the decisions in its Decisions section, and sends `[rail] spec draft ready: <absolute path>`, naming the item, for the sous to number and file;
   - an existing spec, or a ticket → write the decisions to `<docs.journal>/grill-<slug>.md` in your station (not `<ID>-…`, which is a ticket journal's name) and send `[rail] <ID> add decisions: <absolute path>`; delete the file on `[heard]`;
-  - a bare topic, with nothing to attach them to → the same file, and give its path in the `[status]` line below; the sous decides where it belongs;
+  - a bare topic, with nothing to attach them to → the same file, and give its path in the message below; the sous decides where it belongs;
   - your own ticket's plan → straight into the plan.
-- **Tell the sous it's done**: `[status] <ID> grilled: <one line of what was decided, and where it's written>`. Don't offer the next skill with a dialog; the brief already said what comes next.
+- **Tell the sous it's done**: `[rail] <ID> grilled: <one line of what was decided, and where it's written>` (a message: the sous has to record it). Don't offer the next skill with a dialog; the brief already said what comes next.
 - This session is now spent. Say so: it should be cleared before it takes a ticket.
 
 ## Step 0 — Read the input
@@ -112,7 +112,7 @@ Push hardest where the artifact is vague:
    - plan → its `## Decisions`: a grilled answer that alters what the ticket delivers goes under Changes the ticket marked `grilled, <date>` (it is already the head chef's word, so the sous doesn't ask again); any other under How as `settled in <grill file>`. Keep `open_questions:` honest (`/bk:implement` refuses a plan with an open question). A plan in a station is the cook's file: the sous sends the decisions as `[findings]` and the cook folds them in;
    - ticket → on a markdown rail, append a `## Decisions` section. That's a rail write, which the sous or a solo session may make. On a github or jira rail, add a comment.
    - no artifact → the summary is the input to the next skill.
-3. **Hand off.** Solo or sous: offer with `AskUserQuestion`, then wait: lane A, or a backlog item that needs a spec → `/bk:spec` (name the item, so the spec closes it); a `kind: bug`, `kind: chore` or `kind: precedent` backlog item → `/bk:create-plan`; or stop. In a station: no dialog; remove `.claude/grilling`, do what the brief said comes next, and send the `[status] <ID> grilled: …` line from [Who you grill](#who-you-grill).
+3. **Hand off.** Solo or sous: offer with `AskUserQuestion`, then wait: lane A, or a backlog item that needs a spec → `/bk:spec` (name the item, so the spec closes it); a `kind: bug`, `kind: chore` or `kind: precedent` backlog item → `/bk:create-plan`; or stop. In a station: no dialog; remove `.claude/grilling`, do what the brief said comes next, and send the `[rail] <ID> grilled: …` message from [Who you grill](#who-you-grill).
 
 The decisions a grilling produces are head-chef answers: once folded into the artifact they're in the record, and the sous's handoff promotes any that outlive the artifact into `docs.decisions` (Contract 12).
 

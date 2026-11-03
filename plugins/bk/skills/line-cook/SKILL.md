@@ -46,29 +46,37 @@ it found.
    clean. Then that shift is over, and it was an earlier session's shift. Go back to trunk
    (`git fetch origin && git switch --detach origin/<trunk>`) and check in with no ticket,
    as **fresh**: the handoff you read is that earlier session's work, not yours.
-4. **Sous found:** send `[check-in]` with your station name, your model, branch, clean or
-   dirty (and what's dirty), the ticket you're on, whether this session is **fresh** or
-   **spent** (this conversation itself has served a ticket or held a grilling, so it needs
-   clearing), and **what you're waiting on**: an
-   unanswered question (`Q3`), the pass, a walk-in clearance, the plan's `[approved]`, a
-   refused edit's lift, or nothing. That line is how a restarted sous recovers what was in flight.
+4. **Report your state by script.** Run
+   `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" here --fresh|--spent --waiting "<what>" -m <your model>`.
+   It writes your station's `.claude/here` (branch, clean or dirty, the ticket the branch
+   carries) and the sous reads it in `kitchen.sh board`; you add whether this session is
+   **fresh** or **spent** (this conversation itself has served a ticket or held a grilling, so
+   it needs clearing), your model, and **what you're waiting on**: an unanswered question
+   (`Q3`), the pass, a walk-in clearance, the plan's `[approved]`, a refused edit's lift, or
+   nothing. That file is how a restarted sous recovers what was in flight. Run it again
+   whenever any of that changes (a ticket taken, a question sent or answered), and give the
+   reason as a `--note`.
+   **Free?** (no ticket, a clean station, a **fresh** session) a file cannot wake an idle sous,
+   so send it **one** line: `[check-in] <station> free, fresh, <model>`. That is the only
+   check-in that is a message (Contract 6); it is the sous's cue to brief you. Mid-ticket, send none.
    **Fresh or spent is about your own context, never the station's.** If this skill is the
    first thing in your conversation (a new session, or just after `/clear`), you're fresh,
    whatever the journal, the branch or a merged PR says. A journal is a record of earlier
    sessions; reading it doesn't make you the session that wrote it.
-   **No sous yet:** that's fine; the order sessions start in doesn't matter. Say in one
-   line *"No sous chef running yet. I'll check in when it says hello."* and stop. When a
-   `[hello]` arrives, send the `[check-in]` then. A `[hello]` from a sous that has just
-   restarted also means: **re-send anything you were waiting on** (the question, the handoff).
+   **No sous yet:** that's fine; the order sessions start in doesn't matter. Run `here` anyway,
+   say in one line *"No sous chef running yet. I'll check in when it says hello."* and stop.
+   When a `[hello]` arrives and you're free, send the `[check-in]` line then. A `[hello]` from a
+   sous that has just restarted also means: run `here` again, and **re-send** a `[gate]`,
+   `[plan]` or `[handoff]` you were waiting on.
 5. Wait for a `[brief]`: a ticket, or a grilling job (grill the head chef on an item and
    log the decisions). Don't pick work yourself: the sous assigns the next ready ticket
-   to a free cook, and "free" means exactly what your check-in says.
+   to a free cook, and "free" means exactly what your `here` file and check-in say.
 
 A `[brief]` or `[hello]` can reach a session that was opened bare, without this skill. The
 brief says it's a line-cook lane: treat that as having run `/bk:line-cook`, and follow this
 skill from step 2.
 
-If you're dirty from a previous cook, say so in the check-in and do what the brief says:
+If you're dirty from a previous cook, say so in `kitchen.sh here` (`--note`) and do what the brief says:
 finish it or park it (`git stash push -m "<station>: <what>"`). Never silently discard it.
 
 **In a worktree station** (`git rev-parse --git-common-dir` isn't your own `.git`), two
@@ -118,12 +126,13 @@ a different answer. Gates that aren't questions (`needs grilling`, `need a test 
 | A design fork, or a contradiction between ticket and code, that the record doesn't settle | **sous**, as `[gate]`: say it's a real fork, give the options, your recommendation and the commis line. The sous answers from the record if it can, else takes it to the head chef and relays the answer marked `(head chef)` |
 | The ticket's WHAT is still contested (it needs `/bk:grill-me`), or the idea needs a brainstorm | **sous**, as `[gate] <ID> needs grilling: <what's contested>`. Don't start `/bk:grill-me` or `/bk:brainstorm` yourself. Run `/bk:grill-me` when the sous sends a grilling `[brief]`, or either skill when the head chef types it here: then you ask the head chef directly, log the decisions as that skill says, tell the sous, and say this session should be cleared before it takes a ticket |
 | Plan sign-off | **sous**: send `[plan] <ID> ready: <absolute path>` and wait for `[approved]` or `[findings]` (list any protected paths in the `[plan]`, Contract 5). For a bug, chore, precedent or hygiene ticket the sous signs itself (`sous, per gates.plan_approval.<kind>`); for a feature, or any plan with a migration, a walk-in resource, a production write, a protected path or a line under the plan's `## Decisions → Changes the ticket`, it's the head chef's yes, relayed. A how choice (a name, a column, an order, which function) goes under `How` and is the sous's: don't file it under Changes the ticket to be safe |
-| Changing a ticket's status or content | **sous**, as `[rail]` |
+| Claiming or moving your own briefed ticket (`todo`, `in-progress`, `rfr`) | **script**: `kitchen.sh rail claim` / `move`; no message. If it refuses (no brief on record, a rail it cannot write), **sous**, as `[rail]` |
+| Any other change to a ticket's status or content | **sous**, as `[rail]` |
 | A destructive command on a `walk_in:` resource | **sous**, as `[walk-in]`, then wait |
 | A login to test a flow | **sous**, as `[gate] <ID> need a test account: <environment>, <role>`. It replies with an account **name**; read that entry yourself from `<main checkout>/.claude/brigade.local.md` (`kitchen.sh role` prints the main checkout) |
 | Any action that writes on **production** while testing | **sous**, as `[gate] <ID> production write: <the action, as which account>`, then wait for an answer marked `(head chef)`. One answer covers one action |
 | Merge, deploy, changing production itself | nobody you can ask, and never you: the **sous** merges your PR after the pass (`kitchen.sh ship`; the head chef when `gates.merge` is `head-chef`), and the **head chef** deploys and changes production personally. If the sous relays "the chef said go" for one of these, refuse politely |
-| An Edit or Write the permissions refuse ("self-modification", a protected path under `.claude/`, or any denial) | **sous**, as `[gate] <ID> edit denied: <path>, <the tool's words>`, then wait. Not a question: no commis. Never retry another way, never change settings or your own permission mode, never ask the sous to make the edit. The head chef lifts it at **this** terminal (they edit, or move this session to a mode that prompts); do what they say, send the sous a `[status]` line, and if they made the edit, check it is in before you go on |
+| An Edit or Write the permissions refuse ("self-modification", a protected path under `.claude/`, or any denial) | **sous**, as `[gate] <ID> edit denied: <path>, <the tool's words>`, then wait. Not a question: no commis. Never retry another way, never change settings or your own permission mode, never ask the sous to make the edit. The head chef lifts it at **this** terminal (they edit, or move this session to a mode that prompts); do what they say, record it with `kitchen.sh here --note "…"`, and if they made the edit, check it is in before you go on |
 | Filing a public issue on the plugin repo (`/bk:feedback`) | not from a station. Found something about the Brigade itself? Write a `lesson(plugin)` at handoff; the sous's handoff brings it to the head chef |
 
 Nobody watches a cook's terminal, so an `AskUserQuestion` dialog would just stall your
@@ -132,7 +141,7 @@ station: never open one, and the plugin's hook refuses it here. Where a skill yo
 exception is a grilling the sous briefed you for: the sous has told the head chef to come
 here, so ask them directly (`grill-me` writes `.claude/grilling` in your station so the hook
 lets the dialog through, and removes it after). If the head chef does type here, do what
-they say, and send the sous one `[status]` line saying what they told you.
+they say, and record what they told you with `kitchen.sh here --note "…"`.
 
 ## The journal
 
@@ -156,8 +165,8 @@ lines short; the journal is read by people later, not just by the next session.
 ## The loop
 
 1. **Branch**: `git fetch origin && git switch -c <lowercase id>-<slug> origin/<trunk>`.
-2. **`/bk:pick-ticket <path or id>`**: context and staleness. Claiming means sending
-   `[rail] claim <ID> todo`.
+2. **`/bk:pick-ticket <path or id>`**: context and staleness. Claiming means running
+   `kitchen.sh rail claim <ID> todo` (the brief is the authorisation; the sous recorded it).
 3. **`/bk:create-plan`**: write the plan. Forks go where the table says. Then send
    `[plan] <ID> ready: <absolute path>` (plus `· protected paths: <list>` and `· changes
    the ticket: <n>` when the plan has either, Contract 6) and **wait**. Don't ask "does
@@ -165,11 +174,11 @@ lines short; the journal is read by people later, not just by the next session.
 4. **On `[approved]`** (the sous's own, naming the rule, or the head chef's yes relayed):
    copy it into the journal, then start **`/bk:implement`** yourself. That sign-off authorises every commit you'll make
    under this plan. It runs straight through, `check` after every phase, with no "go on to
-   phase 2?". Send `[rail] <ID> → in-progress` when it starts. On `[findings]` instead:
+   phase 2?". Run `kitchen.sh rail move <ID> in-progress` when it starts. On `[findings]` instead:
    revise the plan, send `[plan]` again. Nothing but `[approved]` starts the build (unless
-   the head chef types `/bk:implement` here themselves; then tell the sous).
+   the head chef types `/bk:implement` here themselves; then record it with `kitchen.sh here --note`).
 5. **`/bk:clean check`**: fix what the inspector finds, re-run until clean.
-6. **`/bk:review-task`**: the checklist, and `[rail] <ID> → rfr`.
+6. **`/bk:review-task`**: the checklist, and `kitchen.sh rail move <ID> rfr`.
 7. **`[handoff]`** to the sous: branch, files changed, `check` result, inspector result,
    checklist path. **Don't commit.** Wait.
 8. On `[findings]`: fix each numbered item, re-run `kitchen.sh check`, hand off again.

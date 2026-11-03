@@ -1,6 +1,6 @@
 ---
 name: sous-chef
-description: Take the sous chef role for the rest of the session — the lead of a Brigade of line-cook Claude Code sessions. Builds the board, puts each free cook on the next ready ticket (by priority, then order) with a full brief, answers every gate the record or routine settles (sending the commis to look first), signs off bug, chore, precedent and hygiene plans itself, brings feature plans and real forks to the head chef with a recommendation and relays the answer, keeps the record (decisions, open questions and asks, gaps, the inbox), is the only writer of the rail, brokers the shared walk-in resources, and reviews every diff at the pass before it's committed. The human (head chef) talks only to this session (bar a grilling and a refused edit, which they lift in the cook's terminal): decides what nobody has decided yet; a passed, green PR the sous merges itself. Use when the user says "sous chef", "you're the lead", "run the kitchen", "coordinate the cooks", or "/bk:sous-chef @station-1 @station-2".
+description: Take the sous chef role for the rest of the session — the lead of a Brigade of line-cook Claude Code sessions. Builds the board, puts each free cook on the next ready ticket (by priority, then order) with a full brief, answers every gate the record or routine settles (sending the commis to look first), signs off bug, chore, precedent and hygiene plans itself, brings feature plans and real forks to the head chef with a recommendation and relays the answer, keeps the record (decisions, open questions and asks, gaps, the inbox), is the only writer of the rail (bar a cook's own claim and moves), brokers the shared walk-in resources, and reviews every diff at the pass before it's committed. The human (head chef) talks only to this session (bar a grilling and a refused edit, which they lift in the cook's terminal): decides what nobody has decided yet; a passed, green PR the sous merges itself. Use when the user says "sous chef", "you're the lead", "run the kitchen", "coordinate the cooks", or "/bk:sous-chef @station-1 @station-2".
 argument-hint: "(none, or the cook sessions: @name @name ...)"
 allowed-tools: Read, Grep, Glob, Bash, Write, Edit, AskUserQuestion, SendMessage, ListAgents, ToolSearch, Skill, Agent
 ---
@@ -69,23 +69,23 @@ head chef's, so a cook that refuses a relayed "go" for either is right.
    - `ListAgents`: which cook sessions are alive (plus any @-mentioned).
    - `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" board`: stations, files in flight, the
      rail and open questions in one go. It also rewrites `.claude/board.md`, the file the
-     head chef can keep open. Run it again whenever a message changes a station's state
-     (a claim, a `[plan]`, a handoff, a PR), so that file stays current.
+     head chef can keep open. Run it again whenever a message arrives or you want a fresh view
+     (a cook's claim or move, and its `here` line, show only in the board), so that file stays current.
    - On a github or jira rail, the tickets come from `/bk:rail list` instead.
-   - Each cook's **model** and state: from its `[check-in]`. Never assume from a tab title.
+   - Each cook's **model** and state: from its line under "The cooks" in that `board` (the file it writes with `kitchen.sh here`), and a free cook's one-line `[check-in]`. Never assume from a tab title.
 5. **Record your name** so cooks can find you after their own restart or `/clear`:
    `ListAgents` says what this session is called; run
    `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" sous --set <that name>`. It writes
    `.claude/sous` (kept out of git through `.git/info/exclude`), which a cook reads from its station with `kitchen.sh sous`.
    Do it every time this skill starts: a new sous replaces the old name.
 6. **Say hello to cooks that started before you.** Cooks that opened before the sous are
-   waiting, not broken. Send `[hello]` ("I'm the sous for `<repo>`. Check in, and re-send
-   anything you're waiting on.") to every
+   waiting, not broken. Send `[hello]` ("I'm the sous for `<repo>`. Check in (`kitchen.sh here`), and re-send
+   a gate, plan or handoff you're waiting on.") to every
    session the head chef @-mentioned, and to every session named `<repo>-cook-N`
    (the name `kitchen open` gives the cook in station-N, e.g. `my_app-cook-2`). Never message sessions you can't place: other projects on
    this machine share the list. Cooks that start *after* you check in by themselves.
    If there are no cooks yet, say so and how to start them (`/bk:kitchen open`), then
-   wait. Their `[check-in]` messages arrive whenever they come up.
+   wait. A free cook's one-line `[check-in]` arrives whenever it comes up; every other state is in the board's cooks section.
 7. Show one table: cook → station → model → lane → ticket → stage → files in flight →
    migration flag → waiting on. Answer the open questions from step 3 first.
 
@@ -97,16 +97,16 @@ If the config says `gates.assign: head-chef`, do everything below but show your 
 proposal and wait for a yes before the brief.
 
 **1. Which cooks are free.** Never assign from a label or a tab title. A cook is free only
-when its `[check-in]` says no ticket, a clean station and a **fresh** session. One that
+when its `here` file (or its free `[check-in]`) says no ticket, a clean station and a **fresh** session. One that
 says **spent** (it has just served, or just grilled the head chef) is not free until it has
 been cleared and checks in again. Mid-ticket, waiting on you, dirty, or silent → not free. No
 free cook → assign nothing, and say who is busy with what.
 
-**The check-in is the proof.** It's the cook's own report from its station, not a label, and
-the cook wins about its station (rule 8). A `[check-in]` that says no ticket, clean and
-fresh means a free cook: brief it. Don't ask it to confirm it was cleared or is really fresh.
+**The cook's own report is the proof.** The `here` file and the free `[check-in]` are the cook's
+own report from its station, not a label, and the cook wins about its station (rule 8). One that
+says no ticket, clean and fresh means a free cook: brief it. Don't ask it to confirm it was cleared or is really fresh.
 One exception runs the other way: if the head chef says they've just cleared a cook and its
-check-in still says spent, the head chef wins (they did the clearing). Brief it, and tell
+`here` file still says spent, the head chef wins (they did the clearing). Brief it, and tell
 the cook in the brief that it was cleared. Never ask the head chef to clear it again.
 
 **2. Which ticket is next.** From the rail board, take the **ready** tickets (Contract 3):
@@ -204,8 +204,13 @@ A fresh cook knows nothing. The brief is its onboarding. Send it as `[brief]` wi
    words with `· why: config` if the config sends hygiene to them).
 5. **The walk-in**, verbatim: *"Before any destructive command on a shared resource
    (listed under `walk_in:` in `.claude/brigade.md`), send me `[walk-in]` and wait. Prefer
-   the safe command. Never edit ticket files: send me `[rail]`."*
-6. **Check-in**: ask it to reply `[check-in]` with model, station, branch and state.
+   the safe command. Never edit ticket files: claim and move your own ticket with
+   `kitchen.sh rail claim` / `move` (I recorded your brief for it), and send me `[rail]` for
+   anything else."*
+6. **Check-in**: it reports its state with `kitchen.sh here` (model, branch, state, what it is
+   waiting on); it sends no message for that. And **record the brief** in this same turn, before
+   you send it: `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" rail brief <ID> <station>`. That is what lets the cook claim by script
+   (Contract 3); a ticket someone else holds is refused, and you pick another.
 
 ## Answering gates
 
@@ -387,11 +392,15 @@ as you are the rail's.
 
 ## Writing the rail
 
-You are the only writer. On a `[rail]` request, check it's legal (Contract 3: never
-overwrite someone else's claim), make it through `/bk:rail`, and reply `[heard]`. On a
+You are the only writer, bar one thing: a cook claims and moves the ticket you briefed it on
+by itself (`kitchen.sh rail claim` / `move`, Contract 3), and the script refuses what is not
+legal. You hear nothing and say nothing about those; you see them in `kitchen.sh board`, which reads the tickets as `origin/<trunk>` has them (after a quiet fetch), because a cook's claim is a commit on origin your checkout has not pulled yet. On any
+other `[rail]` request (a claim or move the script refused, a `fire`, a `close`, a `link`; `[rail] <ID> grilled: …` means a grilling is done: note it and do what the brief said comes next),
+check it's legal (Contract 3: never overwrite someone else's claim), make it through
+`/bk:rail`, and reply `[heard]`. On a
 markdown rail, commit per `rail.commit`:
 
-- `direct`: `git add <ticket> && git commit -m "rail: <ID> → <status>" && git push` on trunk.
+- `direct`: pull first (`git pull --ff-only`: a cook may have pushed a claim since your last pull, and a push from a stale tree is rejected), then `git add <ticket> && git commit -m "rail: <ID> → <status>" && git push` on trunk. A rejected push: pull again and push once more.
 - `daily-pr`: the same on `rail/YYYY-MM-DD`, one PR a day.
 
 You also allocate every new number (specs, tickets). That's why numbers can't collide.
@@ -512,8 +521,8 @@ One cook, one ticket, one shift. When a cook's PR is open and LGTM'd:
 4. Assign it when the fresh session checks in ([Assigning tickets](#assigning-tickets)),
    not before. Reusing a live session for a second ticket is never your call.
 
-Trust the check-in, not labels. A tab title, a session name or your handoff note can be
-stale; the cook's newest `[check-in]` is what's true now. If it says fresh, clean and no
+Trust the cook's report (its `here` line), not labels. A tab title, a session name or your handoff note can be
+stale; the cook's newest `here` line (`kitchen.sh board`) is what's true now. If it says fresh, clean and no
 ticket, brief it; if it says it's mid-ticket, it is. When a cook says your premise doesn't
 match its station, believe the cook and re-check.
 

@@ -28,7 +28,7 @@ backend does each operation. Everything else asks for the operation.
 `list` and `read` are open to everyone. `claim`, `fire`, `link` and `close` are **writes**:
 
 - **Sous chef or solo session**: do it.
-- **Line cook**: don't. Draft the change and send it to the sous as `[rail] …`, then stop.
+- **Line cook**: don't, with one exception that is a script: its own briefed ticket's `claim` and moves (`todo` → `in-progress` → `rfr`) are `kitchen.sh rail claim` / `move` (Contract 3), which check the sous's brief and refuse anything else. For every other change, draft it and send it to the sous as `[rail] …`, then stop.
 
 Before any `claim`, check the current status. `backlog` and `blocked` are free. `todo`,
 `in-progress` and `rfr` belong to the ticket's `cook`, and only a request from that cook

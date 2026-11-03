@@ -40,7 +40,7 @@ Do this before anything else. No sign-off → change nothing and stop.
   plan: send `[gate] <ID> no [approved] on record`) and wait. A
   `[heard]`, a `[go]`, or an approval for another ticket is not a sign-off. The human typing
   `/bk:implement` in this terminal themselves is the one other sign-off (Contract 5):
-  record it in the journal and tell the sous in a `[status]` line.
+  record it in the journal and tell the sous with `kitchen.sh here --note "…"`.
 - **Solo or sous-less:** the human typed `/bk:implement`, or asked in plain words in this
   conversation to build this plan. If you got here by chaining from `/bk:create-plan` or any
   other skill without that, stop and say the plan is waiting for their go.
@@ -70,14 +70,14 @@ Do this before anything else. No sign-off → change nothing and stop.
    - Unresolved questions, or no `open_questions:` key → say what you found with line numbers, that nothing changed, and that the next step is `/bk:create-plan` or `/bk:grill-me`. Never add the line yourself; that forges the check.
    - `status: draft` is normal: the sign-off you checked above approves it. Set `status: approved` with
      `approved: YYYY-MM-DD` and carry on. Don't ask for a second approval. (A cook sends
-     `[status] <ID> implement started (signed off)`.)
+     `kitchen.sh here --note "<ID> implement started (signed off)"`.)
 4. **Resume check.** Phases already marked `**Status:** Done` and `status: active` → resume at the first unfinished phase.
 5. **Claim check.** The ticket's rail status is `todo` with you as cook, or `in-progress` with you as cook. Anyone else → stop.
 
 ## Step 1 — Branch and start
 
 1. Branch off fresh trunk, never work on trunk: `git fetch origin && git switch -c <lowercase id>-<slug> origin/<trunk>` (or switch to the existing branch when resuming).
-2. Set the plan's `status: active`. Move the rail to `in-progress`: cook → `[rail] <ID> → in-progress`; sous or solo → the rail's **claim** operation.
+2. Set the plan's `status: active`. Move the rail to `in-progress`: cook → `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" rail move <ID> in-progress` (a refusal means send the sous `[rail] <ID> → in-progress`); sous or solo → the rail's **claim** operation.
 3. **State the scope in one message and begin**: phases, files, the check command. The plan was approved; **don't ask for a second go-ahead.**
 4. Read the files the current phase touches and their nearest siblings. Match what's there. Don't re-audit the codebase — if the plan lacks research, that's a plan defect to name.
 
@@ -136,7 +136,7 @@ Hygiene tickets skip the plan and the checklist (Contract 9). The ticket body **
 - Don't pause between phases for approval.
 - Don't hard-code a command, branch or path — read the config.
 - Don't run a destructive walk-in command without the sous clearing it.
-- Don't write the rail from a cook session. Ask the sous.
+- Don't write the rail from a cook session, except your own briefed ticket's moves (`kitchen.sh rail move`). Ask the sous for the rest.
 - Don't route around a refused edit. It's a gate.
 - Don't commit, push or open a PR here. Never `reset --hard` or force-push.
 - Don't claim a criterion passed that you didn't run.

@@ -8,6 +8,7 @@
 | [50-test-env-leaks.md](50-test-env-leaks.md) | tests/kitchen.test.sh is safe inside a kitchen: seal the env, pick a free port for the Window test | #50 |
 | [62-budget-sous-role.md](62-budget-sous-role.md) | The budget counts only the real sous as the sous; the head chef's sessions are their own rows | #62 |
 | [64-record-protected-trunk.md](64-record-protected-trunk.md) | The record reaches a protected trunk, and a docs-only change needs no release | #64 |
+| [65-routine-kinds-script.md](65-routine-kinds-script.md) | route routine message kinds to script; measure the sous's turns per ticket by kind (and take #59: ticket ids from the rail's own form) | #65 |
 | [66-check-tree-hash.md](66-check-tree-hash.md) | kitchen check — run the config's check once per tree, record the result with the tree's hash | #66 |
 | [gh-19-claude-dir-edits.md](gh-19-claude-dir-edits.md) | A plan that edits .claude/ is seen coming, and a denied edit is a gate, never a workaround | #19 |
 | [gh-63-generated-index.md](gh-63-generated-index.md) | Generate the INDEX.md tables of plans, journals and checklists from frontmatter, so concurrent tickets stop conflicting | #63 |

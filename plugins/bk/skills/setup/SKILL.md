@@ -220,7 +220,7 @@ This repo can run several Claude Code sessions at once. Config: `.claude/brigade
   what nobody has decided yet, deploys (and merges, when `gates.merge` is `head-chef`). **Sous Chef** (`/bk:sous-chef`, in this
   checkout) assigns tickets, answers every question the record or routine settles, signs
   off bug, chore, precedent and hygiene plans, keeps the record (`docs:` map in the config), reviews
-  every diff before commit, and is the **only session that writes the rail**. **Line Cooks**
+  every diff before commit, and is the **only session that writes the rail** (bar a cook's own claim and moves). **Line Cooks**
   (`/bk:line-cook`) work one ticket each in `<stations path>/station-N`, send the `commis`
   sub-agent to search the record before any question, and ask the sous, never the human
   (except a grilling the sous hands them; a refused edit is a `[gate]` to the sous, which
@@ -231,7 +231,7 @@ This repo can run several Claude Code sessions at once. Config: `.claude/brigade
 - **If your working directory is a station, you are a line cook**, even after `/clear`:
   run `/bk:line-cook` before anything else.
 - **The rail is the claim.** A ticket not in `backlog` or `blocked` belongs to someone.
-  Cooks ask the sous to change a ticket; they never edit ticket files.
+  Cooks ask the sous to change a ticket, bar claiming and moving their own briefed ticket with `kitchen.sh rail claim` / `move`; they never edit ticket files.
 - **Ask before touching the walk-in** (`walk_in:` in the config). One migration in flight at a time.
 - **One ticket per session.** Pull trunk into your branch before opening a PR, and re-run the check.
 - Clone mode: **never `git clean -fdx` here**: `stations/` is ignored, so `-x` deletes every station.

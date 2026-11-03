@@ -1132,6 +1132,235 @@ ok "no check: in the config is an error" test "$rc" != 0
 ok "…that says so" has "$out" "No check: command"
 
 # =============================================================================
+section "rail brief | claim | move, and here: the routine kinds go to script"
+# =============================================================================
+# A markdown rail is written without touching the main checkout: a commit built on origin/main.
+# One suite, run in both kitchen modes. $1 label, $2 the app repo, $3 where its stations are.
+rail_suite() {
+  local label="$1" R="$2" SD="$3" bare="$2.git" S1 S2 out rc before after head sum
+  S1="$SD/station-1"; S2="$SD/station-2"
+  printf -- '---\nid: BKLG-005\ntitle: A chore\nlane: B\nkind: chore\nstatus: backlog\ncook: null\n---\nBody five.\n' > "$R/docs/backlog/BKLG-005-chore.md"
+  printf -- '---\nid: BKLG-006\ntitle: Another chore\nlane: B\nkind: chore\nstatus: backlog\ncook: null\n---\nBody six.\n' > "$R/docs/backlog/BKLG-006-chore2.md"
+  push_all "$R" "tickets"
+  (cd "$R" && "$K" setup >/dev/null 2>&1)
+  top() { git -C "$bare" rev-parse main; }
+  originfile() { git -C "$bare" show "main:docs/backlog/$1"; }
+
+  section "rail ($label): the sous briefs, a cook claims"
+  out=$(cd "$S1" && "$K" rail brief BKLG-005 station-1 2>&1); rc=$?
+  ok "$label: a cook cannot brief" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "Only the sous briefs"' _ "$rc" "$out"
+  out=$(cd "$S1" && "$K" rail claim BKLG-005 todo 2>&1); rc=$?
+  ok "$label: a claim with no brief is refused, and says to send [rail]" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "No brief for station-1 on BKLG-005.*[Ss]end the sous \[rail\] claim BKLG-005 todo"' _ "$rc" "$out"
+  ok "$label: …and wrote nothing" test "$(originfile BKLG-005-chore.md | grep -c 'status: backlog')" = 1
+  out=$(cd "$R" && "$K" rail brief BKLG-005 station-1 2>&1); rc=$?
+  ok "$label: the sous briefs a free ticket" bash -c 'test "$1" = 0 && printf "%s" "$2" | grep -q "BKLG-005 briefed to station-1"' _ "$rc" "$out"
+  ok "$label: …recorded in .claude/briefs, out of git" bash -c 'grep -q "^BKLG-005.station-1" "$1/.claude/briefs" && test -z "$(git -C "$1" status --porcelain | grep briefs)"' _ "$R"
+  ok "$label: the board still prints (rail with no word is the board)" has "$(cd "$R" && "$K" rail)" "BKLG-005 +B +backlog"
+
+  # the main checkout is dirty: another change to the same ticket file, and a staged file
+  echo "an edit in progress" >> "$R/docs/backlog/BKLG-005-chore.md"
+  echo x > "$R/other.txt"; git -C "$R" add other.txt
+  before=$(git -C "$R" status --porcelain); head=$(git -C "$R" rev-parse HEAD); sum=$(cksum < "$R/docs/backlog/BKLG-005-chore.md")
+  local tip; tip=$(top)
+  out=$(cd "$S1" && "$K" rail claim BKLG-005 todo 2>&1); rc=$?
+  ok "$label: the briefed cook claims a free ticket" bash -c 'test "$1" = 0 && printf "%s" "$2" | grep -q "^BKLG-005 → todo (station-1)"' _ "$rc" "$out"
+  ok "$label: …it lands on origin/main as one commit named for it" bash -c 'test "$(git -C "$1" log -1 --format=%s main)" = "rail: BKLG-005 → todo" && test "$(git -C "$1" rev-list --count "$2..main")" = 1' _ "$bare" "$tip"
+  ok "$label: …with status: todo and cook: station-1, and only that changed" bash -c 'f="$(git -C "$1" show main:docs/backlog/BKLG-005-chore.md)"; printf "%s" "$f" | grep -q "^status: todo" && printf "%s" "$f" | grep -q "^cook: station-1" && ! printf "%s" "$f" | grep -q "in progress" && test "$(git -C "$1" diff --stat "$2" main | tail -1 | grep -o "[0-9]* file")" = "1 file"' _ "$bare" "$tip"
+  after=$(git -C "$R" status --porcelain)
+  ok "$label: the main checkout is untouched: same status, HEAD, file and staged change" bash -c '[ "$1" = "$2" ] && [ "$3" = "$(git -C "$4" rev-parse HEAD)" ] && [ "$5" = "$(cksum < "$4/docs/backlog/BKLG-005-chore.md")" ] && [ "$(git -C "$4" diff --cached --name-only)" = other.txt ]' _ "$before" "$after" "$head" "$R" "$sum"
+  git -C "$R" reset -q other.txt; rm -f "$R/other.txt"; git -C "$R" checkout -q -- docs/backlog/BKLG-005-chore.md
+  tip=$(top)
+  out=$(cd "$S1" && "$K" rail claim BKLG-005 todo 2>&1); rc=$?
+  ok "$label: the same cook claiming again is a no-op" bash -c 'test "$1" = 0 && printf "%s" "$2" | grep -q "already todo"' _ "$rc" "$out"
+  ok "$label: …with no new commit" test "$(top)" = "$tip"
+  out=$(cd "$S2" && "$K" rail claim BKLG-005 todo 2>&1); rc=$?
+  ok "$label: another station with no brief is refused" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "No brief for station-2"' _ "$rc" "$out"
+  out=$(cd "$R" && "$K" rail brief BKLG-005 station-2 2>&1); rc=$?
+  ok "$label: the sous cannot brief a ticket station-1 holds (a claim is never overwritten)" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "BKLG-005 is todo, and that is station-1.s claim"' _ "$rc" "$out"
+  # the board reads origin: the cook's claim is there, the main checkout has not pulled it
+  ok "$label: the board shows the cook's claim before the sous has pulled" has "$(cd "$R" && "$K" board)" "BKLG-005 +B +todo +- +- +station-1"
+  ok "$label: …while the sous's own working tree still says backlog" grep -q '^status: backlog' "$R/docs/backlog/BKLG-005-chore.md"
+  (cd "$R" && git pull -q --ff-only origin main)
+  out=$(cd "$R" && "$K" rail brief BKLG-005 station-1 2>&1)
+  ok "$label: …but may re-brief the same station (a restart)" has "$out" "briefed to station-1"
+
+  section "rail ($label): moves"
+  out=$(cd "$S1" && "$K" rail move BKLG-005 in-progress 2>&1); rc=$?
+  ok "$label: todo → in-progress" bash -c 'test "$1" = 0 && printf "%s" "$2" | grep -q "^BKLG-005 → in-progress"' _ "$rc" "$out"
+  ok "$label: …the cook stays station-1" has "$(originfile BKLG-005-chore.md)" "^cook: station-1"
+  out=$(cd "$S1" && "$K" rail move BKLG-005 "done" 2>&1); rc=$?
+  ok "$label: a cook cannot close a ticket" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "a cook can.t move it to done\|moves a ticket to in-progress or rfr"' _ "$rc" "$out"
+  out=$(cd "$S1" && "$K" rail move BKLG-005 rfr 2>&1); rc=$?
+  ok "$label: in-progress → rfr" bash -c 'test "$1" = 0' _ "$rc"
+  out=$(cd "$S1" && "$K" rail move BKLG-005 in-progress 2>&1); rc=$?
+  ok "$label: rfr → in-progress (the pass sent findings)" bash -c 'test "$1" = 0' _ "$rc"
+  out=$(cd "$S1" && "$K" rail move BKLG-005 in-progress 2>&1)
+  ok "$label: a move to where it already is is a no-op" has "$out" "already in-progress"
+  tip=$(top)
+  out=$(cd "$S1" && "$K" rail claim BKLG-005 todo 2>&1); rc=$?
+  ok "$label: the claim's own station asking again at an earlier status is a no-op, not a refusal" bash -c 'test "$1" = 0 && printf "%s" "$2" | grep -q "already in-progress" && test "$3" = "$4"' _ "$rc" "$out" "$(top)" "$tip"
+  out=$(cd "$S2" && "$K" rail move BKLG-005 rfr 2>&1); rc=$?
+  ok "$label: another station cannot move it" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "No brief for station-2"' _ "$rc" "$out"
+  tip=$(top)
+  out=$(cd "$R" && "$K" rail brief BKLG-006 station-1 2>&1); out=$(cd "$S1" && "$K" rail move BKLG-006 rfr 2>&1); rc=$?
+  ok "$label: backlog → rfr is not a move a cook may make" bash -c 'test "$1" != 0' _ "$rc"
+  ok "$label: …and nothing was pushed" test "$(top)" = "$tip"
+
+  section "rail ($label): the origin decides, pushes may be refused, daily-pr falls back"
+  echo "---" > /dev/null
+  printf -- '---\nid: BKLG-007\ntitle: Third\nlane: B\nkind: chore\nstatus: backlog\ncook: null\n---\n' > "$R/docs/backlog/BKLG-007-third.md"
+  (cd "$R" && git pull -q --ff-only origin main; push_all "$R" "seventh")
+  (cd "$R" && "$K" rail brief BKLG-007 station-1 >/dev/null 2>&1)
+  # main's own file says the ticket is taken; origin says it is free: origin wins
+  sed -i.bak 's/^status: backlog/status: in-progress/' "$R/docs/backlog/BKLG-007-third.md"; rm -f "$R/docs/backlog/BKLG-007-third.md.bak"
+  printf '1\n' > "$bare/reject-count"
+  printf '#!/bin/sh\nf="$(dirname "$0")/../reject-count"\nn=$(cat "$f" 2>/dev/null || echo 0)\nif [ "$n" -gt 0 ]; then echo $((n-1)) > "$f"; echo "rejected by the test" >&2; exit 1; fi\n' > "$bare/hooks/pre-receive"; chmod +x "$bare/hooks/pre-receive"
+  out=$(cd "$S1" && "$K" rail claim BKLG-007 todo 2>&1); rc=$?
+  ok "$label: a push refused once is rebuilt from the new tip and lands; main's own file did not fool it" bash -c 'test "$1" = 0 && printf "%s" "$(git -C "$2" show main:docs/backlog/BKLG-007-third.md)" | grep -q "^status: todo"' _ "$rc" "$bare"
+  git -C "$R" checkout -q -- docs/backlog/BKLG-007-third.md
+  (cd "$R" && git pull -q --ff-only origin main)
+  printf -- '---\nid: BKLG-008\ntitle: Fourth\nlane: B\nkind: chore\nstatus: backlog\ncook: null\n---\n' > "$R/docs/backlog/BKLG-008-fourth.md"
+  rm "$bare/hooks/pre-receive"; push_all "$R" "eighth"
+  (cd "$R" && "$K" rail brief BKLG-008 station-1 >/dev/null 2>&1)
+  printf '#!/bin/sh\necho "rejected by the test" >&2; exit 1\n' > "$bare/hooks/pre-receive"; chmod +x "$bare/hooks/pre-receive"
+  tip=$(top)
+  out=$(cd "$S1" && "$K" rail claim BKLG-008 todo 2>&1); rc=$?
+  ok "$label: a push refused twice gives up, says to send [rail], and pushed nothing" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "Send the sous \[rail\] claim BKLG-008 todo" && test "$3" = "$4"' _ "$rc" "$out" "$(top)" "$tip"
+  rm "$bare/hooks/pre-receive"
+  cp "$R/.claude/brigade.md" "$TMP/brigade.rail.bak"
+  printf -- '---\n%s\nrail:\n  adapter: markdown\n  commit: daily-pr\n---\n' "$(sed -n '2,/^---$/p' "$TMP/brigade.rail.bak" | sed '$d' | grep -v '^rail:\|^  adapter\|^  commit')" > "$R/.claude/brigade.md"
+  out=$(cd "$S1" && "$K" rail claim BKLG-008 todo 2>&1); rc=$?
+  ok "$label: rail.commit: daily-pr falls back to the sous before writing" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "daily PR: send the sous \[rail\]" && test "$3" = "$4"' _ "$rc" "$out" "$(top)" "$tip"
+  cp "$TMP/brigade.rail.bak" "$R/.claude/brigade.md"
+  out=$(cd "$R" && "$K" rail claim BKLG-008 todo station-2 2>&1); rc=$?
+  ok "$label: the sous can claim from the main checkout, naming the station" bash -c 'test "$1" = 0 && printf "%s" "$2" | grep -q "^BKLG-008 → todo (station-2)" && git -C "$3" show main:docs/backlog/BKLG-008-fourth.md | grep -q "^cook: station-2"' _ "$rc" "$out" "$bare"
+
+  section "here ($label): a cook's state by script"
+  out=$(cd "$R" && "$K" here 2>&1); rc=$?
+  ok "$label: here is a cook's command" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "run it in a station"' _ "$rc" "$out"
+  (cd "$S1" && git checkout -q -b issue-7-here-test 2>/dev/null)
+  echo dirt > "$S1/dirt.txt"
+  out=$(cd "$S1" && "$K" here --spent --waiting "the plan's sign-off" --note "plan sent" -m sonnet 2>&1); rc=$?
+  ok "$label: here writes the state and prints it" bash -c 'test "$1" = 0 && printf "%s" "$2" | grep -q "^station: station-1" && printf "%s" "$2" | grep -q "^branch: issue-7-here-test" && printf "%s" "$2" | grep -q "^dirty: dirty" && printf "%s" "$2" | grep -q "^ticket: #7" && printf "%s" "$2" | grep -q "^session: spent" && printf "%s" "$2" | grep -q "^waiting: the plan.s sign-off" && printf "%s" "$2" | grep -q "^model: sonnet"' _ "$rc" "$out"
+  ok "$label: …in the station's own .claude, out of its git status" bash -c 'test -f "$1/.claude/here" && test -z "$(git -C "$1" status --porcelain | grep "claude/here")"' _ "$S1"
+  ok "$label: …and nothing in the main checkout" test ! -e "$R/.claude/here"
+  rm "$S1/dirt.txt"
+  out=$(cd "$S1" && "$K" here --fresh 2>&1)
+  ok "$label: a plain call says nothing is awaited and a clean tree" bash -c 'printf "%s" "$1" | grep -q "^waiting: nothing" && printf "%s" "$1" | grep -q "^dirty: clean" && printf "%s" "$1" | grep -q "^session: fresh"' _ "$out"
+  ok "$label: the note was kept" has "$(cat "$S1/.claude/here.log")" "plan sent"
+  for i in $(seq 1 25); do (cd "$S1" && "$K" here --note "note $i" >/dev/null 2>&1); done
+  ok "$label: the log keeps the last 20 notes" bash -c 'test "$(wc -l < "$1/.claude/here.log" | tr -d " ")" = 20 && tail -1 "$1/.claude/here.log" | grep -q "note 25"' _ "$S1"
+  (cd "$S1" && "$K" here --fresh >/dev/null 2>&1)
+  out=$(cd "$R" && "$K" board 2>&1)
+  ok "$label: the board lists the cooks: station-1's state and last note" bash -c 'printf "%s" "$1" | grep -q "The cooks" && printf "%s" "$1" | grep -q "station-1 .*issue-7-here-test · clean · #7 · fresh · waiting: nothing" && printf "%s" "$1" | grep -q "note: note 25"' _ "$out"
+  ok "$label: …and a station that never reported says so" has "$out" "station-2 +no check-in yet"
+  (cd "$S1" && git checkout -q --detach "origin/main" 2>/dev/null)
+}
+
+RM="$TMP/railmd"
+new_repo "$RM" 'trunk: main
+install: "true"
+stations: 2
+rail:
+  adapter: markdown
+  commit: direct'
+push_all "$RM" "brigade setup"
+rail_suite "clone" "$RM" "$RM/stations"
+
+RW="$TMP/railws/app"; mkdir -p "$TMP/railws"
+git init -q "$TMP/railws"; git -C "$TMP/railws" checkout -q -b deploy; echo app > "$TMP/railws/.gitignore"; git -C "$TMP/railws" add -A; git -C "$TMP/railws" commit -qm workspace
+new_repo "$RW" 'trunk: main
+install: "true"
+kitchen_mode: worktree
+stations: 2
+rail:
+  adapter: markdown
+  commit: direct'
+push_all "$RW" "brigade setup"
+rail_suite "worktree" "$RW" "$TMP/railws/app-stations"
+
+# ---- the github rail: gh is a stub that logs its calls and answers from $GH_ITEM / $GH_OPTS ----
+section "rail (github): claim and move go through gh project item-edit"
+GR="$TMP/railgh"; GRB="$TMP/ghrail"; mkdir -p "$GRB"; : > "$GRB/gh.log"
+cat > "$GRB/gh" <<'EOF'
+#!/bin/sh
+echo "gh $*" >> "$GH_LOG"
+case "$1 $2" in
+  "project item-list") printf '%s\n' "$GH_ITEM" ;;
+  "project field-list") [ -n "$GH_FIELD_FAIL" ] && { echo "missing the project scope" >&2; exit 1; }; printf 'FIELD|PVTF_1\n'; printf '%s\n' "${GH_OPTS:-OPT|Backlog|o1
+OPT|Todo|o2
+OPT|In Progress|o3
+OPT|Ready for review|o4
+OPT|Done|o5}" ;;
+  "project view") echo PVT_1 ;;
+  "project item-edit") [ -n "$GH_EDIT_FAIL" ] && { echo "boom: GraphQL error" >&2; exit 1; }; exit 0 ;;
+  "api user") echo octo ;;
+  "issue edit"|"issue comment") exit 0 ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$GRB/gh"
+new_repo "$GR" 'trunk: main
+install: "true"
+stations: 2
+rail:
+  adapter: github
+  commit: direct
+  github: { owner: acme, project: 4, status_field: Status }'
+push_all "$GR" "brigade setup"; (cd "$GR" && "$K" setup >/dev/null 2>&1)
+G1="$GR/stations/station-1"
+gh_() { (cd "$1" && shift && GH_LOG="$GRB/gh.log" PATH="$GRB:$PATH" "$K" "$@" 2>&1); }
+ghenv() { GH_ITEM="$1" gh_ "${@:2}"; }
+export GH_ITEM
+: > "$GRB/gh.log"
+out=$(GH_ITEM="1|PVTI_7|Backlog" gh_ "$GR" rail brief 7 station-1); rc=$?
+ok "github: the sous briefs #7 (7 and #7 are the same ticket)" bash -c 'test "$1" = 0 && printf "%s" "$2" | grep -q "^#7 briefed to station-1" && grep -q "^#7.station-1" "$3/.claude/briefs"' _ "$rc" "$out" "$GR"
+out=$(GH_ITEM="1|PVTI_8|In Progress" gh_ "$GR" rail brief '#8' station-2); rc=$?
+ok "github: it refuses a ticket that is somebody's claim" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "#8 is in-progress"' _ "$rc" "$out"
+: > "$GRB/gh.log"
+out=$(GH_ITEM="1|PVTI_9|Backlog" gh_ "$G1" rail claim 9 todo); rc=$?
+ok "github: a claim with no brief is refused before any gh write" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "No brief for station-1 on #9" && ! grep -q "item-edit" "$3"' _ "$rc" "$out" "$GRB/gh.log"
+: > "$GRB/gh.log"
+out=$(GH_ITEM="1|PVTI_7|Backlog" gh_ "$G1" rail claim '#7' todo); rc=$?
+ok "github: the briefed cook claims: item-edit with the project, field and Todo option ids" bash -c 'test "$1" = 0 && printf "%s" "$2" | grep -q "^#7 → todo (station-1)" && grep -q "gh project item-edit --id PVTI_7 --project-id PVT_1 --field-id PVTF_1 --single-select-option-id o2" "$3"' _ "$rc" "$out" "$GRB/gh.log"
+ok "github: …assigns the logged-in account and names the station in a comment" bash -c 'grep -q "gh issue edit 7 --add-assignee octo" "$1" && grep -q "gh issue comment 7 --body claimed by station-1" "$1"' _ "$GRB/gh.log"
+: > "$GRB/gh.log"
+out=$(GH_ITEM="1|PVTI_7|Todo" gh_ "$G1" rail claim 7 todo); rc=$?
+ok "github: claiming what is already its own at that status is a no-op with no write" bash -c 'test "$1" = 0 && printf "%s" "$2" | grep -q "already todo" && ! grep -q "item-edit" "$3"' _ "$rc" "$out" "$GRB/gh.log"
+out=$(GH_ITEM="1|PVTI_7|Done" gh_ "$G1" rail claim 7 todo); rc=$?
+ok "github: a ticket that is done is not re-claimed" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "never overwritten"' _ "$rc" "$out"
+: > "$GRB/gh.log"
+out=$(GH_ITEM="1|PVTI_7|Todo" gh_ "$G1" rail move 7 in-progress); rc=$?
+ok "github: todo → in-progress picks the In Progress column" bash -c 'test "$1" = 0 && grep -q "single-select-option-id o3" "$2" && ! grep -q "add-assignee" "$2"' _ "$rc" "$GRB/gh.log"
+: > "$GRB/gh.log"
+out=$(GH_ITEM="1|PVTI_7|In Progress" gh_ "$G1" rail move 7 rfr); rc=$?
+ok "github: in-progress → rfr picks Ready for review" bash -c 'test "$1" = 0 && grep -q "single-select-option-id o4" "$2"' _ "$rc" "$GRB/gh.log"
+out=$(GH_ITEM="1|PVTI_7|Ready for review" gh_ "$G1" rail move 7 "done"); rc=$?
+ok "github: a cook cannot move it to done" bash -c 'test "$1" != 0' _ "$rc"
+out=$(GH_ITEM="1|PVTI_7|In Progress" GH_OPTS="OPT|Todo|o2
+OPT|In Progress|o3" gh_ "$G1" rail move 7 rfr); rc=$?
+ok "github: a board without a Ready for review column fails loudly, naming what it tried" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "no column for rfr (tried: Ready for review,In review)"' _ "$rc" "$out"
+out=$(GH_ITEM="1||" gh_ "$G1" rail move 7 rfr); rc=$?
+ok "github: an issue that is not on the project says so" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "#7 is not an item of project 4"' _ "$rc" "$out"
+out=$(GH_ITEM="500||" gh_ "$G1" rail move 7 rfr); rc=$?
+ok "github: a full list (500 items) is not pretended complete" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "500 items or more"' _ "$rc" "$out"
+out=$(GH_EDIT_FAIL=1 GH_ITEM="1|PVTI_7|In Progress" gh_ "$G1" rail move 7 rfr); rc=$?
+ok "github: a refused gh edit exits 1, carries gh's own words and says to send [rail]" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "could not set #7 to rfr: boom: GraphQL error. Send the sous \[rail\] move #7 rfr"' _ "$rc" "$out"
+NOGH="$TMP/nogh"; mkdir -p "$NOGH"; for t in "$NB"/*; do [[ "$(basename "$t")" != gh ]] && ln -sf "$(readlink "$t" || echo "$t")" "$NOGH/$(basename "$t")"; done
+out=$(GH_FIELD_FAIL=1 GH_ITEM="1|PVTI_7|In Progress" gh_ "$G1" rail move 7 rfr); rc=$?
+ok "github: a field-list failure carries gh's words and says to send [rail]" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "missing the project scope. Send the sous \[rail\] move #7 rfr"' _ "$rc" "$out"
+out=$(GH_ITEM="1|PVTI_7|In Progress" gh_ "$G1" rail claim 7 todo); rc=$?
+ok "github: the claim's own station asking again at a later status is a no-op" bash -c 'test "$1" = 0 && printf "%s" "$2" | grep -q "already in-progress"' _ "$rc" "$out"
+out=$(cd "$G1" && PATH="$NOGH" "$K" rail move 7 rfr 2>&1); rc=$?
+ok "github: without gh it says what to install and to send [rail]" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "needs the gh CLI"' _ "$rc" "$out"
+printf -- '---\ntrunk: main\nrail:\n  adapter: jira\n---\n' > "$TMP/jira.md"
+cp "$GR/.claude/brigade.md" "$TMP/brigade.gh.bak"; cp "$TMP/jira.md" "$GR/.claude/brigade.md"
+out=$(cd "$G1" && "$K" rail move PROJ-1 rfr 2>&1); rc=$?
+ok "a jira rail stays a [rail] message" bash -c 'test "$1" != 0 && printf "%s" "$2" | grep -q "Send the sous \[rail\] instead"' _ "$rc" "$out"
+cp "$TMP/brigade.gh.bak" "$GR/.claude/brigade.md"
+
+
+# =============================================================================
 echo ""
 echo "# passed $PASS · failed $FAIL · total $N"
 [[ "$HOME" != "$REAL_HOME" ]] || { echo "# BUG: HOME was not isolated"; exit 1; }

@@ -171,7 +171,7 @@ The sous assigns the next ready ticket to each **free** cook without asking, and
 in one line what it assigned and why. (Set `gates.assign: head-chef` in the config if you
 want it to propose and wait for a yes instead.)
 
-**A cook is free** when its check-in says: no ticket, a clean station, and a fresh session.
+**A cook is free** when its report (the cook's state file the sous reads in `kitchen.sh board`, and one `[check-in]` line when it is free) says: no ticket, a clean station, and a fresh session.
 A cook that has just served a ticket or held a grilling is *spent* and is not free until
 it has been cleared (the sous does that, with `kitchen.sh clear`). Spent means that session's own conversation did the work: a session you've
 just cleared or opened is fresh, even in a station whose journal shows a served ticket. If
@@ -218,7 +218,9 @@ needs goes to the sous as a message:
 | a hygiene ticket approved | nothing: it has no plan; the sous's `[approved]` rides in the `[brief]` | the sous, which tells you in one line |
 | a feature plan approved, or any plan with a migration, a shared resource, a production write, a protected path (`.claude/`, `CLAUDE.md`) or a decision that changes the ticket (its scope, a user-visible behaviour, a rule, a schema, a name people already type, a cost, or a contradiction of the record) | `[plan]` | you, in the sous's terminal, shown only the lines that change the ticket; the sous relays `[approved]` with your words and the reason it was yours |
 | a bug, chore or precedent plan's how (what a new thing is called, a column, an order, which function) | nothing: it's written in the plan's `## Decisions → How` | the sous. It never asks you to approve a plan's how list |
-| a ticket changed | `[rail]` | the sous (the only writer of tickets) |
+| its own ticket claimed or moved (`todo`, `in-progress`, `rfr`) | nothing: it runs `kitchen.sh rail claim` / `move`, which check the sous's brief and refuse the rest | the script |
+| any other change to a ticket | `[rail]` | the sous (the only other writer of tickets) |
+| its state (branch, dirty, waiting on, a note) | nothing: `kitchen.sh here` writes a file the sous reads in `kitchen.sh board` (a free cook also sends one `[check-in]` line) | the script |
 | a destructive command on a shared resource | `[walk-in]` | the sous |
 | a login for testing | `[gate] … need a test account` | the sous, with an account name |
 | a write on production | `[gate] … production write` | you, for that exact action |
@@ -231,13 +233,13 @@ current session, after seeing that plan; a changed plan needs a new yes. Bug, ch
 precedent and hygiene plans the sous signs on its own, naming the rule, and tells you in one line. Want
 every plan for a while? Say so, or set `gates.plan_approval: head-chef` in the config.
 
-If you do type in a cook's terminal, the cook does as told and tells the sous in one line.
+If you do type in a cook's terminal, the cook does as told and records it in one line (`kitchen.sh here --note`).
 
 ## One ticket, start to PR
 
 1. The sous sends the cook a `[brief]`: the ticket's path, why it matters, constraints.
-2. The cook branches (`<id>-<slug>`), runs `/bk:pick-ticket`, and asks the sous to claim
-   the ticket (`todo`).
+2. The cook branches (`<id>-<slug>`), runs `/bk:pick-ticket`, and claims the ticket itself
+   (`kitchen.sh rail claim`, `todo`): the sous's `[brief]` already was the decision.
 3. `/bk:create-plan` writes the plan. The cook sends `[plan]` and waits.
 4. The sous reads the plan and checks it against the other stations. A bug, chore or
    precedent plan it signs itself, its how choices included, and tells you in one line. A feature plan (or one with a migration, a shared
@@ -349,8 +351,8 @@ you are leaving.
 its handoff, and its next turn is a fresh `/bk:sous-chef`. If you cleared it by hand, type
 `/bk:sous-chef`. Nothing else. It reads the
 handoff note first, then checks it against the rail, the stations and the journals, and
-reality wins over the note. Its `[hello]` asks every cook to re-send whatever it was
-waiting on. `/bk:pick-ticket` is not the way back in: that is a cook's step for one ticket.
+reality wins over the note. Its `[hello]` asks every cook to run `kitchen.sh here` again and
+to re-send a `[gate]`, `[plan]` or `[handoff]` it was waiting on. `/bk:pick-ticket` is not the way back in: that is a cook's step for one ticket.
 
 **How does a cleared cook know it is a cook?** By where it is. Every lifecycle skill starts
 with the station check, `kitchen.sh role`, which prints `cook <station> <main checkout>`

@@ -56,7 +56,7 @@ Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`.
      itself: a gate asked the wrong person, a skill stopped for nothing, a rule that didn't
      fit). Reuse an existing key when it's the same lesson (`grep -rh 'lesson(' <docs.journal> <docs.lessons>`
      shows the keys in use) so the count works. Reading keys isn't counting: only the sous's handoff counts. No lesson is fine; don't invent one.
-5. **Tell the sous** in one line: `[status] <ID> handoff written, see journal`.
+5. **Tell the sous** in one line, by script: `kitchen.sh here --note "<ID> handoff written, see journal"` (it reads the station's line in `kitchen.sh board`; no message wakes it).
 6. **On `[go]`** (the automatic case), this runs after `/bk:clean around` and before
    `/bk:open-pr`, so the closing handoff is inside the reviewed PR. The journal is the only
    file allowed to change after the pass.
@@ -203,7 +203,7 @@ into the working tree, step 7 lands it, and step 8 tops up the budget before the
    Don't copy the rail, the station status or the PR list into it: a fresh sous reads those
    live, and a copy would only drift.
 10. **Tell the cooks** in one line each: `[status] sous restarting; re-send anything pending
-   after my [hello]`.
+   after my [hello]` (the sous's own broadcast: still a message; a cook answers it with `kitchen.sh here`, and re-sends only a `[gate]`, `[plan]` or `[handoff]` it is waiting on).
 
 ## Reading a handoff on start
 

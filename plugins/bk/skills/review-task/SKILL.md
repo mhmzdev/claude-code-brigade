@@ -79,13 +79,12 @@ Start from `${CLAUDE_SKILL_DIR}/../../templates/checklist.md`. Write outcomes, n
 **All green** (no `[!]`, and every `[?]` either run or accepted as a post-merge check: by the human solo; in a station, by the sous, who asks the head chef when it's theirs to accept):
 
 - **Solo or sous session** → move the ticket to `rfr` yourself through `/bk:rail` (on a markdown rail that's an edit to `status:` plus a `rail:` commit per `rail.commit`).
-- **Line cook** → you never write the rail. Append a `handoff for the pass` entry to the
+- **Line cook** → you write the rail only for your own briefed ticket's move to `rfr`, by script (never a ticket file). Append a `handoff for the pass` entry to the
   ticket's journal (station, branch, files changed, check result, inspector result, checklist
-  path and its `[x]/[?]/[!]` counts), then send the sous two short messages and wait:
+  path and its `[x]/[?]/[!]` counts), then move the ticket with `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" rail move <ID> rfr` (a refusal means send the sous `[rail] <ID> → rfr`), then send the sous one short message and wait:
 
   ```
   [handoff] <ID> ready for the pass, see journal
-  [rail] <ID> → rfr
   ```
 
   **Do not commit anything before the sous replies `[go]`.** A `[findings]` reply means fix, re-run this skill, and hand off again. The sous tastes it through the `taster` sub-agent, which re-reads your diff and runs the check (or trusts the green `kitchen.sh check` recorded for this exact tree). That's the pass, and it's the sous's job, not a sign of distrust.

@@ -16,10 +16,11 @@ remembers what the head chef decided and stops asking twice.
 | new 13 | A `[gate]` carrying a numbered question is refused when it has no `commis:` line, so "look it up before you ask" is enforced, not hoped for. This also corrects the limit below: `SendMessage` is a tool call, so `PreToolUse` does fire on it | `hooks/guard.sh` |
 | 11 | `kitchen.sh doctor`: required fields, known statuses, blockers that exist, unique ids, a `kind` on every backlog item; plus the docs map (every mapped folder indexed, nothing under `docs/` unmapped) | `kitchen.sh` |
 | 6 (part) | The record's writes are counted and listed by script: `kitchen.sh decisions` (head-chef answers nothing cites), `questions` (journals and open question files), `inbox --add` / `inbox`. The sous still files by hand; the lists are what make the handoff mechanical. Rail writes (`claim`, `fire`, `close`, `link`) are still hand edits | `kitchen.sh` |
+| 6 (claim, move) | A cook claims and moves the ticket it was briefed on with `kitchen.sh rail claim` / `move`; the sous records the brief with `kitchen.sh rail brief <ID> station-N`. A markdown rail is written as a commit built on `origin/<trunk>` (the main checkout is never touched), a github rail through `gh project item-edit`. Also `kitchen.sh here`, a cook's state in a file the board reads, in place of `[check-in]` and `[status]` messages (#65) | `kitchen.sh`, Contracts 3 and 6 |
 | new 14 | Who signs off a plan is read from the ticket's kind (`gates.plan_approval`), not judged: features to the head chef, bug / chore / hygiene to the sous, with hard overrides (migration, walk-in, production write, unrecorded decision) | contract, Contract 5 |
 
 Still open from the table below: rows 1, 3, 4, 5 (now narrower: a human-only approve
-record for **feature** plans only), 6 (rail writes), 7, 8, 9, 10, 12.
+record for **feature** plans only), 6 (`fire`, `close`, `link`), 7, 8, 9, 10, 12.
 
 Next up, as its own PR: the idle prep pass (no ready ticket → the sous drafts tickets from
 the counters, `[?]` checklist items, due lessons, open questions and stale docs, under a
