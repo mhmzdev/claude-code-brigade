@@ -63,8 +63,9 @@
 #                                         is recorded). --set, from the main checkout:
 #                                         record it in .claude/sous (kept out of git)
 #   kitchen.sh clear <station-N|sous>     clear that session, the sous's job (Contract 5):
-#                                         types /clear into its tmux pane, then /bk:line-cook
-#                                         for a cook, once it is idle, its handoff is newer
+#                                         types /clear into its tmux pane, then the role skill
+#                                         (/bk:line-cook, or /bk:sous-chef: the sous's own call
+#                                         waits for its turn to end), once it is idle, its handoff is newer
 #                                         than its last turn and nothing it sent still waits
 #                                         for an answer. Refuses otherwise, saying why.
 #                                         Needs node (reads the session's transcript)
@@ -1625,7 +1626,7 @@ context_warning() {
   echo "Context: the sous is at $(( read / 1000 ))k cache-read tokens a turn over its last 10 turns ($over turns over the $(( line / 1000 ))k line): run /bk:handoff, then kitchen.sh clear sous (Contract 5)."
 }
 cmd_clear() {
-  local who="$CLEAR_WHO" dir reg name pane handoff tr state open last_turn hmtime n i
+  local who="$CLEAR_WHO" dir reg name pane handoff tr state open last_turn hmtime n i defer
   case "$who" in
     sous) dir="$ROOT" ;;
     station-*) dir="$KITCHEN/$who"; [[ -e "$dir/.git" ]] || { echo "No such station: $who" >&2; return 1; } ;;
@@ -1636,8 +1637,14 @@ cmd_clear() {
   [[ -n "$reg" ]] || { echo "Not cleared: no live session in $who (none registered under ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sessions with that cwd)." >&2; return 1; }
   name="$(json_str "$reg" name)"; pane="$(json_str "$reg" tmux)"
   [[ -n "$pane" ]] || { echo "Not cleared: $who ($name) isn't in a tmux pane; clear it by hand." >&2; return 1; }
-  # 1. idle: never type into a pane mid-turn
-  [[ "$(json_str "$reg" status)" == idle ]] || { echo "Not cleared: $who ($name) is busy. Wait for its turn to end." >&2; return 1; }
+  # 1. idle: never type into a pane mid-turn. The sous clearing itself is the one case where
+  # the caller is the busy session (its own tool call is the turn): the typing is deferred
+  # to a waiter that fires when the registry says idle. A busy cook is refused.
+  defer=false
+  if [[ "$(json_str "$reg" status)" != idle ]]; then
+    if [[ "$who" == sous ]]; then defer=true
+    else echo "Not cleared: $who ($name) is busy. Wait for its turn to end." >&2; return 1; fi
+  fi
   # 2. a handoff newer than its last turn
   tr="$(transcript_of "$reg")" || { echo "Not cleared: no transcript found for $who ($name)." >&2; return 1; }
   state="$(session_state "$tr")" || { echo "Not cleared: couldn't read $tr." >&2; return 1; }
@@ -1653,16 +1660,28 @@ cmd_clear() {
     open="$(state_field "$state" open)"
     [[ -z "$open" || "$open" == none ]] || { echo "Not cleared: $who ($name) is waiting on an answer to its [$open]. Answer it, or let it finish." >&2; return 1; }
   fi
-  # act: /clear, wait for the session to say idle, then the role for a cook
+  # act: /clear, wait for the session to say idle, then the role skill (/bk:line-cook for a
+  # cook, /bk:sous-chef for the sous) so the pane is a cook or a sous again, not a solo session
+  local role="/bk:line-cook"; [[ "$who" == sous ]] && role="/bk:sous-chef"
+  if $defer; then
+    # the sous asked to clear itself mid-turn: a detached waiter types once the turn has ended
+    nohup bash -c '
+      reg=$1; pane=$2; role=$3; i=0
+      st() { sed -n "s/.*\"status\":\"\([^\"]*\)\".*/\1/p" "$reg" | head -1; }
+      while [ "$i" -lt 180 ] && [ "$(st)" != idle ]; do sleep 1; i=$((i+1)); done
+      [ "$(st)" = idle ] || exit 0
+      sleep 1; tmux send-keys -t "$pane" -l "/clear" && tmux send-keys -t "$pane" Enter || exit 0
+      sleep 3; tmux send-keys -t "$pane" -l "$role" && tmux send-keys -t "$pane" Enter
+    ' _ "$reg" "$pane" "$role" >/dev/null 2>&1 &
+    echo "Clearing the sous ($name) when this turn ends: /clear, then $role, will be typed into $pane (it waits up to three minutes for the turn to end). End your turn now; the fresh sous reads .claude/sous-handoff.md first."
+    return 0
+  fi
   { tmux send-keys -t "$pane" -l "/clear" && tmux send-keys -t "$pane" Enter; } || { echo "Not cleared: tmux refused pane $pane." >&2; return 1; }
   sleep 2
   for i in 1 2 3 4 5 6 7 8 9 10; do [[ "$(json_str "$reg" status)" == idle ]] && break; sleep 1; done
-  if [[ "$who" == sous ]]; then
-    echo "Cleared the sous ($name): /clear typed into $pane. Type /bk:sous-chef there, or let bk open resume it; it reads .claude/sous-handoff.md first."
-  else
-    { tmux send-keys -t "$pane" -l "/bk:line-cook" && tmux send-keys -t "$pane" Enter; } || { echo "Cleared $who ($name), but tmux refused /bk:line-cook; type it there." >&2; return 1; }
-    echo "Cleared $who ($name): /clear, then /bk:line-cook typed into $pane. It checks in fresh."
-  fi
+  { tmux send-keys -t "$pane" -l "$role" && tmux send-keys -t "$pane" Enter; } || { echo "Cleared $who ($name), but tmux refused $role; type it there." >&2; return 1; }
+  if [[ "$who" == sous ]]; then echo "Cleared the sous ($name): /clear, then /bk:sous-chef typed into $pane. It reads .claude/sous-handoff.md first."
+  else echo "Cleared $who ($name): /clear, then /bk:line-cook typed into $pane. It checks in fresh."; fi
 }
 
 # ---------------------------------------------------------------------------

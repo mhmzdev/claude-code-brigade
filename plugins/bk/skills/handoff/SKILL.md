@@ -13,9 +13,13 @@ A context window is a cache, not the record. A handoff writes down the few thing
 session couldn't rebuild from the rail, the stations, the journals and the PRs, so that the
 session can be cleared and nothing is lost. **This skill never clears the session
 itself**: the sous does, with `kitchen.sh clear <station|sous>` (Contract 5), which refuses
-until this handoff is on disk, and the human can. End by saying *"Handoff written: `<path>`.
-Ready to clear (`kitchen.sh clear <who>`), then `/bk:sous-chef`"* (in a station: *"then
-`/bk:line-cook`"*), so whoever clears knows the one command that picks the work back up.
+until this handoff is on disk and then types `/clear` and the role skill (`/bk:line-cook` in
+a station, `/bk:sous-chef` in the main checkout) into the pane; the human can also clear by
+hand. End by saying *"Handoff written: `<path>`. The sous clears this session with
+`kitchen.sh clear <who>`; by hand: `/clear`, then `/bk:line-cook`"* (in the main checkout:
+*"then `/bk:sous-chef`"*), so whoever clears knows the one command that picks the work back
+up. In the main checkout, when the sous itself is running this skill, its next step is
+`kitchen.sh clear sous` (see the sous-chef skill's "Your own handoff").
 
 ## Contents
 

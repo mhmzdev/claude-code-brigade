@@ -21,7 +21,7 @@ no judgement: the session is idle, its handoff is newer than its last turn, and 
 sent still waits for an answer. So the job moves to the sous. `kitchen.sh clear
 <station-N|sous>` checks those three against the live session registry and the transcript,
 refuses otherwise and says why, and when they hold types `/clear` into the session's tmux
-pane (then `/bk:line-cook` for a cook, so it checks in fresh). The sous runs it on a cook
+pane, then the role skill (`/bk:line-cook` for a cook, `/bk:sous-chef` for the sous; the sous's own call waits for its turn to end). The sous runs it on a cook
 after its `[served]` and handoff, and on itself after about three passes or when the board's
 new `Context:` line says its last ten turns are over the budget's context line, handoff
 first. Contract 5, the sous-chef, line-cook and handoff skills, the PLAYBOOK and the README

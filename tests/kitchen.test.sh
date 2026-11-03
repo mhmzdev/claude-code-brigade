@@ -777,8 +777,15 @@ if command -v node >/dev/null 2>&1; then
   "$K" asks --answer "$aid" "the fare queue" >/dev/null
   ok "board warns when the sous's turns are over the context line" has "$("$K" board)" "Context: the sous is at 400k cache-read tokens a turn .* kitchen.sh clear sous"
   out=$(PATH="$TB:$PATH" "$K" clear sous 2>&1); rc=$?
-  ok "clear clears the sous once its note is written and nothing is open" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "^Cleared the sous (app-7d)"' _ "$rc" "$out"
-  ok "…typing only /clear, no role, into its pane" bash -c 'grep -q "send-keys -t %0 -l /clear" "$1" && ! grep -q "line-cook\|sous-chef" "$1"' _ "$TB/tmux.log"
+  ok "clear clears an idle sous once its note is written and nothing is open" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "^Cleared the sous (app-7d)"' _ "$rc" "$out"
+  ok "…typing /clear, then /bk:sous-chef, into its pane" bash -c 'grep -q "send-keys -t %0 -l /clear" "$1" && grep -q "send-keys -t %0 -l /bk:sous-chef" "$1" && ! grep -q "line-cook" "$1"' _ "$TB/tmux.log"
+  # The sous clearing itself: its own tool call is the busy turn, so the typing waits for idle.
+  sed -i.bak 's/"idle"/"busy"/' "$REG/$pS.json"; : > "$TB/tmux.log"
+  out=$(PATH="$TB:$PATH" "$K" clear sous 2>&1); rc=$?
+  ok "a busy sous clearing itself is deferred, not refused" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "^Clearing the sous (app-7d) when this turn ends"' _ "$rc" "$out"
+  ok "…and nothing is typed while it is busy" test ! -s "$TB/tmux.log"
+  sleep 2; sed -i.bak 's/"busy"/"idle"/' "$REG/$pS.json"
+  ok "…then /clear and /bk:sous-chef are typed once it is idle" bash -c 'for i in $(seq 1 30); do grep -q "send-keys -t %0 -l /bk:sous-chef" "$1" 2>/dev/null && grep -q "send-keys -t %0 -l /clear" "$1" && exit 0; sleep 1; done; exit 1' _ "$TB/tmux.log"
   sed -i.bak 's/400000/1000/' "$PS/sid-s1.jsonl"
   ok "…and the board is quiet when the sous is under the line" bash -c '! printf "%s" "$("$1" board)" | grep -q "^Context:"' _ "$K"
   ok "clear without a tmux pane refuses" bash -c 'sed -i.bak "s/\"tmux\":\"%0\"/\"tmux\":\"\"/" "$1"; ! "$2" clear sous >/dev/null 2>&1' _ "$REG/$pS.json" "$K"

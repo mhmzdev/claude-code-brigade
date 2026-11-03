@@ -173,7 +173,7 @@ want it to propose and wait for a yes instead.)
 
 **A cook is free** when its check-in says: no ticket, a clean station, and a fresh session.
 A cook that has just served a ticket or held a grilling is *spent* and is not free until
-you clear it. Spent means that session's own conversation did the work: a session you've
+it has been cleared (the sous does that, with `kitchen.sh clear`). Spent means that session's own conversation did the work: a session you've
 just cleared or opened is fresh, even in a station whose journal shows a served ticket. If
 a cook you've just cleared still checks in spent, tell the sous you cleared it, and it
 briefs the cook.
@@ -254,7 +254,7 @@ If you do type in a cook's terminal, the cook does as told and tells the sous in
 8. On `[go]`: `/bk:clean around` (old mess nearby, drafted as hygiene tickets),
    `/bk:handoff` (the journal's closing section), `/bk:open-pr`. The cook sends `[served]`
    with the PR link.
-9. You merge. The sous closes the ticket. You clear the cook's session before its next
+9. You merge. The sous closes the ticket. The sous clears the cook's session (`kitchen.sh clear`) before its next
    ticket: one ticket per session.
 
 Lane C (hygiene) skips the plan and the checklist; the ticket is the plan, and the sous
@@ -332,7 +332,7 @@ job is the sous's; you can still clear any session by hand.
 
 | Where | Writes | When |
 |---|---|---|
-| a station (cook) | a `## Handoff` section appended to the ticket's journal: stage, uncommitted files, next step, pending questions, follow-ups, lessons | automatically on `[go]`, before the PR. Any other time, the sous (or you) asks for it, for example before clearing a cook that is waiting on a sign-off |
+| a station (cook) | a `## Handoff` section appended to the ticket's journal: stage, uncommitted files, next step, pending questions, follow-ups, lessons | automatically on `[go]`, before the PR. Any other time, the sous (or you) asks for it, for example before you clear, by hand, a cook that is waiting on a sign-off (`kitchen.sh clear` refuses that case on purpose: its `[plan]` is unanswered) |
 | the main checkout (sous) | first it counts the lessons and runs the debrief (due ones become chores or plugin issues), files the record (decisions you made into ADRs, questions you haven't answered into question files, every answered question's gap into its fix, the inbox into the docs) and fetches CI minutes into the budget, then `.claude/sous-handoff.md`, gitignored, overwritten each time: your standing instructions, what it meant to assign next, walk-in holds, which session is which cook | by itself after about three passes or when the board's `Context:` line says its turns are too heavy, then `kitchen.sh clear sous`; or when you say "handoff" |
 
 A cook cleared before `[go]` without being asked for a handoff leaves none. The journal
@@ -354,7 +354,7 @@ waiting on. `/bk:pick-ticket` is not the way back in: that is a cook's step for 
 **How does a cleared cook know it is a cook?** By where it is. Every lifecycle skill starts
 with the station check, `kitchen.sh role`, which prints `cook <station> <main checkout>`
 inside a station. So any session in a station behaves as a cook whether or not
-`/bk:line-cook` was typed. Type `/bk:line-cook` after a `/clear` so that it checks in:
+`/bk:line-cook` was typed. `kitchen.sh clear` types `/bk:line-cook` after the `/clear`; if you cleared a cook by hand, type it yourself so that it checks in:
 
 - on a ticket branch with work in flight, it reads the journal's last handoff and resumes;
 - on a ticket that is already served (PR open or merged, station clean), it goes back to

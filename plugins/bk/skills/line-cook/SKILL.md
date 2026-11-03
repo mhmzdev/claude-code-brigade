@@ -183,7 +183,7 @@ lines short; the journal is read by people later, not just by the next session.
     <station>`, once you are idle with your handoff written and nothing open); don't take a
     second ticket on this context.
 
-**Being cleared mid-ticket** (e.g. while waiting for `[approved]`) is normal. When the
+**Being cleared mid-ticket** (e.g. while waiting for `[approved]`) is normal; that one is the head chef's, by hand, since `kitchen.sh clear` refuses an unanswered `[plan]`. When the
 sous or the head chef says so, run `/bk:handoff` first. The next session in this station
 reads the journal and carries on from its last handoff.
 

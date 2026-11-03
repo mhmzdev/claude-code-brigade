@@ -774,7 +774,7 @@ what cooks are waiting on: `grep` across `<kitchen>/*/docs/journal/`.
   what's uncommitted, the next step, what's pending, follow-ups (drafted as tickets and sent
   to the sous), and lessons. It runs automatically on `[go]`, before `open-pr`, so the closing
   handoff is in the reviewed PR (the journal is the one file allowed to change after the
-  pass). The human can also run it any time, e.g. before clearing a cook between plan and
+  pass). The head chef can also ask for it any time, e.g. before clearing a cook by hand between plan and
   implement. A fresh cook reads its ticket's journal and resumes from the last handoff.
 - **Sous:** counts the lessons and runs the debrief, files the record (the decisions, the
   open questions and asks, the gaps, the inbox), fetches CI minutes for the week's tickets
@@ -784,10 +784,10 @@ what cooks are waiting on: `grep` across `<kitchen>/*/docs/journal/`.
   checks it against the rail, stations and journals; **reality wins over the note**.
 
 Neither handoff clears the session itself. The sous does, with `kitchen.sh clear`: a cook
-after its `[served]` and handoff, itself (`kitchen.sh clear sous`) after about three passes
+after its `[served]` and handoff (or the grilling it held), itself (`kitchen.sh clear sous`, which waits for its turn to end and types `/bk:sous-chef` after the `/clear`) after about three passes
 or when the board says its turns are over the context line, handoff first. The command
 refuses a busy session, a stale handoff or an open question, so nothing is lost by it; the
-head chef can still clear any session by hand.
+head chef can still clear any session by hand, and a cook waiting on a sign-off (an open `[plan]`) is only ever cleared that way.
 
 **Lessons are promoted mechanically, never by judgement.** A lesson is one tagged line in a
 journal, written at handoff:

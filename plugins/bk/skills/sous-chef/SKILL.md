@@ -271,7 +271,7 @@ stays between you and the head chef.
    backlog item into it, or write the decisions into the spec's `## Decisions` or the
    ticket's. Reply `[heard]`.
 4. **That cook is spent.** It isn't free for a ticket until its session has been cleared;
-   tell the head chef.
+   run `kitchen.sh clear <station>` once its handoff is written and nothing it sent is unanswered (a cook that held a grilling is cleared the same way).
 
 ## The plan sign-off
 
@@ -518,9 +518,11 @@ budget's friction rules, fired as chores you sign off), files the record's four
 lists (decisions, open questions and asks, gaps, the inbox), fetches CI minutes into the
 budget, writes `.claude/sous-handoff.md`, and tells the cooks you're restarting. Then run
 `kitchen.sh clear sous`: it refuses while an ask to the head chef is open or the note is
-older than your last turn, and otherwise types `/clear` into your own pane. Your next turn
-is a fresh `/bk:sous-chef` from Step 0, woken by the next message; the head chef can also
-type it. Nothing you know is lost: the note, the rail, the journals and the ask log hold it.
+older than your last turn; otherwise it leaves a waiter that, once this turn ends, types
+`/clear` and then `/bk:sous-chef` into your own pane. **End your turn right after running
+it**, with one line to the head chef ("handoff written, clearing myself"). The fresh sous
+starts from Step 0 and reads the note first. Nothing you know is lost: the note, the rail,
+the journals and the ask log hold it.
 
 ## Standing rules
 
