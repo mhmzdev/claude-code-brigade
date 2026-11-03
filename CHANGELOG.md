@@ -12,6 +12,18 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.28.1] - 2026-11-03
+
+**The budget no longer bills your own sessions to the sous.** Every session in the main
+checkout used to count as the sous, so on the first dogfood shift $106 of your own work
+showed up as the sous's, and the debrief said "the sous runs too long" about it. Now a
+session there is the sous only if it is the one `.claude/sous` names (or, with no name
+recorded, the newest running one, as the Window picks), or if it sent a message only a sous
+sends (`[brief]`, `[go]` and the like), which keeps a past shift's sous and a sous before a
+`/clear` the sous's. Every other session in the main checkout is yours: `kitchen.sh budget`
+and the Ledger list it as `head chef`, apart from the kitchen's spend, and the debrief
+leaves it out. Nothing to do. A patch: a fix.
+
 ## [0.28.0] - 2026-10-25
 
 **A plan that edits `.claude/` now comes to you before the cook starts, and a refused edit

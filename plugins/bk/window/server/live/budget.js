@@ -160,10 +160,12 @@ const slug = (p) => p.replace(/[^A-Za-z0-9]/g, '-');
 const realpath = (p) => { try { return fs.realpathSync(p); } catch { return p; } };
 export const configDir = () => process.env.CLAUDE_CONFIG_DIR || path.join(process.env.HOME || '', '.claude');
 
-// Every transcript of the main checkout and the stations: [{ file, dir, role, sessionId }].
+// Every transcript of the main checkout and the stations: [{ file, dir, role, sessionId }]. A
+// station's role is its folder name; the main checkout's is 'main' until session() decides, per
+// transcript, whether it is the sous's or the head chef's (below).
 export function kitchenTranscripts({ root, stations }) {
   const base = path.join(configDir(), 'projects');
-  const places = [[root, 'sous'], ...stations.map((d) => [d, path.basename(d)])];
+  const places = [[root, 'main'], ...stations.map((d) => [d, path.basename(d)])];
   const out = [], seen = new Set();
   for (const [dir, role] of places) {
     for (const d of new Set([dir, realpath(dir)])) {
@@ -175,6 +177,30 @@ export function kitchenTranscripts({ root, stations }) {
   return out;
 }
 
+// ---------- who in the main checkout is the sous ----------
+// The main checkout holds the sous and, often, the head chef's own sessions. A transcript has no
+// session name; the live registry (<config>/sessions/<pid>.json) maps a name to a sessionId while
+// the process lives. The sous is: the live session named in .claude/sous, else (with no name
+// recorded) the newest live one, as the Window picks (live/index.js); and any transcript that sent
+// a message only a sous sends, which keeps a past shift's sous, and a sous before a /clear, the
+// sous's. Every other session in the main checkout is the head chef's. A name recorded for a
+// session that is not running gets no fallback: a head-chef session open while the sous is down
+// must not be billed as the sous.
+export const HEAD_CHEF = 'head chef';
+export const SOUS_ONLY = new Set(['brief', 'hello', 'go', 'approved', 'findings']);
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+export function sousSessionId(root) {
+  let recorded = ''; try { recorded = fs.readFileSync(path.join(root, '.claude', 'sous'), 'utf8').trim(); } catch { /* no name recorded */ }
+  const dir = path.join(configDir(), 'sessions'), rootReal = realpath(root), live = [];
+  let files = []; try { files = fs.readdirSync(dir).filter((f) => f.endsWith('.json')); } catch { /* no sessions yet */ }
+  for (const f of files) {
+    let s; try { s = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch { continue; }
+    if (s.cwd && s.sessionId && s.pid && alive(s.pid) && realpath(s.cwd) === rootReal) live.push(s);
+  }
+  if (recorded) return live.find((s) => s.name === recorded)?.sessionId || null;
+  return live.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]?.sessionId || null;
+}
+
 // ---------- the budget itself ----------
 const IDLE_GAP = 5 * 60 * 1000; // a gap longer than this is the session waiting, not working
 export const CONTEXT_LINE = 150000; // cache-read tokens per turn above which a session is carrying too much
@@ -184,6 +210,7 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
   const states = new Map();   // file → scan state
   const overrides = readPriceOverrides(root);
   const unknown = new Set();
+  let sousId = null;          // the live sous's sessionId, read once per compute()
 
   const sum = (turns) => {
     const u = zero(); let cost = 0, priced = true, model = null;
@@ -195,6 +222,7 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
   // One session: its own turns, its sub-agents (each priced on its own model), its ticket spans.
   function session({ file, dir, role, sessionId }) {
     const st = scanTranscript(file, states.get(file)); states.set(file, st);
+    if (role === 'main') role = sessionId === sousId || st.marks.some((m) => m.dir === 'out' && SOUS_ONLY.has(m.kind)) ? 'sous' : HEAD_CHEF;
     const own = sum(st.turns);
     const helpers = {};
     let agentFiles = []; try { agentFiles = fs.readdirSync(path.join(dir, sessionId, 'subagents')).filter((f) => /^agent-.*\.jsonl$/.test(f)); } catch { /* none */ }
@@ -315,14 +343,14 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
   // tickets to the ledger.
   let askLog = new Map();
   function compute({ since = startOfToday(), write = false } = {}) {
-    unknown.clear(); askLog = readAskLog(root);
+    unknown.clear(); askLog = readAskLog(root); sousId = sousSessionId(root);
     const all = kitchenTranscripts({ root, stations: stations() }).map(session);
     const ledger = readLedger();
     const sessions = all.filter((s) => s.lastAt && s.lastAt >= since).sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
     // Tickets: every span from every cook session (not just today's: a ticket may straddle days).
     // A ticket worked across two conversations (a /clear in between) is one ticket: its spans merge.
     const byId = new Map();
-    for (const s of all) if (s.role !== 'sous') for (const sp of spans(s)) { const prev = byId.get(sp.id); byId.set(sp.id, prev ? merge(prev, sp) : sp); }
+    for (const s of all) if (s.role !== 'sous' && s.role !== HEAD_CHEF) for (const sp of spans(s)) { const prev = byId.get(sp.id); byId.set(sp.id, prev ? merge(prev, sp) : sp); }
     // The sous's helpers that name a ticket (the taster at the pass) are that ticket's.
     for (const s of all) if (s.role === 'sous') for (const a of s._agents) { const sp = a.ticket && byId.get(a.ticket); if (sp && a.t >= sp.startedAt && (!sp.servedAt || a.t <= sp.servedAt + 60000)) { sp._runs.push(a); finish(sp); } }
     for (const [id, o] of ledger.tickets) if (!byId.has(id)) byId.set(id, { ...o, fromLedger: true });
@@ -330,7 +358,9 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
     if (write) for (const sp of byId.values()) if (sp.status === 'served' && !sp.fromLedger && !ledger.tickets.has(sp.id)) append({ kind: 'ticket', t: sp.servedAt, ...strip(sp) });
     const tickets = [...byId.values()].filter((t) => (t.servedAt || now()) >= since).sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0)).map(strip);
     const shift = { tokens: zero(), total: 0, cost: 0, secs: 0, activeSecs: 0, helperCost: 0, ci: { minutes: 0, cost: 0 } };
-    for (const s of sessions) { add(shift.tokens, s.tokens); shift.total += s.allTotal; shift.cost += s.allCost; shift.secs += s.secs; shift.activeSecs += s.activeSecs; shift.helperCost += s.helperCost; }
+    // The shift is the kitchen's spend: the head chef's own sessions in the main checkout are reported apart.
+    const chef = sessions.filter((s) => s.role === HEAD_CHEF);
+    for (const s of sessions.filter((x) => x.role !== HEAD_CHEF)) { add(shift.tokens, s.tokens); shift.total += s.allTotal; shift.cost += s.allCost; shift.secs += s.secs; shift.activeSecs += s.activeSecs; shift.helperCost += s.helperCost; }
     for (const t of tickets) if (t.ci) { shift.ci.minutes += t.ci.minutes; shift.ci.cost += t.ci.cost; }
     shift.cost = round(shift.cost); shift.helperCost = round(shift.helperCost); shift.ci.cost = round(shift.ci.cost); shift.ci.minutes = Math.round(shift.ci.minutes * 10) / 10;
     // Per actor: the role's sessions today, and its current (latest) one.
@@ -338,7 +368,8 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
     for (const s of sessions.filter((x) => (x.lastAt || 0) >= today)) { const a = (actors[s.role] ||= { sessions: 0, cost: 0, total: 0, secs: 0, activeSecs: 0, helpers: {}, current: null }); a.sessions++; a.cost = round(a.cost + s.allCost); a.total += s.allTotal; a.secs += s.secs; a.activeSecs += s.activeSecs; for (const [k, h] of Object.entries(s.helpers)) { const x = (a.helpers[k] ||= { runs: 0, cost: 0, total: 0, secs: 0 }); x.runs += h.runs; x.cost = round(x.cost + h.cost); x.total += h.total; x.secs += h.secs; } a.current = pub(s); }
     const sousNow = all.filter((s) => s.role === 'sous').sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0))[0];
     const windows = { shift: sousNow?.startedAt || startOfToday(), today: startOfToday(), week: now() - 7 * 86400000 };
-    return { asOf: PRICES_AS_OF, since, computedAt: now(), shift, sessions: sessions.map(pub), tickets, actors, unknownModels: [...unknown], windows, caps: readCaps(root) };
+    const headChef = { sessions: chef.length, cost: round(chef.reduce((a, s) => a + s.allCost, 0)), total: chef.reduce((a, s) => a + s.allTotal, 0), activeSecs: chef.reduce((a, s) => a + s.activeSecs, 0) };
+    return { asOf: PRICES_AS_OF, since, computedAt: now(), shift, headChef, sessions: sessions.map(pub), tickets, actors, unknownModels: [...unknown], windows, caps: readCaps(root) };
   }
   const pub = (s) => { const { _turns, _marks, _agents, file, ...rest } = s; return rest; };
   const strip = (sp) => { const { marks, fromLedger, _runs, _turns, _asks, ...rest } = sp; return rest; };
@@ -396,7 +427,8 @@ export function readRegister(file) { let text = ''; try { text = fs.readFileSync
 export function debrief(b, { promoted = new Set() } = {}) {
   const out = [];
   for (const r of DEBRIEF_RULES) {
-    const subjects = r.unit === 'ticket' ? b.tickets : b.sessions;
+    // The head chef's own sessions are theirs to clear: the rule's fix is for the sous and the cooks.
+    const subjects = r.unit === 'ticket' ? b.tickets : b.sessions.filter((s) => s.role !== HEAD_CHEF);
     const hits = subjects.map((x) => ({ id: r.unit === 'ticket' ? x.id : `${x.role} ${hhmm(x.startedAt)}`, evidence: r.test(x) })).filter((h) => h.evidence);
     if (!hits.length) continue;
     out.push({ key: r.key, scope: r.scope, unit: r.unit, about: r.about, fix: r.fix, count: hits.length, status: promoted.has(r.key) ? 'promoted' : hits.length >= 2 ? 'DUE' : 'watch', hits });
@@ -466,6 +498,7 @@ export function report(b, { ticket = null } = {}) {
   }
   const sinceLabel = `since ${new Date(b.since).toDateString() === new Date().toDateString() ? hhmm(b.since) + ' today' : new Date(b.since).toISOString().slice(0, 10)}`;
   lines.push(`Shift (${sinceLabel}): ${fmtUsd(b.shift.cost)} · ${fmtTokens(b.shift.total)} tokens (in ${fmtTokens(u.in)} · out ${fmtTokens(u.out)} · cache read ${fmtTokens(u.read)} · cache write ${fmtTokens(u.w5 + u.w1)}) · ${fmtSecs(b.shift.activeSecs)} working · CI ${b.shift.ci.minutes} min (${fmtUsd(b.shift.ci.cost)})`);
+  if (b.headChef?.sessions) lines.push(`Head chef (not in the shift): ${fmtUsd(b.headChef.cost)} · ${b.headChef.sessions} session${b.headChef.sessions === 1 ? '' : 's'} · ${fmtTokens(b.headChef.total)} tokens · ${fmtSecs(b.headChef.activeSecs)} working`);
   lines.push(`Prices: Anthropic list as of ${b.asOf}${b.unknownModels.length ? `; no price for ${b.unknownModels.join(', ')} (add a prices: block to .claude/brigade.md)` : ''}.`);
   lines.push('');
   lines.push('Sessions');
