@@ -25,7 +25,8 @@ export HOME="$TMP/home" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
   GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com \
   GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
 unset CLAUDE_CONFIG_DIR BRIGADE_TRUNK BRIGADE_KITCHEN BRIGADE_KITCHEN_MODE BRIGADE_STATIONS \
-  BRIGADE_MODEL BRIGADE_PERMISSION_MODE BRIGADE_TERMINAL BRIGADE_OS
+  BRIGADE_MODEL BRIGADE_PERMISSION_MODE BRIGADE_TERMINAL BRIGADE_OS \
+  BRIGADE_CLAUDE_ARGS BRIGADE_VIA_BK TMUX TMUX_PANE
 mkdir -p "$HOME"
 
 cleanup() { [[ -n "${KEEP:-}" ]] && echo "kept: $TMP" || rm -rf "$TMP"; }
@@ -342,16 +343,18 @@ section "live (the Window)"
 ok "live status with nothing running says closed" has "$("$K" live status)" "closed"
 ok "live stop with nothing running is quiet and fine" has "$("$K" live stop)" "closed"
 if command -v node >/dev/null 2>&1; then
+  # a free port from the OS, so two suites running at once (two stations' checks) don't collide
+  WPORT=$(node -e 'const s=require("net").createServer();s.listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})')
   before=$(git -C "$C" status --porcelain)
-  out=$("$K" live --demo --port 47471 --no-launch 2>&1); rc=$?
+  out=$("$K" live --demo --port "$WPORT" --no-launch 2>&1); rc=$?
   ok "live --demo opens the Window" test "$rc" -eq 0
-  ok "…and prints its URL" has "$out" "http://localhost:47471"
+  ok "…and prints its URL" has "$out" "http://localhost:$WPORT"
   read -r wpid wport < "$C/.claude/window.pid"
-  ok "…and records a live pid and the port" bash -c 'kill -0 "$1" && test "$2" = 47471' _ "$wpid" "$wport"
+  ok "…and records a live pid and the port" bash -c 'kill -0 "$1" && test "$2" = "$3"' _ "$wpid" "$wport" "$WPORT"
   # a cold runner can take a few seconds to bind the port: wait for it, up to 15s
-  for _ in $(seq 1 30); do curl -sf "http://localhost:47471/api/state" >/dev/null 2>&1 && break; sleep 0.5; done
-  ok "…and it serves the kitchen's state" bash -c 'curl -sf "http://localhost:47471/api/state" | grep -q "\"stations\""'
-  ok "live status says open" has "$("$K" live status)" "open: http://localhost:47471"
+  for _ in $(seq 1 30); do curl -sf "http://localhost:$WPORT/api/state" >/dev/null 2>&1 && break; sleep 0.5; done
+  ok "…and it serves the kitchen's state" bash -c 'curl -sf "http://localhost:$1/api/state" | grep -q "\"stations\""' _ "$WPORT"
+  ok "live status says open" has "$("$K" live status)" "open: http://localhost:$WPORT"
   ok ".claude/window.pid and .log stay out of git" test "$before" = "$(git -C "$C" status --porcelain)"
   ok "live from a station finds the same Window" has "$(cd "$S1" && "$K" live status)" "open"
   out=$("$K" live 2>&1)
@@ -359,7 +362,7 @@ if command -v node >/dev/null 2>&1; then
   sleep 0.5
   ok "…and the process is gone" bash -c '! kill -0 "$1" 2>/dev/null' _ "$wpid"
   ok "…and the pid file too" test ! -e "$C/.claude/window.pid"
-  echo "99999999 47471" > "$C/.claude/window.pid"
+  echo "99999999 $WPORT" > "$C/.claude/window.pid"
   ok "a stale pid file reads as closed" has "$("$K" live status)" "closed"
   ok "…and is removed" test ! -e "$C/.claude/window.pid"
 else

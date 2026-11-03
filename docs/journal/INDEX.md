@@ -6,6 +6,7 @@
 |---|---|---|
 | [13-merge-base-diff.md](13-merge-base-diff.md) | clean check / review-task: diff against the merge base, not the trunk tip | #13 |
 | [19-claude-dir-edits.md](19-claude-dir-edits.md) | create-plan / sous-chef: plans that edit .claude/ stall cooks running in auto mode | #19 |
+| [50-test-env-leaks.md](50-test-env-leaks.md) | tests: kitchen.test.sh isn't safe inside a kitchen: leaks BRIGADE_CLAUDE_ARGS, BRIGADE_VIA_BK and TMUX, and the live-demo test uses a fixed port | #50 |
 | [62-budget-sous-role.md](62-budget-sous-role.md) | budget: every session in the main checkout is counted as the sous (role by directory, not by the recorded sous name) | #62 |
 | [63-generated-index.md](63-generated-index.md) | record: generate the INDEX.md tables from frontmatter, so concurrent tickets stop conflicting | #63 |
 | [64-record-protected-trunk.md](64-record-protected-trunk.md) | handoff / release: the record can't reach a protected trunk, and every docs-only change needs a release | #64 |
