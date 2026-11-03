@@ -62,8 +62,8 @@ changelog.d/                        one fragment per change waiting for a releas
                                     with a GitHub release, then pushes the rendered formula to the
                                     tap (needs TAP_TOKEN)
 CHANGELOG.md                        one entry per version, newest first
-tests/kitchen.test.sh               behaviour tests for kitchen.sh, both kitchen modes
-tests/guard.test.sh                 behaviour tests for hooks/guard.sh: clone and worktree stations
+tests/kitchen.test.sh               behaviour tests for kitchen.sh (worktree stations, `done`, a workspace repo)
+tests/guard.test.sh                 behaviour tests for hooks/guard.sh: worktree stations
 tests/bk.test.sh                    behaviour tests for bin/bk: stub tmux and claude, a fake registry
 tests/budget.test.sh                behaviour tests for the budget: handmade transcripts, a stub gh
 tests/window.test.sh                behaviour tests for the Window's live reader (tests/window-live.mjs):
@@ -136,10 +136,10 @@ It runs, in order:
 3. a frontmatter check on every skill: `name` matches its folder, a real `description`, and
    `disable-model-invocation: true` only on `setup`; every agent is listed in
    `plugin.json`; `hooks/hooks.json` is valid JSON with a top-level `hooks` key;
-4. `tests/kitchen.test.sh`: about 180 behaviour tests of `kitchen.sh` in throwaway repos, in
-   both `clone` and `worktree` mode, including a workspace repo that holds the app repo; and
-   `tests/guard.test.sh`: the hook guard fed the JSON Claude Code sends, in a clone station,
-   a worktree station, the main checkout and a repo without the Brigade; and
+4. `tests/kitchen.test.sh`: about 570 behaviour tests of `kitchen.sh` in throwaway repos with worktree
+   stations (the only kind), including `done` and a workspace repo that holds the app repo; and
+   `tests/guard.test.sh`: the hook guard fed the JSON Claude Code sends, in a station,
+   the main checkout and a repo without the Brigade; and
    `tests/bk.test.sh`: `bin/bk` against a stub `tmux` that logs its calls and a fake session
    registry, covering profiles, attach and peek, the pause and the resume; and
    `tests/budget.test.sh`: `kitchen.sh budget` over handmade transcripts (a sous, two cook

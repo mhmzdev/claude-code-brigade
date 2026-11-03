@@ -62,10 +62,9 @@ trunk: main
 check: "npm run check"
 install: "npm install"
 copy_into_stations: ".env .env.local"   # space-separated; names only
-kitchen_mode: clone                      # clone (default) | worktree — see Contract 8
 permission_mode: auto                    # cook sessions' Claude Code permission mode (default auto)
 sous_model: opus                         # the sous's model when `kitchen open` starts it in tmux (default opus)
-kitchen: stations                        # stations dir, relative to repo root (worktree default: ../<repo>-stations)
+kitchen: ../app-stations                 # stations dir, relative to repo root (default: ../<repo>-stations)
 stations: 2                              # how many a fresh setup creates; setup -n N grows it
 migrations: none                         # path, or none
 commis_model: opus                       # the commis sub-agent's model (Contract 12); opus by default, sonnet to trade accuracy for cost
@@ -672,37 +671,26 @@ head chef when the cook is gone. The board shows both counts.
 
 ## Contract 8 — Stations
 
-A station is where one cook works. `kitchen.sh` creates it, adds the ignore line, copies
-`copy_into_stations`, and runs `install`. There are two kinds, picked by `kitchen_mode:`.
-
-| Mode | Where | What it is | Use it for |
-|---|---|---|---|
-| **`clone`** (default) | `<repo>/stations/station-N`, gitignored | a full clone | one standalone repo: the simplest setup |
-| **`worktree`** | `../<repo>-stations/station-N`, next to the repo | a git worktree of the main checkout | big repos, and repos that live inside a workspace repo |
-
-A config without `kitchen_mode:` is clone mode, so existing setups don't change.
-
-### Clone mode
-
-Things this layout needs you to know:
-
-- **`git clean -fdx` in the main checkout deletes every station, uncommitted work
-  included.** `-x` removes ignored files. Never run it in a brigade repo. `kitchen.sh`
-  prints this warning on setup.
-- Tools that don't read `.gitignore` will see the stations: `tsc` include globs, test
-  runners, linters, `docker build .` contexts, file watchers. `kitchen.sh setup` adds
-  `stations/` to `.dockerignore` when one exists, and lists the configs you should exclude
-  it from.
-- A session started inside a station also loads the main checkout's `CLAUDE.md`, because
-  Claude Code reads `CLAUDE.md` files up the directory tree. Both are the same file at
-  possibly different commits. The station's own copy describes the station's branch;
-  prefer it where they differ.
-
-### Worktree mode
+A station is where one cook works. It is a git worktree of the main checkout, in
+`../<repo>-stations/station-N` next to the repo (or the config's `kitchen:`). `kitchen.sh`
+creates it, adds the ignore line when the folder sits inside another repo, copies
+`copy_into_stations`, and runs `install`. There is one kind: clone stations are gone (a config
+that still says `kitchen_mode: clone` makes `kitchen.sh` stop with one line: run
+`kitchen.sh remove`, delete the line, run `kitchen.sh setup`; `kitchen_mode: worktree` is
+ignored).
 
 A worktree is a second working folder backed by the **same** repo: one object store, one
 set of branches, one `git fetch` for everyone. Stations cost only their checked-out files.
+The folder sits next to the repo, not inside it, so `tsc` globs, test runners, linters,
+`docker build .` contexts and file watchers never see it.
 
+- **A station's work is ephemeral.** When its ticket's PR is merged, `kitchen.sh done
+  <station>` deletes the ticket branch (local and origin) and detaches the station at
+  `origin/<trunk>`; the folder stays, because the cook's session lives in it. It proves the
+  merge through the PR (MERGED into trunk, and the station's tip is the PR's head), refuses a
+  dirty station or a busy session, never force-pushes (the local branch is deleted only at the
+  merged PR's head, the origin branch only while it still is at that head), and its one summary
+  line says what was and was not deleted. End of shift runs `ship`, `done`, the reap, then `clear`.
 - **Idle stations are detached at `origin/<trunk>`.** Git lets a branch be checked out in
   one worktree only, and the main checkout already holds trunk. A cook branches off
   `origin/<trunk>` as usual; `kitchen.sh sync` re-detaches idle stations.
@@ -710,7 +698,8 @@ set of branches, one `git fetch` for everyone. Stations cost only their checked-
   `git stash push -m "<station>: …"` and applies only its own entry, by name, never a
   bare `git stash pop`. Parking work on a named branch is safer still.
 - **Branches are shared too.** That's why branch names carry the ticket id: two cooks
-  can't collide. Removing a station keeps its branch and commits.
+  can't collide. Removing a station (`kitchen.sh remove`) keeps its branches and commits;
+  only `done` deletes a branch, and only a merged one.
 - **Remove with `kitchen.sh remove`, never `rm -rf`.** It uses `git worktree remove`,
   which refuses a station with uncommitted work, then prunes git's records.
 - **Dependencies are per station** (`node_modules`, `.dart_tool`, Pods, virtualenvs): the
@@ -718,13 +707,15 @@ set of branches, one `git fetch` for everyone. Stations cost only their checked-
 - **The sibling folder may sit inside another repo**, e.g. a workspace checkout that holds
   several product repos. `kitchen.sh setup` adds the ignore line to **that** repo's
   `.gitignore`, and a cook there loads the workspace's `CLAUDE.md` as well as the repo's.
+  A session in a station also loads the main checkout's `CLAUDE.md` only when the kitchen
+  sits inside it (a `kitchen:` key pointing in), where `git clean -fdx` in the main
+  checkout would delete the stations: never run it there.
 - Run from anywhere, including inside a station: `kitchen.sh` finds the main checkout
   through git's common directory.
 
-### Both modes
-
 **The sous reads stations and never writes in them.** No edits, resets or branch
-switches. Running the check command or the inspector inside a station is fine. A finding
+switches, except `kitchen.sh done`, which detaches a served station at trunk and deletes its
+merged branch. Running the check command or the inspector inside a station is fine. A finding
 goes to the owning cook.
 
 **A station's own changes** are the diff from its merge base with trunk, never from trunk's
@@ -753,7 +744,8 @@ body names its counter (from `clean.counters`), the starting count, and the exac
 check passing and the counter going down.
 
 **One ticket per session.** When a cook's PR is open and has passed, the sous clears
-that session before its next ticket: `kitchen.sh clear <station>`, which types `/clear`
+that session before its next ticket: first `kitchen.sh done <station>` (the station goes back
+to trunk), then `kitchen.sh clear <station>`, which types `/clear`
 and then `/bk:line-cook` into the cook's pane, and refuses unless the cook is idle, its
 handoff is newer than its last turn and nothing it sent still waits for an answer.
 Clearing is deterministic, so it is the sous's, not the head chef's; the head chef still
@@ -1030,7 +1022,7 @@ guardrails against a slip, not a wall; both stay out of the way in a repo with n
 
 | Skill | Lane | Does |
 |---|---|---|
-| `/bk:setup [--worktree \| --clone]` | — | set up the Brigade in a repo: config, rail folders, `CLAUDE.md` section. Refuses a workspace root |
+| `/bk:setup` | — | set up the Brigade in a repo: config, rail folders, `CLAUDE.md` section. Refuses a workspace root |
 | `/bk:kitchen` | — | stations: setup, open, sync, status, files, rail board, `board` (all of it in one snapshot, also written to `.claude/board.md`), `sous` (the sous's session name, for cooks), `leaks` (test-account secrets copied into a checkout), `questions`, `asks`, `decisions`, `gaps`, `inbox` (the record's four lists, Contract 12) and `doctor` (tickets and the docs map, checked) |
 | `/bk:sous-chef` | — | take the lead role for the rest of the session |
 | `/bk:line-cook` | — | take a station's worker role for the rest of the session |

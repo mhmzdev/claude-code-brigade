@@ -1,7 +1,7 @@
 ---
 name: setup
 description: Set up The Brigade in the current repo, bottom to top — detect trunk, check command, install command, shared resources and the docs the repo already keeps; ask one round of questions; write .claude/brigade.md with its docs map; build the rail and record folders in docs/ (or map the repo's own, and respect its doc schema); add a short "The Brigade" section to CLAUDE.md; gitignore the stations; commit on the human's go; then create the stations. Use when the user says "set up the brigade", "brigade setup", "install the brigade here", "/bk:setup".
-argument-hint: "[--worktree | --clone]"
+argument-hint: ""
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, ToolSearch
 disable-model-invocation: true
 ---
@@ -27,16 +27,9 @@ per-repo half of the Brigade. The skills themselves stay in the plugin; never co
 
 ## Flags
 
-| Flag | Effect |
-|---|---|
-| *(none)* | detect the kitchen mode in step 2 and recommend it in step 3 |
-| `--worktree` | use worktree stations in `../<repo>-stations/`; step 3 asks only how many |
-| `--clone` | use clone stations in `stations/`; step 3 asks only how many |
-
-Passing both is an error: say so and stop. A flag settles the mode, so don't argue with it.
-If `--clone` goes against what step 2 finds (a workspace-nested or very large repo), say so
-in one line in the summary, with the reason (e.g. "3 full clones of a 7 GB repo"), and
-carry on.
+None. Stations are always git worktrees next to the repo (Contract 8), so there is no mode to
+pick. If someone passes `--clone`, say that clone stations are gone and carry on; `--worktree`
+is the only kind, so it changes nothing.
 
 ## Ground rules
 
@@ -58,11 +51,11 @@ Stop if any of these fail:
 4. `.claude/brigade.md` doesn't already exist. If it does, offer to review it instead.
 5. **This isn't a workspace root.** A workspace root is a repo that holds other repos as
    gitignored folders (one checkout with several product repos inside it). A station can't
-   be made of it: a clone of the workspace contains none of the repos inside it. Find
+   be made of it: a worktree of the workspace repo contains none of the repos inside it. Find
    nested repos with:
 
    ```bash
-   find . -mindepth 2 -maxdepth 3 -name .git -not -path './stations/*' -not -path './.git/*' \
+   find . -mindepth 2 -maxdepth 3 -name .git -not -path './.git/*' \
      | sed 's#^\./##; s#/\.git$##' \
      | while read -r d; do
          grep -qsF "path = $d" .gitmodules && continue   # submodules are fine
@@ -73,7 +66,7 @@ Stop if any of these fail:
    If it prints anything, **stop**, whatever flag was passed. Say, in plain words: *"This
    looks like a workspace: it holds N repos (list up to five). The Brigade runs one
    kitchen per product repo. `cd` into the repo you want to work on and run `/bk:setup`
-   there; it will recommend worktree stations next to it."* Don't write any files.
+   there; its stations are worktrees next to that repo."* Don't write any files.
 
 ## 2. Read the repo
 
@@ -84,7 +77,7 @@ Note for the summary:
 - **Check command**: an existing aggregate in `package.json`, `Makefile`, `justfile`,
   `pyproject.toml`, `Cargo.toml`, `go.mod`, or CI. None? Propose lint + typecheck + test in
   this stack's terms.
-- **Install command**, and untracked files a clone needs (`.env`, `.env.local`, …). Names
+- **Install command**, and untracked files a station needs (`.env`, `.env.local`, …). Names
   only. Never print their contents.
 - **Walk-in candidates**: `docker-compose*.yml`, a local database, a fixed dev port,
   seed/reset scripts. For each, its destructive commands and a safe alternative.
@@ -98,13 +91,9 @@ Note for the summary:
   docs linter in the check command, a `config.json` listing folder types. A schema decides
   the folder names and frontmatter the Brigade's docs must use, and whether the file is
   vendored ("do not edit" at the top): then its own extension point is where new types go.
-- **Which kitchen mode fits** (Contract 8), unless a flag already settled it. Recommend
-  **`worktree`** when either is true, else **`clone`**:
-  - the repo sits inside another git repo (`git -C .. rev-parse --show-toplevel` succeeds):
-    a workspace checkout that holds several repos;
-  - the checkout is big (`du -sh .git` over ~1 GB): N full clones would cost N copies.
-- **Tools that don't read `.gitignore`** and would see `stations/` (clone mode only): `tsconfig.json`
-  include globs, test-runner configs, linter configs, `pytest.ini`, `.dockerignore`.
+- **Whether the repo sits inside another git repo** (`git -C .. rev-parse --show-toplevel`
+  succeeds): a workspace checkout that holds several repos. The stations' folder then sits
+  inside that repo, and `kitchen.sh setup` adds the ignore line to it (Contract 8).
 - **Lane C counters** that fit the stack: knip or ts-prune (JS/TS), vulture (Python),
   `staticcheck -checks U1000` (Go), `cargo udeps` (Rust), plus a TODO/FIXME count.
 
@@ -114,10 +103,8 @@ Ask together, skipping any the repo answered (say what you found):
 
 1. **Where should tickets live?** Recommend markdown in `docs/` unless the repo clearly runs
    on GitHub Projects or Jira. Options: markdown · GitHub Projects · Jira · mixed.
-2. **How many stations, and which kind?** (With a flag, ask only how many.) Recommend 2,
-   and the mode from step 2 with its
-   one-line reason: *clones inside the repo* (simplest) or *worktrees in
-   `../<repo>-stations/`* (shared history; for workspaces and big repos).
+2. **How many stations?** Recommend 2. They are worktrees in `../<repo>-stations/`
+   (shared history, no second copy of the repo).
 3. **Is this the check command?**
 4. **Are these the shared resources and their destructive commands?**
 5. **Can the sous commit rail changes straight to trunk?** Recommend yes unless trunk is
@@ -161,14 +148,9 @@ matches the three generated ones; union there does no harm, since the command re
 to merges git runs locally, which is why `/bk:open-pr` merges trunk into the branch before
 pushing. If GitHub still shows a conflict on an INDEX, merge trunk locally and push; never
 resolve one by picking one side, which deletes the other cook's row.
-In **clone** mode, add `/stations/` to `.gitignore` too (and `stations/` to `.dockerignore`
-if it exists). In **worktree** mode, set `kitchen_mode: worktree` and leave `kitchen:` out
-(it defaults to `../<repo>-stations`); `kitchen.sh setup` adds the ignore line to whichever
-repo contains that folder, and says which.
-
-For each tool from step 2 that doesn't read `.gitignore`, propose the one-line exclude and
-apply it once the human agrees. Example: `"exclude": ["stations"]` in `tsconfig.json`, or
-`analyzer: exclude: [stations/**]` in a Dart `analysis_options.yaml`.
+Leave `kitchen:` out of the config, and write no `kitchen_mode`: the stations' folder defaults to
+`../<repo>-stations`, next to the repo, so no tool inside the repo sees it. `kitchen.sh setup`
+adds the ignore line to the repo that contains that folder, when there is one, and says which.
 
 **Edit only tracked files in the main checkout.** Find targets with `git ls-files`, never
 `find .`: once stations exist, `find` also returns every station's copy, and an edit there
@@ -208,7 +190,7 @@ mapping in the config's body.
 ## 6. The CLAUDE.md section
 
 Append (create the file if needed). Keep it this short; the detail lives in the plugin. Fill in
-`<stations path>` and keep only the bullet line for the chosen mode.
+`<stations path>` (`../<repo>-stations`, or the config's `kitchen:`).
 
 ```markdown
 ## The Brigade
@@ -234,8 +216,7 @@ This repo can run several Claude Code sessions at once. Config: `.claude/brigade
   Cooks ask the sous to change a ticket, bar claiming and moving their own briefed ticket with `kitchen.sh rail claim` / `move`; they never edit ticket files.
 - **Ask before touching the walk-in** (`walk_in:` in the config). One migration in flight at a time.
 - **One ticket per session.** Pull trunk into your branch before opening a PR, and re-run the check.
-- Clone mode: **never `git clean -fdx` here**: `stations/` is ignored, so `-x` deletes every station.
-  Worktree mode: stashes are shared, so stash with `-m "<station>: …"` and apply only your own;
+- Stashes are shared between stations, so stash with `-m "<station>: …"` and apply only your own;
   remove stations with `kitchen.sh remove`, never `rm -rf`.
 ```
 
@@ -243,7 +224,7 @@ This repo can run several Claude Code sessions at once. Config: `.claude/brigade
 
 Show: every file created or changed, the config values, anything you couldn't detect.
 Then ask **one** question: *"Go? I'll commit, push, create the stations and open the
-kitchen."* The one go covers steps 7 and 8. Stations clone `origin/<trunk>`, so the
+kitchen."* The one go covers steps 7 and 8. Stations start from `origin/<trunk>`, so the
 setup has to be pushed before any station exists; asking twice only invites the gap.
 
 On go: commit on trunk as `chore: set up The Brigade` and push. If trunk is protected,
@@ -252,9 +233,9 @@ Say so plainly.
 
 ## 8. Open the kitchen
 
-Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" setup` and relay its output, including both
+Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" setup` and relay its output, including its
 warnings. If it reports a station **dirty right after setup**, stop and show the diff:
-something in the install step (or an edit that reached into `stations/`) changed tracked
+something in the install step (or an edit that reached into a station) changed tracked
 files, and a cook must not inherit it. Otherwise run `kitchen.sh open`. Then tell the
 human how to start:
 

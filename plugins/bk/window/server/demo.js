@@ -4,7 +4,7 @@
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function runDemo(store, { stations = 2 } = {}) {
-  store.setKitchen({ repo: 'demo-kitchen', mode: 'clone', trunk: 'main', demo: true });
+  store.setKitchen({ repo: 'demo-kitchen', trunk: 'main', demo: true });
   // The record starts small and grows a page or three with every ticket served.
   const record = { specs: 2, backlog: 4, plans: 3, checklists: 2, journal: 3, decisions: 1, claude: 1 };
   const grow = (...ks) => { for (const k of ks) record[k] = (record[k] || 0) + 1; store.setRecord({ total: Object.values(record).reduce((a, b) => a + b, 0), kinds: { ...record } }); };

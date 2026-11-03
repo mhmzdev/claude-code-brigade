@@ -59,18 +59,19 @@ field() { node -e 'const b=JSON.parse(require("fs").readFileSync(0,"utf8")); con
 # ---------- the kitchen ----------
 APP="$TMP/app"
 git init -q "$APP"; git -C "$APP" checkout -q -b main
-mkdir -p "$APP/.claude" "$APP/stations/station-1/.git" "$APP/docs/journal"
-printf -- '---\ntrunk: main\nkitchen_mode: clone\n---\n' > "$APP/.claude/brigade.md"
+mkdir -p "$APP/.claude" "$APP/docs/journal"
+printf -- '---\ntrunk: main\n---\n' > "$APP/.claude/brigade.md"
 git -C "$APP" add -A; git -C "$APP" commit -qm init
+git -C "$APP" worktree add -q --detach "$APP-stations/station-1" HEAD   # a station is a worktree
 slug() { printf '%s' "$1" | sed 's/[^A-Za-z0-9]/-/g'; }
 SOUS_DIR="$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APP" && pwd -P)")"
-COOK_DIR="$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APP/stations/station-1" && pwd -P)")"
+COOK_DIR="$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APP-stations/station-1" && pwd -P)")"
 mkdir -p "$SOUS_DIR/sous1/subagents" "$COOK_DIR/cook1/subagents" "$COOK_DIR/cook2" "$COOK_DIR/cook3/subagents" "$COOK_DIR/cook4/subagents" "$COOK_DIR/cook6/subagents"
 
 # ---------- the transcripts ----------
 # Written by node so the timestamps are today's. T0 = 09:00 local today; everything is
 # minutes after it. One API turn is written as two lines sharing a message id, as Claude Code does.
-node - "$SOUS_DIR" "$COOK_DIR" "$APP/stations/station-1" <<'EOF'
+node - "$SOUS_DIR" "$COOK_DIR" "$APP-stations/station-1" <<'EOF'
 const fs = require('fs'), path = require('path');
 const [sousDir, cookDir, stationDir] = process.argv.slice(2);
 const d = new Date(); d.setHours(9, 0, 0, 0); const T0 = d.getTime();
@@ -381,22 +382,22 @@ rm "$APP/.claude/asks.md"
 J="$("$K" budget --json)"
 ok "the shift window starts at the sous's current conversation, today at 08:58" [ "$(field "$J" 'b.windows.shift > b.windows.today && b.windows.week < b.windows.today && new Date(b.windows.shift).getMinutes()')" = 58 ]
 ok "no budget: block means no caps" [ "$(field "$J" 'Object.keys(b.caps).length')" = 0 ]
-printf -- '---\ntrunk: main\nkitchen_mode: clone\nbudget:\n  shift_usd: 60\n  ticket_usd: 12\n---\n' > "$APP/.claude/brigade.md"
+printf -- '---\ntrunk: main\nbudget:\n  shift_usd: 60\n  ticket_usd: 12\n---\n' > "$APP/.claude/brigade.md"
 J="$("$K" budget --json)"
 ok "a budget: block gives the Ledger its scale" [ "$(field "$J" 'b.caps.shift_usd + "/" + b.caps.ticket_usd')" = 60/12 ]
-printf -- '---\ntrunk: main\nkitchen_mode: clone\n---\n' > "$APP/.claude/brigade.md"
+printf -- '---\ntrunk: main\n---\n' > "$APP/.claude/brigade.md"
 
 section "prices from the config"
-printf -- '---\ntrunk: main\nkitchen_mode: clone\nprices:\n  opus: { in: 8, out: 40, read: 0.4 }\n---\n' > "$APP/.claude/brigade.md"
+printf -- '---\ntrunk: main\nprices:\n  opus: { in: 8, out: 40, read: 0.4 }\n---\n' > "$APP/.claude/brigade.md"
 J="$("$K" budget --json)"
 ok "a prices: block in brigade.md overrides the built-in table" [ "$(field "$J" 'b.sessions.find(s=>s.id==="cook1").cost')" = 1.218 ]
-printf -- '---\ntrunk: main\nkitchen_mode: clone\n---\n' > "$APP/.claude/brigade.md"
+printf -- '---\ntrunk: main\n---\n' > "$APP/.claude/brigade.md"
 
 section "windows and roles"
 OUT="$("$K" budget --since 7d)"
 ok "--since 7d says since when" has "$OUT" "^Shift \(since 20[0-9][0-9]-"
 ok "a week is as far back as it looks" has "$("$K" budget --since 30d)" "^Shift \(since .*today\)"
-ok "budget from a station reports the whole kitchen" has "$(cd "$APP/stations/station-1" && "$K" budget --since 7d)" "BKLG-001 +station-1"
+ok "budget from a station reports the whole kitchen" has "$(cd "$APP-stations/station-1" && "$K" budget --since 7d)" "BKLG-001 +station-1"
 ok "without node it says what to install" has "$(PATH="$TMP/nonode" "$K" budget 2>&1)" "needs node 20"
 
 # =============================================================================
@@ -404,10 +405,11 @@ section "ticket ids from the rail's own form (#59)"
 # A github rail: #13, branch issue-13-…; a jira rail: PROJ-7; the markdown ids still work on both.
 mkrail() { # <dir> <config body> → a kitchen with one station and its Claude project dir
   git init -q "$1"; git -C "$1" checkout -q -b main
-  mkdir -p "$1/.claude" "$1/stations/station-1/.git"
-  printf -- '---\ntrunk: main\nkitchen_mode: clone\n%s\n---\n' "$2" > "$1/.claude/brigade.md"
+  mkdir -p "$1/.claude"
+  printf -- '---\ntrunk: main\n%s\n---\n' "$2" > "$1/.claude/brigade.md"
   git -C "$1" add -A; git -C "$1" commit -qm init
-  mkdir -p "$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$1/stations/station-1" && pwd -P)")"
+  git -C "$1" worktree add -q --detach "$1-stations/station-1" HEAD
+  mkdir -p "$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$1-stations/station-1" && pwd -P)")"
 }
 APPG="$TMP/appg"; APPJ="$TMP/appj"
 mkrail "$APPG" 'rail:
@@ -415,7 +417,7 @@ mkrail "$APPG" 'rail:
 mkrail "$APPJ" 'rail:
   adapter: jira'
 mkdir -p "$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APPG" && pwd -P)")"
-node - "$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APPG/stations/station-1" && pwd -P)")" "$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APPJ/stations/station-1" && pwd -P)")" "$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APPG" && pwd -P)")" <<'EOF'
+node - "$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APPG-stations/station-1" && pwd -P)")" "$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APPJ-stations/station-1" && pwd -P)")" "$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APPG" && pwd -P)")" <<'EOF'
 const fs = require('fs'), path = require('path');
 const [gdir, jdir, sdir] = process.argv.slice(2);
 const d = new Date(); d.setHours(9, 0, 0, 0); const T0 = d.getTime();

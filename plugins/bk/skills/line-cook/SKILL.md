@@ -1,6 +1,6 @@
 ---
 name: line-cook
-description: Take the line-cook role for the rest of the session — a Brigade worker in one station (a gitignored clone under stations/, or a worktree in ../<repo>-stations/). Any session inside a station is a cook, so this also runs automatically. Checks in with the sous chef, takes one ticket per session, sends the commis to search the record before any question and only then the question to the sous over SendMessage, never asks the human, asks before touching shared resources, never edits the rail, and hands off for the pass before anything is committed. Use when the user says "line cook", "you're a worker", "you're station 2", or "/bk:line-cook @sous".
+description: Take the line-cook role for the rest of the session — a Brigade worker in one station (a git worktree in ../<repo>-stations/). Any session inside a station is a cook, so this also runs automatically. Checks in with the sous chef, takes one ticket per session, sends the commis to search the record before any question and only then the question to the sous over SendMessage, never asks the human, asks before touching shared resources, never edits the rail, and hands off for the pass before anything is committed. Use when the user says "line cook", "you're a worker", "you're station 2", or "/bk:line-cook @sous".
 argument-hint: "(none, or the sous chef session: @name)"
 allowed-tools: Read, Grep, Glob, Bash, Write, Edit, SendMessage, ListAgents, ToolSearch, Skill, Agent
 ---
@@ -80,8 +80,8 @@ skill from step 2.
 If you're dirty from a previous cook, say so in `kitchen.sh here` (`--note`) and do what the brief says:
 finish it or park it (`git stash push -m "<station>: <what>"`). Never silently discard it.
 
-**In a worktree station** (`git rev-parse --git-common-dir` isn't your own `.git`), two
-things differ. Idle, you sit detached at `origin/<trunk>`, which is normal: trunk is checked
+**Your station is a git worktree** (`git rev-parse --git-common-dir` isn't your own `.git`), so
+two things to know. Idle, you sit detached at `origin/<trunk>`, which is normal: trunk is checked
 out in the main checkout. And stashes are shared with every other station, so only ever
 apply your own entry: find it with `git stash list | grep '<station>:'`, then
 `git stash apply stash@{N}` with that entry's number. Never a bare `git stash pop`.
@@ -193,7 +193,10 @@ lines short; the journal is read by people later, not just by the next session.
       `[served] <ID> <PR url>`.
 10. Done. Tell the sous your shift is over. The sous clears this session (`kitchen.sh clear
     <station>`, once you are idle with your handoff written and nothing open); don't take a
-    second ticket on this context. Until the sous says the PR has merged, stay ready: if it says the PR is behind or conflicting, bring trunk in (`git merge origin/<trunk>`), re-run the check, push, and send `[served]` again with the new head.
+    second ticket on this context. After the merge the sous runs `kitchen.sh done <station>`: it
+    deletes your ticket branch (local and origin) and detaches this station at trunk, so don't be
+    on that branch or hold unpushed commits you still want; the folder and this session stay.
+    Until the sous says the PR has merged, stay ready: if it says the PR is behind or conflicting, bring trunk in (`git merge origin/<trunk>`), re-run the check, push, and send `[served]` again with the new head.
 
 **Being cleared mid-ticket** (e.g. while waiting for `[approved]`) is normal; that one is the head chef's, by hand, since `kitchen.sh clear` refuses an unanswered `[plan]`. When the
 sous or the head chef says so, run `/bk:handoff` first. The next session in this station

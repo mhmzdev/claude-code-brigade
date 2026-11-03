@@ -49,7 +49,7 @@ const statusOf = (a) => !a ? 'offline' : a.activity === 'waiting' ? 'waiting' : 
 
 // ---------- the top: identity, the gate, the toggles ----------
 function renderTop(s) {
-  $('#repo').textContent = s.kitchen.repo; $('#mode').textContent = `${s.kitchen.mode} · trunk ${s.kitchen.trunk}`; $('#demo').hidden = !s.kitchen.demo;
+  $('#repo').textContent = s.kitchen.repo; $('#mode').textContent = `trunk ${s.kitchen.trunk}`; $('#demo').hidden = !s.kitchen.demo;
   for (const b of document.querySelectorAll('#hud-top .toggles button')) b.classList.toggle('on', b.dataset.t === 'line' ? ui.line : ui.sheet === b.dataset.t);
   const qs = s.headChef.pending, q = qs[0], g = $('#gate');
   if (!q) { g.innerHTML = ''; return; }

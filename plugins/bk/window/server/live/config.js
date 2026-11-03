@@ -1,5 +1,5 @@
 // Reads what kitchen.sh reads: the repo root, .claude/brigade.md's flat keys and docs map,
-// the kitchen mode and where the stations live. Mirrors kitchen.sh, never calls it.
+// and where the stations live. Mirrors kitchen.sh, never calls it.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -37,13 +37,12 @@ export function readConfig(startDir) {
   }
   const repo = path.basename(root);
   const trunk = process.env.BRIGADE_TRUNK || flat.trunk || (git(root, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD').replace(/^origin\//, '')) || 'main';
-  const mode = process.env.BRIGADE_KITCHEN_MODE || flat.kitchen_mode || 'clone';
-  let kitchenRel = process.env.BRIGADE_KITCHEN || flat.kitchen || (mode === 'worktree' ? `../${repo}-stations` : 'stations');
+  let kitchenRel = process.env.BRIGADE_KITCHEN || flat.kitchen || `../${repo}-stations`;
   const kitchen = path.resolve(root, kitchenRel);
   const docsDir = (key, dflt) => path.resolve(root, docs[key] || dflt || `docs/${key}`);
   const railAdapter = (fs.existsSync(file) ? (fs.readFileSync(file, 'utf8').match(/^rail:\n(?:[ \t]+.*\n)*?[ \t]+adapter:\s*(\w+)/m) || [])[1] : null) || 'markdown';
   return {
-    root, repo, trunk, mode, kitchen, hasConfig: fs.existsSync(file), flat, docs, docsDir, railAdapter,
+    root, repo, trunk, kitchen, hasConfig: fs.existsSync(file), flat, docs, docsDir, railAdapter,
     sousNameFile: path.join(root, '.claude', 'sous'),
     stations() {
       try { return fs.readdirSync(kitchen).filter((d) => /^station-\d+$/.test(d) && fs.existsSync(path.join(kitchen, d, '.git'))).map((d) => path.join(kitchen, d)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })); } catch { return []; }

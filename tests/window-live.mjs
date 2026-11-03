@@ -121,6 +121,16 @@ fs.appendFileSync(path.join(station, '.claude', 'check.log'), L(today, 1, ' move
 tick(); tick();
 ok('a new log line counts once, however often the log is read', sv.state.check.runs === 3 && sv.state.check.failed === 2 && sv.state.check.last.ok === false);
 
+console.log('# the kitchen folder: worktrees next to the repo, no mode');
+const { readConfig } = await import(path.join(here, '..', 'plugins', 'bk', 'window', 'server', 'live', 'config.js'));
+const cfgRoot = path.join(dir, 'cfg', 'app'); fs.mkdirSync(path.join(cfgRoot, '.claude'), { recursive: true });
+fs.writeFileSync(path.join(cfgRoot, '.claude', 'brigade.md'), '---\ntrunk: main\n---\n');
+const cfg0 = readConfig(cfgRoot);
+ok('the stations live in ../<repo>-stations by default', cfg0.kitchen === path.join(dir, 'cfg', 'app-stations'));
+ok('the config carries no kitchen mode', !('mode' in cfg0));
+fs.writeFileSync(path.join(cfgRoot, '.claude', 'brigade.md'), '---\ntrunk: main\nkitchen: benches\n---\n');
+ok('a kitchen: key is relative to the main checkout', readConfig(cfgRoot).kitchen === path.join(cfgRoot, 'benches'));
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`# passed ${n - failed} · failed ${failed} · total ${n}`);
 process.exit(failed ? 1 : 0);
