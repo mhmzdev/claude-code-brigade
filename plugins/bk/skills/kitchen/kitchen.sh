@@ -2,22 +2,20 @@
 # =============================================================================
 # kitchen.sh — the Brigade's station manager
 #
-# Two kinds of station, picked by `kitchen_mode:` in .claude/brigade.md:
-#   clone    (default) full git clones inside the repo, <repo>/stations/station-N,
-#            gitignored. Simplest; right for one standalone repo.
-#   worktree git worktrees of the main checkout, by default in a sibling folder
-#            ../<repo>-stations/station-N. Shares one object store, so it suits
-#            big repos and repos that live inside a workspace repo.
+# A station is a git worktree of the main checkout, by default in a sibling folder
+# ../<repo>-stations/station-N (or the config's `kitchen:`). It shares one object store,
+# so it suits big repos and repos that live inside a workspace repo. Its work is
+# ephemeral: when the ticket is merged, `done` deletes the branch and resets the station.
 # One Claude Code line cook works in each. Assignment happens through the sous chef over SendMessage, never
 # through this script: each session starts as a line cook and waits for a brief.
 #
 # Run from anywhere inside the main checkout. Settings come from the flat keys
-# in .claude/brigade.md (trunk, install, copy_into_stations, kitchen_mode,
+# in .claude/brigade.md (trunk, install, copy_into_stations,
 # kitchen, stations, migrations); env vars override them.
 #
 # Usage:
 #   kitchen.sh setup  [-n N]              create stations 1..N, keeping existing ones, so
-#                                         it also grows a kitchen (clone, gitignore,
+#                                         it also grows a kitchen (worktree, gitignore,
 #                                         copy files, seed permissions, install)
 #   kitchen.sh open   [-n N] [-m "O S"] [--terminal tmux|warp|native|print] [--bare]
 #                                         open the kitchen: one claude session per station
@@ -37,7 +35,7 @@
 #                                         station it opens gets .claude/cook, which
 #                                         restarts that cook with the same profile
 #                                         (CLAUDE_CONFIG_DIR), name and model
-#   kitchen.sh sync   [-n N]              reset CLEAN stations to origin/<trunk>
+#   kitchen.sh sync   [-n N]              detach CLEAN stations at origin/<trunk>
 #                                         (dirty ones are skipped)
 #   kitchen.sh status                     branch / dirty / ahead per station + open PRs
 #   kitchen.sh files                      files in flight per station vs origin/<trunk>,
@@ -104,6 +102,14 @@
 #                                         `gh pr merge --merge` (gates.merge_method: merge |
 #                                         squash | rebase). With gates.merge: head-chef it
 #                                         refuses: the merge is the head chef's there
+#   kitchen.sh done <station-N>           after the merge, the sous's job (End of shift: ship, done,
+#                                         reap, clear): detach the station at origin/<trunk>, delete
+#                                         the ticket branch locally and on origin, drop the ticket's
+#                                         per-ticket files; the folder and the session stay. Only a
+#                                         branch whose PR gh says is MERGED, and whose tip is that
+#                                         PR's head (and the PR went into trunk); refuses a dirty station
+#                                         or a busy session. Never force-pushes; one summary line says
+#                                         what was and wasn't deleted
 #   kitchen.sh lessons                    count lesson(...) lines across ticket journals
 #   kitchen.sh decisions                  every "(head chef)" answer in a journal that no doc
 #                                         under the docs map cites and the register doesn't
@@ -205,7 +211,7 @@
 #                                         kitchen. Pid and log in .claude/, out of git
 #
 # Env overrides:
-#   BRIGADE_TRUNK, BRIGADE_KITCHEN_MODE, BRIGADE_KITCHEN, BRIGADE_STATIONS, BRIGADE_MODEL (default sonnet),
+#   BRIGADE_TRUNK, BRIGADE_KITCHEN, BRIGADE_STATIONS, BRIGADE_MODEL (default sonnet),
 #   BRIGADE_PERMISSION_MODE (default: auto — cooks run unattended, so a mode that
 #   stops on every permission would stall them), BRIGADE_TERMINAL,
 #   BRIGADE_CLAUDE_ARGS (extra flags for every claude session open starts, baked into
@@ -230,10 +236,6 @@ COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null 
 GIT_DIR_ABS="$(git rev-parse --absolute-git-dir 2>/dev/null || true)"
 if [[ -n "$COMMON_DIR" && "$COMMON_DIR" != "$GIT_DIR_ABS" && "$(basename "$COMMON_DIR")" == .git ]]; then
   ROOT="$(dirname "$COMMON_DIR")"
-# A clone station sits two levels below its owner: <owner>/stations/station-N.
-elif [[ "$(basename "$ROOT")" == station-* ]]; then
-  OWNER="$(git -C "$(dirname "$(dirname "$ROOT")")" rev-parse --show-toplevel 2>/dev/null || true)"
-  [[ -n "$OWNER" && -f "$OWNER/.claude/brigade.md" ]] && ROOT="$OWNER"
 fi
 CONFIG="$ROOT/.claude/brigade.md"
 REPO_NAME="$(basename "$ROOT")"
@@ -277,12 +279,13 @@ cfg_docs() {  # cfg_docs <key> [default] → docs.<key>, else the default, else 
 TRUNK="${BRIGADE_TRUNK:-$(cfg trunk)}"
 TRUNK="${TRUNK:-$(git -C "$ROOT" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')}"
 TRUNK="${TRUNK:-main}"
-MODE="${BRIGADE_KITCHEN_MODE:-$(cfg kitchen_mode)}"; MODE="${MODE:-clone}"
-case "$MODE" in clone|worktree) ;; *) echo "kitchen_mode must be clone or worktree (got: $MODE)" >&2; exit 1 ;; esac
+# Clone stations are gone (#85). A config that still says clone may only run `remove`, which
+# deletes the old <repo>/stations/; every other command stops below, before the dispatcher.
+LEGACY_CLONE=false
+[[ "${BRIGADE_KITCHEN_MODE:-$(cfg kitchen_mode)}" == clone ]] && LEGACY_CLONE=true
 KITCHEN_REL="${BRIGADE_KITCHEN:-$(cfg kitchen)}"
-if [[ -z "$KITCHEN_REL" ]]; then
-  [[ "$MODE" == worktree ]] && KITCHEN_REL="../${REPO_NAME}-stations" || KITCHEN_REL="stations"
-fi
+$LEGACY_CLONE && KITCHEN_REL="stations"
+KITCHEN_REL="${KITCHEN_REL:-../${REPO_NAME}-stations}"
 [[ "$KITCHEN_REL" == /* ]] && KITCHEN="$KITCHEN_REL" || KITCHEN="$ROOT/$KITCHEN_REL"
 # Normalise ../ so paths print cleanly and compare reliably.
 if [[ -d "$(dirname "$KITCHEN")" ]]; then
@@ -632,8 +635,8 @@ where() {  # where <station> → branch name, or "detached @ <sha>"
 }
 
 # ignore_kitchen → add the kitchen folder to the .gitignore of whichever repo
-# contains it: this repo (clone mode) or an enclosing workspace repo (a sibling
-# worktree folder inside e.g. a docker/workspace checkout). Outside any repo:
+# contains it: this repo (a `kitchen:` inside it) or an enclosing workspace repo (the
+# sibling folder inside e.g. a docker/workspace checkout). Outside any repo:
 # nothing to ignore.
 ignore_kitchen() {
   local parent owner rel
@@ -660,10 +663,10 @@ changed_files() {  # committed-but-unmerged ∪ working tree, deduped
 # setup
 # ---------------------------------------------------------------------------
 cmd_setup() {
-  local remote; remote=$(git -C "$ROOT" remote get-url origin 2>/dev/null) \
-    || { echo "No 'origin' remote: stations clone from it."; exit 1; }
+  git -C "$ROOT" remote get-url origin >/dev/null 2>&1 \
+    || { echo "No 'origin' remote: stations start from origin/$TRUNK."; exit 1; }
 
-  # Stations clone origin/<trunk>, not this working tree. If the Brigade setup
+  # Stations start at origin/<trunk>, not this working tree. If the Brigade setup
   # isn't pushed yet, every cook would start without its config and CLAUDE.md.
   git -C "$ROOT" fetch --quiet origin "$TRUNK" 2>/dev/null || true
   if ! git -C "$ROOT" cat-file -e "origin/$TRUNK:.claude/brigade.md" 2>/dev/null; then
@@ -671,9 +674,8 @@ cmd_setup() {
 
   Not yet: origin/$TRUNK has no .claude/brigade.md.
 
-  Stations start from origin/$TRUNK (a fresh clone, or a worktree detached
-  there), so they'd start without the
-  Brigade setup (config, CLAUDE.md section, docs/ folders). Get the setup onto
+  Stations start from origin/$TRUNK (a worktree detached there), so they'd start
+  without the Brigade setup (config, CLAUDE.md section, docs/ folders). Get the setup onto
   origin/$TRUNK first (push it, or merge its PR), then run this again:
 
     git add -A && git commit -m "chore: set up The Brigade" && git push origin $TRUNK
@@ -684,11 +686,7 @@ EOF2
   ignore_kitchen
 
   echo ""
-  if [[ "$MODE" == worktree ]]; then
-    echo "  Creating $N worktree station(s) in $KITCHEN (detached at origin/$TRUNK)"
-  else
-    echo "  Creating $N station(s) of $remote in $KITCHEN_REL/ (trunk: $TRUNK)"
-  fi
+  echo "  Creating $N worktree station(s) in $KITCHEN (detached at origin/$TRUNK)"
   mkdir -p "$KITCHEN"
   local i st f
   for i in $(seq 1 "$N"); do
@@ -697,16 +695,11 @@ EOF2
       echo "  station-$i: exists ($(where "$st")) — left alone"
       continue
     fi
-    if [[ "$MODE" == worktree ]]; then
-      # Detached, because trunk is already checked out in the main checkout and
-      # git allows one worktree per branch. The cook branches off origin/<trunk>.
-      echo "  station-$i: adding worktree ..."
-      git -C "$ROOT" worktree add --quiet --detach "$st" "origin/$TRUNK" \
-        || { echo "  station-$i: 'git worktree add' failed — skipped"; continue; }
-    else
-      echo "  station-$i: cloning ..."
-      git clone --quiet "$remote" "$st" && git -C "$st" checkout --quiet "$TRUNK" 2>/dev/null || true
-    fi
+    # Detached, because trunk is already checked out in the main checkout and
+    # git allows one worktree per branch. The cook branches off origin/<trunk>.
+    echo "  station-$i: adding worktree ..."
+    git -C "$ROOT" worktree add --quiet --detach "$st" "origin/$TRUNK" \
+      || { echo "  station-$i: 'git worktree add' failed — skipped"; continue; }
 
     for f in $COPY_FILES; do
       [[ -f "$ROOT/$f" && ! -f "$st/$f" ]] && cp "$ROOT/$f" "$st/$f" && echo "  station-$i: copied $f"
@@ -768,14 +761,12 @@ EOF
       file watchers, pytest norecursedirs.
 EOF
   fi
-  if [[ "$MODE" == worktree ]]; then
-    cat <<EOF
+  cat <<EOF
   ⚠️  Worktrees share one repo. Stashes are shared too: a cook stashes with
       'git stash push -m "<station>: …"' and applies only its own, by name.
   ⚠️  Remove stations with 'kitchen.sh remove', never rm -rf: git keeps a
       record of every worktree and would be left with stale ones.
 EOF
-  fi
   [[ "${AUTO_SETUP:-}" == true ]] && return 0
   cat <<EOF
 
@@ -937,25 +928,18 @@ cmd_sync() {
     if [[ -n "$(git -C "$s" status --porcelain)" ]]; then
       echo "  $name: dirty — skipped (a cook may be mid-ticket; ask the sous)"; continue
     fi
-    if [[ "$MODE" == worktree ]]; then
-      # Trunk is checked out in the main checkout, so an idle worktree sits
-      # detached at origin/<trunk> instead.
-      git -C "$s" fetch --quiet origin "$TRUNK" \
-        && git -C "$s" switch --quiet --detach "origin/$TRUNK" \
-        && echo "  $name: synced, detached at origin/$TRUNK ($(git -C "$s" rev-parse --short HEAD))"
-    else
-      git -C "$s" fetch --quiet origin "$TRUNK" \
-        && git -C "$s" checkout --quiet "$TRUNK" \
-        && git -C "$s" reset --quiet --hard "origin/$TRUNK" \
-        && echo "  $name: synced to origin/$TRUNK ($(git -C "$s" rev-parse --short HEAD))"
-    fi
+    # Trunk is checked out in the main checkout, so an idle worktree sits
+    # detached at origin/<trunk> instead.
+    git -C "$s" fetch --quiet origin "$TRUNK" \
+      && git -C "$s" switch --quiet --detach "origin/$TRUNK" \
+      && echo "  $name: synced, detached at origin/$TRUNK ($(git -C "$s" rev-parse --short HEAD))"
   done < <(stations)
   $found || echo "No stations in $KITCHEN_REL/."
 }
 
 cmd_status() {
   local s found=false
-  echo ""; echo "Stations ($MODE, $KITCHEN_REL/, trunk $TRUNK):"
+  echo ""; echo "Stations ($KITCHEN_REL/, trunk $TRUNK):"
   while IFS= read -r s; do
     found=true
     printf '  %-11s %-44s %-6s +%s\n' "$(basename "$s")" "$(where "$s")" \
@@ -2257,7 +2241,67 @@ cmd_ship() {
   method="$(cfg_gate merge_method merge)"
   case "$method" in merge|squash|rebase) ;; *) echo "Not merged: gates.merge_method is $method; use merge, squash or rebase." >&2; return 1 ;; esac
   (cd "$ROOT" && gh pr merge "$n" "--$method") || { echo "Not merged: gh pr merge #$n failed (see above)." >&2; return 1; }
-  echo "Merged #$n ($head) into $TRUNK by $method (gates.merge: sous-chef). $TRUNK moved: stations on a branch bring it in before their PR; kitchen.sh status shows who is behind."
+  echo "Merged #$n ($head) into $TRUNK by $method (gates.merge: sous-chef). $TRUNK moved: stations on a branch bring it in before their PR; kitchen.sh status shows who is behind. Next: kitchen.sh done <station> for the cook's station."
+}
+
+# ---------------------------------------------------------------------------
+# done — a served ticket's station goes back to trunk (#85). A station's work is ephemeral:
+# once its PR is merged the ticket branch is deleted (here and on origin) and the station is
+# detached at origin/<trunk>; the worktree folder stays, because the cook's session lives in it.
+# The merge is proven through gh, never assumed: the branch's PR must be MERGED, and the
+# station's tip must be that PR's head, so a commit made after the PR was opened is never lost
+# (a squash or rebase merge passes: the tip is the PR's head, not a commit on trunk). Refuses a
+# dirty station and a busy session. The one summary line says what was and wasn't deleted, so a
+# refused `git push origin --delete` shows (and the exact command is printed). Never force-pushes;
+# the local branch is deleted with -D, which a squash merge needs, only at the merged PR's head, and
+# the origin branch only when it still is at that head. The PR must be merged into trunk.
+# ---------------------------------------------------------------------------
+cmd_done() {
+  local who="$CLEAR_WHO" dir branch rows pr="" pretip="" other="" n st tip base reg f lstate rstate rsha rc=0
+  [[ "$who" == station-* ]] || { echo "Usage: kitchen.sh done <station-N>" >&2; return 1; }
+  dir="$KITCHEN/$who"; [[ -e "$dir/.git" ]] || { echo "No such station: $who" >&2; return 1; }
+  command -v gh >/dev/null 2>&1 || { echo "done needs the gh CLI on your PATH, logged in." >&2; return 1; }
+  branch="$(git -C "$dir" branch --show-current)"
+  [[ -n "$branch" ]] || { echo "$who is already detached ($(git -C "$dir" rev-parse --short HEAD)): nothing to do."; return 0; }
+  [[ "$branch" != "$TRUNK" ]] || { echo "Not done: $who is on $TRUNK itself, not a ticket branch." >&2; return 1; }
+  [[ -z "$(git -C "$dir" status --porcelain)" ]] || { echo "Not done: $who has uncommitted work on $branch." >&2; return 1; }
+  reg="$(registry_of "$dir")"
+  if [[ -n "$reg" && "$(json_str "$reg" status)" != idle ]]; then
+    echo "Not done: $who ($(json_str "$reg" name)) is busy. Wait for its turn to end." >&2; return 1
+  fi
+  rows="$(cd "$ROOT" && gh pr list --head "$branch" --state all --json number,state,headRefOid,baseRefName \
+    --jq '.[] | "\(.number) \(.state) \(.headRefOid) \(.baseRefName)"' 2>/dev/null)" \
+    || { echo "Not done: gh could not list the PRs of $branch." >&2; return 1; }
+  while read -r n st tip base; do
+    [[ "$st" == MERGED ]] || continue
+    if [[ "$base" == "$TRUNK" ]]; then pr="$n"; pretip="$tip"; break; else other="#$n into $base"; fi
+  done <<<"$rows"
+  if [[ -z "$pr" && -n "$other" ]]; then
+    echo "Not done: $branch's merged PR went into another branch ($other), not $TRUNK: its work has not reached $TRUNK." >&2; return 1
+  fi
+  [[ -n "$pr" ]] || { echo "Not done: $branch has no merged PR (${rows:-no PR found}). Only a merged ticket's branch is deleted." >&2; return 1; }
+  [[ "$(git -C "$dir" rev-parse HEAD)" == "$pretip" ]] \
+    || { echo "Not done: $branch is at $(git -C "$dir" rev-parse --short HEAD) but merged PR #$pr ended at ${pretip:0:7}: the station has commits the PR does not. Push or park them first." >&2; return 1; }
+  if ! git -C "$dir" fetch --quiet origin "$TRUNK" || ! git -C "$dir" switch --quiet --detach "origin/$TRUNK"; then
+    echo "Not done: could not detach $who at origin/$TRUNK." >&2; return 1
+  fi
+  lstate=deleted; rstate="already gone"
+  git -C "$dir" branch -D "$branch" >/dev/null 2>&1 || { lstate="NOT deleted"; rc=1; }
+  # the exact ref, and only at the PR's head: a push after the merge is unmerged work on origin
+  rsha="$(git -C "$dir" ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)"
+  if [[ -n "$rsha" && "$rsha" != "$pretip" ]]; then
+    rstate="NOT deleted (it moved past PR #$pr: ${rsha:0:7})"; rc=1
+    echo "origin/$branch holds commits the merged PR does not (${rsha:0:7}, the PR ended at ${pretip:0:7}); look at them, then delete it by hand if they are not wanted." >&2
+  elif [[ -n "$rsha" ]]; then
+    if git -C "$dir" push --quiet origin --delete "$branch" 2>/dev/null; then rstate=deleted
+    else
+      rstate="NOT deleted"; rc=1
+      echo "The remote delete of $branch did not happen (refused or failed); run: git push origin --delete $branch" >&2
+    fi
+  fi
+  for f in go check.log check.out grilling; do rm -f "$dir/.claude/$f"; done
+  echo "$who: PR #$pr merged. Detached at origin/$TRUNK ($(git -C "$dir" rev-parse --short HEAD)); local branch $branch: $lstate; origin branch: $rstate; per-ticket files cleared."
+  return $rc
 }
 # seed_sous_permissions: the sous runs in a mode that asks before a shell command, and nobody
 # watches its pane for long. When the merge is the sous's, open seeds the main checkout's
@@ -2742,28 +2786,35 @@ cmd_remove() {
   [[ -d "$KITCHEN" ]] || { echo "No $KITCHEN_REL/ to remove."; exit 0; }
   cmd_status || true
   echo ""
-  if [[ "$MODE" == worktree ]]; then
+  if $LEGACY_CLONE; then
+    echo "This deletes $KITCHEN_REL/ — every old clone station, including unpushed branches and uncommitted work."
+  else
     echo "This removes every worktree in $KITCHEN_REL/. Branches and commits stay in the repo;"
     echo "a station with uncommitted work is refused, not deleted."
-  else
-    echo "This deletes $KITCHEN_REL/ — every station, including unpushed branches and uncommitted work."
   fi
   read -r -p "Type 'delete' to confirm: " answer
   [[ "$answer" == delete ]] || { echo "Aborted."; exit 1; }
-  if [[ "$MODE" == worktree ]]; then
-    # git worktree remove refuses a dirty worktree, which is the point: it
-    # would otherwise delete a cook's uncommitted work. Stash or commit first.
-    local s failed=false
-    while IFS= read -r s; do
-      git -C "$ROOT" worktree remove "$s" && echo "  $(basename "$s"): removed" \
-        || { echo "  $(basename "$s"): NOT removed (dirty? commit or stash it first)"; failed=true; }
-    done < <(stations)
-    git -C "$ROOT" worktree prune
-    $failed || { rmdir "$KITCHEN" 2>/dev/null; echo "Removed."; }
-  else
-    rm -rf "$KITCHEN"; echo "Removed."
+  if $LEGACY_CLONE; then
+    # The one clone path left (#85): the migration is `remove`, then `setup`.
+    rm -rf "$KITCHEN"; echo "Removed. Now delete the kitchen_mode line from .claude/brigade.md and run kitchen.sh setup."
+    return 0
   fi
+  # git worktree remove refuses a dirty worktree, which is the point: it
+  # would otherwise delete a cook's uncommitted work. Stash or commit first.
+  local s failed=false
+  while IFS= read -r s; do
+    if git -C "$ROOT" worktree remove "$s"; then echo "  $(basename "$s"): removed"
+    else echo "  $(basename "$s"): NOT removed (dirty? commit or stash it first)"; failed=true; fi
+  done < <(stations)
+  git -C "$ROOT" worktree prune
+  $failed || { rmdir "$KITCHEN" 2>/dev/null; echo "Removed."; }
 }
+
+# A config that still says kitchen_mode: clone gets one line and an exit 1 (#85); only `remove` runs.
+if $LEGACY_CLONE && [[ "$CMD" != remove ]]; then
+  echo "kitchen_mode: clone is gone: stations are worktrees now. Run 'kitchen.sh remove' (it asks before it deletes the old stations/ folder; push or park any unpushed work first), delete the kitchen_mode line from .claude/brigade.md, then run 'kitchen.sh setup'." >&2
+  exit 1
+fi
 
 # the commands that list what is due read the record as trunk and the open record branches hold it
 case "$CMD" in
@@ -2779,5 +2830,5 @@ case "$CMD" in
   decisions) cmd_decisions ;; inbox) cmd_inbox ;; asks) cmd_asks ;; gaps) cmd_gaps ;; doctor) cmd_doctor ;; index) cmd_index ;;
   record-pr) cmd_record_pr ;;
   procs) cmd_procs ;;
-  sessions) cmd_sessions ;; clear) cmd_clear ;; ship) cmd_ship ;; check) cmd_check ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; *) usage ;;
+  sessions) cmd_sessions ;; clear) cmd_clear ;; ship) cmd_ship ;; done) cmd_done ;; check) cmd_check ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; *) usage ;;
 esac

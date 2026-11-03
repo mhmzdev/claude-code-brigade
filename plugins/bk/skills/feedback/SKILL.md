@@ -40,7 +40,7 @@ Gather these without asking:
 - plugin version: `version` in `${CLAUDE_SKILL_DIR}/../../.claude-plugin/plugin.json`;
 - Claude Code version: `claude --version`;
 - OS: `uname -sr`;
-- `kitchen_mode` and the rail adapter (`markdown`, `github` or `jira`) from `.claude/brigade.md`, or "no config";
+- the rail adapter (`markdown`, `github` or `jira`) from `.claude/brigade.md`, or "no config";
 - role: `sous`, `cook`, or `solo`, from the station check and this session;
 - the skill the feedback is about, if there is one.
 
@@ -99,7 +99,7 @@ what the maintainers need. When unsure whether something is theirs, scrub it.
    <or "Not stated.">
 
    ### Version and setup
-   bk <version> · Claude Code <version> · <OS> · <kitchen_mode> · rail <adapter> · <role>
+   bk <version> · Claude Code <version> · <OS> · rail <adapter> · <role>
 
    ### Session context
    <the summary, the excerpt as a quote block, or "None shared.">

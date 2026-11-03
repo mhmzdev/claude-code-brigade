@@ -115,7 +115,7 @@ function renderSessions(b, w) {
 // ---------- render ----------
 function render() {
   if (!state) return;
-  const k = state.kitchen; $('#repo').textContent = k.repo; $('#mode').textContent = `${k.mode} · trunk ${k.trunk}`; $('#demo').hidden = !k.demo;
+  const k = state.kitchen; $('#repo').textContent = k.repo; $('#mode').textContent = `trunk ${k.trunk}`; $('#demo').hidden = !k.demo;
   for (const b of document.querySelectorAll('#views button')) b.classList.toggle('on', b.dataset.view === ui.view);
   for (const b of document.querySelectorAll('#ranges button')) b.classList.toggle('on', b.dataset.range === ui.range);
   const b = state.budget;

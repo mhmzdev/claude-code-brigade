@@ -1,7 +1,7 @@
 ---
 name: kitchen
-description: Manage the Brigade's stations — the clones (stations/) or worktrees (../<repo>-stations/) where line cooks work. Create them, open the kitchen in tmux (the sous already running /bk:sous-chef, one session per station already running /bk:line-cook; Warp or the OS's terminal as fallbacks), sync clean ones to trunk, and print the status, files-in-flight and rail boards the sous chef reads. Use when the user says "set up stations", "open the kitchen", "open the line cooks", "station status", "what's in flight", "show the rail", "/bk:kitchen".
-argument-hint: "setup [-n N] | open [-n N] [-m \"O S\"] [--terminal tmux|warp|native|print] [--bare] [--no-launch] | sync | status | files | rail | board | leaks [--dir D] [--also F] | questions | asks [--add TEXT [--ticket ID] [--gap KIND]] [--answer A3 TEXT] [--filed A3 TEXT] | gaps | decisions | index [--check] [--adopt] | inbox [--add TEXT] | doctor | lessons | debrief [--json] | sessions [--dir D] | role | sous [--set NAME] | remove"
+description: Manage the Brigade's stations — the git worktrees (../<repo>-stations/) where line cooks work. Create them, open the kitchen in tmux (the sous already running /bk:sous-chef, one session per station already running /bk:line-cook; Warp or the OS's terminal as fallbacks), sync clean ones to trunk, and print the status, files-in-flight and rail boards the sous chef reads. Use when the user says "set up stations", "open the kitchen", "open the line cooks", "station status", "what's in flight", "show the rail", "/bk:kitchen".
+argument-hint: "setup [-n N] | open [-n N] [-m \"O S\"] [--terminal tmux|warp|native|print] [--bare] [--no-launch] | sync | status | files | rail | board | leaks [--dir D] [--also F] | questions | asks [--add TEXT [--ticket ID] [--gap KIND]] [--answer A3 TEXT] [--filed A3 TEXT] | gaps | decisions | index [--check] [--adopt] | inbox [--add TEXT] | doctor | lessons | debrief [--json] | sessions [--dir D] | role | sous [--set NAME] | done <station-N> | remove"
 allowed-tools: Bash, Read
 ---
 
@@ -22,9 +22,10 @@ from the main checkout; it reads the flat keys in `.claude/brigade.md`.
 
 | Command | Does |
 |---|---|
-| `setup [-n N]` | create N stations (clones in `stations/`, or worktrees in `../<repo>-stations/` when `kitchen_mode: worktree`), add the ignore line to whichever repo contains them (and `.dockerignore` if present), copy `copy_into_stations`, seed a small `settings.local.json`, run `install`. Existing stations are left alone, so `setup -n 4` on a 2-station kitchen adds station-3 and station-4 |
+| `setup [-n N]` | create N stations (worktrees in `../<repo>-stations/`, or the config's `kitchen:`), add the ignore line to whichever repo contains them (and `.dockerignore` if present), copy `copy_into_stations`, seed a small `settings.local.json`, run `install`. Existing stations are left alone, so `setup -n 4` on a 2-station kitchen adds station-3 and station-4 |
 | `open [-n N] [-m "O S"] [--terminal …] [--bare]` | open one `claude` session per station (every station, or the first N with `-n`), **already running `/bk:line-cook`**. With no stations yet it runs `setup` itself first (the config's `stations:` count), so a first `open` is enough; it still refuses, saying why, while `origin/<trunk>` has no `.claude/brigade.md`. A station where a `claude` session is already working is left alone, so after `setup -n 4` a plain `open` starts only the new cooks (`--bare` for a plain session). `-m` takes one model per station in order (O/S/H/F or full names; one value covers all). Terminal defaults to **tmux**: one session `<repo>-brigade` with a `sous` window in the main checkout already running `/bk:sous-chef` (model from `sous_model` in the config, else opus) and one window per station; it prints the attach line (`tmux attach -t <repo>-brigade:sous`). A Mac without tmux gets it from Homebrew; Linux is told the package line. Fallbacks, or on request with `--terminal`: Warp if installed, else the OS's own terminal (Terminal.app on macOS; Windows Terminal, or mintty in Git Bash, on Windows and WSL; the desktop's terminal on Linux), else printed commands; with those you start the sous yourself. `--no-launch` writes the Warp config or shows the native launch without opening anything. Every station it opens gets `.claude/cook` (kept out of git): a launcher that restarts that cook with the same `CLAUDE_CONFIG_DIR`, name, model and permission mode, resuming the last session by default. After a pause (`bk stop` saved a session id in `.claude/sous-session` or a station's `.claude/cook-session`), open resumes that session with `claude --resume <id>` and forgets the id. `BRIGADE_CLAUDE_ARGS` adds flags to every session it starts (the `bk` command sets `--plugin-dir`) |
-| `sync` | reset **clean** stations to `origin/<trunk>` (worktrees: detached there). Dirty ones are skipped: a cook may be mid-ticket |
+| `sync` | detach **clean** stations at `origin/<trunk>`. Dirty ones are skipped: a cook may be mid-ticket |
+| `done <station-N>` | after the merge, the sous's job (End of shift: `ship`, `done`, the reap, `clear`): detach the station at `origin/<trunk>`, delete the ticket branch locally and on origin, remove its per-ticket files (`.claude/check.log`, `check.out`, `grilling`, `go`); the folder and the cook's session stay. Only a branch whose PR gh says is merged into trunk, and whose tip is that PR's head (the origin branch is deleted only while it still is at that head); refuses a dirty station or a busy cook; never force-pushes. One summary line says what was and wasn't deleted, and a refused or skipped remote delete exits 1 |
 | `status` | branch, dirty/clean, commits ahead per station, plus open PRs against trunk |
 | `files` | files in flight per station vs `origin/<trunk>` (committed and uncommitted), plans, and **unmerged migrations** flagged |
 | `rail` | the markdown rail's board, computed from ticket frontmatter; `done` tickets hidden. `PRI` is the ticket's priority; `RDY` says whether a free ticket can be taken (`yes`: no open blocker; `spec`: a backlog item that is none of a bug, a chore or a precedent, so it needs a spec first); open blockers follow the title, and one that is no ticket on the rail is marked `?` and holds the ticket |
@@ -46,7 +47,7 @@ from the main checkout; it reads the flat keys in `.claude/brigade.md`.
 | `debrief [--json]` | the kitchen's own friction over the last week, read from the budget (Contract 11): the check red three times on a ticket, rework over a third of its spend, ten CI minutes or more, a gate the record had after the commis said nothing, a session carrying too much context. One row per rule tripped with the tickets or sessions and the fix; `DUE` at two, `promoted` once the register lists the key. The sous's handoff fires a chore per due row |
 | `budget [--ticket ID] [--since today\|7d] [--ci] [--json]` | what the kitchen spends (Contract 2), and what each ticket asked: per session and per ticket, tokens (input, output, cache read, cache write), money at list prices (`prices:` in the config overrides), working time per session, brief→served and each phase per ticket, every sub-agent, and with `--ci` the CI minutes of each ticket's PR branch through `gh`. Read from the transcripts Claude Code keeps; served tickets and CI results are kept in `.claude/budget.jsonl`, out of git. `--ticket ID --journal-line [--session NAME]` prints the one line `/bk:open-pr` appends to the journal. Needs node 20+ |
 | `sessions [--dir D]` | the Claude Code session transcripts saved for this checkout (or `D`, e.g. a station), newest first, from `$CLAUDE_CONFIG_DIR` (else `~/.claude`). `/bk:feedback` uses it |
-| `remove` | delete every station, after showing status and asking for `delete`. Worktree mode uses `git worktree remove`, which refuses a dirty station and keeps every branch |
+| `remove` | remove every station, after showing status and asking for `delete`. It uses `git worktree remove`, which refuses a dirty station and keeps every branch. (With a config that still says `kitchen_mode: clone`, the one command that runs: it deletes the old `stations/` folder, then tells you to drop the line and run `setup`) |
 
 ## How to run it
 
@@ -55,12 +56,13 @@ from the main checkout; it reads the flat keys in `.claude/brigade.md`.
 ```
 
 Show the user the script's output as it is; don't reformat the boards into prose. For
-`setup`, relay the two warnings it prints (`git clean -fdx`, and tools that don't read
-`.gitignore`) and tell the user to commit the `.gitignore` change.
+`setup`, relay the warnings it prints (shared stashes, `kitchen.sh remove` not `rm -rf`, and when
+the kitchen sits inside the repo `git clean -fdx` and tools that don't read `.gitignore`) and tell
+the user to commit any `.gitignore` change.
 
 **`open` with no stations yet** means setup hasn't run. Don't stop at the script's error:
 check `git cat-file -e origin/<trunk>:.claude/brigade.md`. If the setup isn't pushed,
-say that stations clone from `origin/<trunk>` and offer, in one question, to commit + push
+say that stations start from `origin/<trunk>` and offer, in one question, to commit + push
 the setup, run `setup`, then `open`. If it is pushed, run `setup` then `open`.
 
 **A station dirty right after `setup`** means the install changed tracked files. Show

@@ -243,7 +243,7 @@ cmd_open() {
   warn_auth_env
   if $fresh; then
     rm -f "$ROOT/.claude/sous-session"
-    for s in $(git -C "$ROOT" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p') "$ROOT"/stations/station-*; do
+    for s in $(git -C "$ROOT" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p'); do
       [[ -d "$s" ]] && rm -f "$s/.claude/cook-session"
     done
   elif [[ -s "$ROOT/.claude/sous-session" ]]; then

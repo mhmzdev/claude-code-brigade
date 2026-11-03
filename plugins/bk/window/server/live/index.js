@@ -14,9 +14,9 @@ import { fileURLToPath } from 'node:url';
 
 export function startLive(store, startDir, control = null) {
   const cfg = readConfig(startDir);
-  store.setKitchen({ repo: cfg.repo, root: cfg.root, mode: cfg.mode, trunk: cfg.trunk, configured: cfg.hasConfig, rail: cfg.railAdapter });
+  store.setKitchen({ repo: cfg.repo, root: cfg.root, trunk: cfg.trunk, configured: cfg.hasConfig, rail: cfg.railAdapter });
   if (!cfg.hasConfig) console.log(`No .claude/brigade.md in ${cfg.root}: showing stations and sessions only.`);
-  console.log(`kitchen: ${cfg.root} (${cfg.mode}, trunk ${cfg.trunk}, stations in ${cfg.kitchen})`);
+  console.log(`kitchen: ${cfg.root} (trunk ${cfg.trunk}, stations in ${cfg.kitchen})`);
 
   watchStations(cfg, store);
   watchRail(cfg, store);

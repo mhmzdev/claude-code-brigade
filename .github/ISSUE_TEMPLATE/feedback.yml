@@ -21,8 +21,8 @@ body:
     id: setup
     attributes:
       label: Version and setup
-      description: Plugin version, Claude Code version, OS, kitchen mode, rail adapter, and your role (sous, cook or solo).
-      placeholder: bk 0.8.0 · Claude Code 2.x · macOS · clone · rail markdown · sous
+      description: Plugin version, Claude Code version, OS, rail adapter, and your role (sous, cook or solo).
+      placeholder: bk 0.8.0 · Claude Code 2.x · macOS · rail markdown · sous
   - type: textarea
     id: session
     attributes:

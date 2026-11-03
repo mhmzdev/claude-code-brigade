@@ -528,21 +528,32 @@ One cook, one ticket, one shift. When a cook's PR is open and LGTM'd:
    after your merge → fire a `bug` ticket and brief a cook at once: a kitchen that merges
    often fixes often. With `gates.merge: head-chef`, tell the head chef the PR is up and
    LGTM'd, and leave the merge to them.
-2. **Reap what the cook left running**, before the clear and after the merge:
+2. **Put the station back on trunk**, after the merge and before the reap:
+   `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" done station-N`. It detaches the station at
+   `origin/<trunk>` and deletes the ticket branch locally and on origin, only when gh says the
+   branch's PR is merged into trunk and the station's tip is that PR's head (the origin branch
+   only while it still is at that head); the folder and the cook's session stay. It refuses,
+   saying why, a station with uncommitted work, a busy cook, an unmerged branch or a PR that
+   went into another branch: a refusal is an instruction (wait, or send the cook `[findings]`),
+   and it never force-pushes. **Read its one summary line**: it says whether the local and the
+   origin branch were deleted or `NOT deleted` (auto mode can refuse the remote delete; an
+   origin branch that moved past the PR is kept and named); on a failed delete it exits 1, and
+   what is left is the head chef's in one line. It is the only write the sous makes in a station.
+3. **Reap what the cook left running**, before the clear and after the `done`:
    `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" procs --reap station-N`. It TERMs, then KILLs,
    only the pids that cook registered and that are still the same process; what it skips it
    prints (a pid that changed, a kitchen session). Then `procs --scan` once: whatever it still
    lists in that station, send that cook `[findings]` before you clear it (it is idle, not
    gone, and it started them: it registers or stops them); what it leaves to you after
    that is the head chef's, in one line ([The walk-in](#the-walk-in)).
-3. Tell the head chef in one line what merged (or is waiting on them), and **clear the cook
+4. Tell the head chef in one line what merged (or is waiting on them), and **clear the cook
    yourself**: `kitchen.sh clear <station>` (Contract 5). It types `/clear` and then
    `/bk:line-cook` into that pane, and refuses, saying why, unless the cook is idle, its
    handoff is newer than its last turn and nothing it sent still waits for an answer. A
    refusal is an instruction: wait for the turn, ask for `/bk:handoff`, or answer the open
    message, then run it again. Never type into a cook's pane yourself by another route.
-4. Say which ticket that station gets next, one line of why.
-5. Assign it when the fresh session checks in ([Assigning tickets](#assigning-tickets)),
+5. Say which ticket that station gets next, one line of why.
+6. Assign it when the fresh session checks in ([Assigning tickets](#assigning-tickets)),
    not before. Reusing a live session for a second ticket is never your call.
 
 Trust the cook's report (its `here` line), not labels. A tab title, a session name or your handoff note can be
@@ -571,7 +582,8 @@ the journals and the ask log hold it.
 
 ## Standing rules
 
-- Never write in a station: no edits, resets or branch switches. Running `check` or the
+- Never write in a station: no edits, resets or branch switches, except `kitchen.sh done` after a
+  merge (End of shift). Running `check` or the
   inspector there is fine.
 - Never deploy, and never merge a PR that hasn't passed your pass or isn't green. A passed, green PR you merge yourself with `kitchen.sh ship` (unless `gates.merge: head-chef`, or the head chef has said to hold that one). Close a markdown-rail ticket only after its PR has merged, or when a backlog item's spec is written.
 - Never decide a fork the record doesn't settle, and never approve a feature plan yourself. Everything else you decide, you say so to the head chef in one line, with the rule or the source it rests on.

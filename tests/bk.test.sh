@@ -2,7 +2,7 @@
 # =============================================================================
 # tests/bk.test.sh — behaviour tests for bin/bk, the Brigade's command on the machine
 #
-# A throwaway repo with two clone stations, a sealed PATH, and stubs for the three things
+# A throwaway repo with two worktree stations, a sealed PATH, and stubs for the three things
 # bk drives: `claude` (only looked for), `tmux` (logs every call; keeps the session,
 # windows and panes it is told about in files; on `/exit` it ends the pane's process the
 # way a real session would), and the session registry (JSON files under the profile's
@@ -69,7 +69,7 @@ ok() { local desc="$1"; shift; N=$((N+1)); if ( "$@" ) >/dev/null 2>&1; then PAS
 has() { printf '%s' "$1" | grep -qE -- "$2"; }
 section() { echo "# $1"; }
 
-# the repo: a clone of a bare origin, Brigade config pushed, two clone stations
+# the repo: a clone of a bare origin, Brigade config pushed, two worktree stations
 C="$TMP/app"
 git init -q --bare "$C.git"; git clone -q "$C.git" "$C" 2>/dev/null; git -C "$C" checkout -q -b main
 mkdir -p "$C/.claude" "$C/docs/backlog"
@@ -77,7 +77,7 @@ printf -- '---\ntrunk: main\ninstall: "true"\nstations: 2\n---\n' > "$C/.claude/
 git -C "$C" add -A && git -C "$C" commit -qm setup && git -C "$C" push -q -u origin main 2>/dev/null
 cd "$C" || exit 1
 "$K" setup >"$TMP/setup.log" 2>&1 || { echo "setup failed:"; cat "$TMP/setup.log"; exit 1; }
-S1="$C/stations/station-1"
+S1="$C-stations/station-1"
 
 # =============================================================================
 section "version, help, where the plugin is"

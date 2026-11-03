@@ -6,7 +6,7 @@
 ![The Brigade: a sous chef bot at the pass, line-cook bots at five stations, and the human head chef overseeing](assets/hero.jpeg)
 
 Run a kitchen of Claude Code sessions on one machine. A **sous chef** session leads, a few
-**line cook** sessions each work one ticket in their own **station** (a clone or worktree),
+**line cook** sessions each work one ticket in their own **station** (a git worktree),
 and you are the **head chef**: you approve feature plans; the sous merges what passed its review and is green. The sessions talk to
 each other over `SendMessage`. No daemon, no queue, no database.
 
@@ -90,17 +90,16 @@ bk stations -n 3            # three stations, three cooks
 ```
 
 `bk setup` writes the config (`.claude/brigade.md`), the ticket folders under `docs/` and a
-short section in `CLAUDE.md`. It detects whether stations should be clones inside the repo
-(`stations/`, gitignored) or worktrees next to it (`../<repo>-stations/`, for big repos and
-workspaces), and says which; `bk setup --worktree` or `--clone` picks for it. Stations are
-created from the pushed trunk, which is why the push comes first. Never run
-`git clean -fdx` in a repo with clones inside it.
+short section in `CLAUDE.md`. Stations are git worktrees next to the repo
+(`../<repo>-stations/`), created from the pushed trunk, which is why the push comes first.
+When a ticket is merged, the sous runs `kitchen.sh done`: the station is detached at trunk and the
+ticket branch deleted; the folder stays.
 
 <details>
 <summary>Inside Claude Code</summary>
 
 ```
-/bk:setup                   # or /bk:setup --worktree, /bk:setup --clone
+/bk:setup
 /bk:kitchen setup -n 3
 ```
 </details>
@@ -268,7 +267,7 @@ The rules every skill follows are in [`plugins/bk/skills/README.md`](plugins/bk/
 | `bk stop` says a session is still busy after the timeout | its handoff didn't finish | it was saved and stopped anyway; `bk open` resumes it. `bk stop --timeout 1200` waits longer |
 | the sous can't find a cook, or the reverse | they run under different Claude Code profiles | open everything with `bk open`; to restart one cook by hand, run `.claude/cook` in its station, which keeps the profile |
 | a cook has sat on one edit for a long time, and the sous says "edit denied" | auto mode refuses writes under `.claude/` (and sometimes `CLAUDE.md`); an allow rule in settings doesn't help, and no session may do it for the cook | go to that cook's terminal: make the edit yourself, or move that session to a mode that prompts (`default` or `acceptEdits`), then tell the sous |
-| a station is dirty right after setup | the install step wrote into it | `git -C stations/station-N diff`, fix the cause in the main checkout, then `git -C stations/station-N checkout -- .` |
+| a station is dirty right after setup | the install step wrote into it | `git -C ../<repo>-stations/station-N diff`, fix the cause in the main checkout, then `git -C ../<repo>-stations/station-N checkout -- .` |
 
 ## Feedback
 

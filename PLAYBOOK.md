@@ -79,23 +79,22 @@ and shows each change first. Two things to look at yourself:
 
 ## Stations
 
-A station is where one cook works. There are two kinds, set by `kitchen_mode:` in the
-config.
+A station is where one cook works: a git worktree of the main checkout, at
+`../<repo>-stations/station-N`, next to the repo. (Clone stations and `kitchen_mode:` are gone;
+a config that still says `kitchen_mode: clone` makes `kitchen.sh` stop and say what to do.)
 
-| Mode | Where | What it is | Use it for |
-|---|---|---|---|
-| `clone` (default) | `<repo>/stations/station-N`, gitignored | a full clone | one standalone repo |
-| `worktree` | `../<repo>-stations/station-N`, next to the repo | a git worktree | big repos, and repos inside a workspace repo |
+**Why outside the repo?** A git worktree placed inside its own repo would be seen by every tool
+that walks the repo: the type checker, the test runner, the linter, file watchers, docker builds.
+Next to the repo, none of them see it, and a workspace repo that holds the app keeps working.
 
-**Why are worktree stations outside the repo?** A git worktree placed inside its own repo
-would be seen by every tool that walks the repo: the type checker, the test runner, the
-linter, file watchers, docker builds. Next to the repo, none of them see it. Clone stations
-sit inside `stations/` because a clone is self-contained and the folder is gitignored; the
-price is that tools ignoring `.gitignore` must be told to skip it, and
-**`git clean -fdx` in the main checkout deletes every station**.
+An idle cook sits detached at `origin/<trunk>` (trunk itself is checked out in the main
+checkout), and stashes and branches are shared across stations.
 
-In a worktree station, an idle cook sits detached at `origin/<trunk>` (trunk itself is
-checked out in the main checkout), and stashes and branches are shared across stations.
+**What happens to a station when its ticket is merged?** Its work is ephemeral. After `ship`, the
+sous runs `kitchen.sh done <station>`: it proves the branch's PR is merged, detaches the station
+at trunk, deletes the ticket branch locally and on origin, and clears the per-ticket files. The
+folder stays, because the cook's session lives in it. End of shift is `ship`, `done`, reap,
+`clear`.
 
 ## Backlog items, tickets and lanes
 
@@ -259,7 +258,7 @@ If you do type in a cook's terminal, the cook does as told and records it in one
 8. On `[go]`: `/bk:clean around` (old mess nearby, drafted as hygiene tickets),
    `/bk:handoff` (the journal's closing section), `/bk:open-pr`. The cook sends `[served]`
    with the PR link.
-9. The sous merges (`kitchen.sh ship`, once CI is green and the PR is up to date) and closes the ticket. Then it reaps what the cook left running (`kitchen.sh procs --reap station-N`: only the processes the cook registered, never a session or a system process) and clears the cook's session (`kitchen.sh clear`) before its next
+9. The sous merges (`kitchen.sh ship`, once CI is green and the PR is up to date) and closes the ticket. Then it puts the station back on trunk (`kitchen.sh done station-N`: detaches it and deletes the merged ticket branch), reaps what the cook left running (`kitchen.sh procs --reap station-N`: only the processes the cook registered, never a session or a system process) and clears the cook's session (`kitchen.sh clear`) before its next
    ticket: one ticket per session.
 
 Lane C (hygiene) skips the plan and the checklist; the ticket is the plan, and the sous

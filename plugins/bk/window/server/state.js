@@ -7,7 +7,7 @@ export const ACTIVITIES = ['idle', 'thinking', 'editing', 'running', 'reading', 
 
 export function createState(kitchen) {
   const state = {
-    kitchen: { repo: 'kitchen', root: '', mode: 'clone', trunk: 'main', ...kitchen },
+    kitchen: { repo: 'kitchen', root: '', trunk: 'main', ...kitchen },
     sous: actor('sous', 'Sous Chef'),
     headChef: { pending: [] },          // questions waiting on the human
     stations: [],                       // [{ id, name, branch, dirty, ahead, ticket, cook }]

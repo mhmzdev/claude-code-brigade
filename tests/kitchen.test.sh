@@ -69,9 +69,9 @@ new_repo() {
 push_all() { git -C "$1" add -A && git -C "$1" commit -qm "$2" && git -C "$1" push -q -u origin main 2>/dev/null; }
 
 # =============================================================================
-section "clone mode (the default)"
+section "worktree stations (the suite)"
 # =============================================================================
-C="$TMP/clone/app"; mkdir -p "$TMP/clone"
+C="$TMP/main/app"; mkdir -p "$TMP/main"; CS="$TMP/main/app-stations"
 new_repo "$C" 'trunk: main
 install: "true"
 copy_into_stations: ".env"
@@ -83,10 +83,10 @@ cd "$C" || exit 1
 out=$("$K" setup 2>&1); rc=$?
 ok "setup refuses while the config isn't pushed" test "$rc" -ne 0
 ok "…and says why" has "$out" "no \.claude/brigade\.md"
-ok "…and creates no station" test ! -e "$C/stations"
+ok "…and creates no station" test ! -e "$CS"
 out=$("$K" open --terminal print 2>&1); rc=$?
 ok "open with no stations tries to create them, and refuses for the same reason" bash -c 'test "$1" -ne 0 && printf "%s" "$2" | grep -q "No stations yet: creating 2" && printf "%s" "$2" | grep -q "no \.claude/brigade\.md"' _ "$rc" "$out"
-ok "…creating none" test ! -e "$C/stations"
+ok "…creating none" test ! -e "$CS"
 
 push_all "$C" "brigade setup"
 out=$("$K" open --terminal print 2>&1)
@@ -94,44 +94,45 @@ ok "a first open creates the stations itself (nobody has to know setup exists)" 
 ok "…and opens them in the same run" has "$out" "--name app-cook-2"
 ok "…without setup's own Next: line" bash -c '! printf "%s" "$1" | grep -q "Next: kitchen.sh open"' _ "$out"
 out=$("$K" setup 2>&1)
-ok "setup creates station-1 and station-2" test -d "$C/stations/station-1/.git" -a -d "$C/stations/station-2/.git"
-ok "stations are full clones (.git is a directory)" test -d "$C/stations/station-2/.git"
-ok "setup gitignores /stations/ in the repo" grep -qx "/stations/" "$C/.gitignore"
-ok "setup copies copy_into_stations files" test -f "$C/stations/station-1/.env"
-ok "setup seeds settings.local.json" test -f "$C/stations/station-1/.claude/settings.local.json"
-ok "setup keeps the grilling marker out of the station's status" grep -qx ".claude/grilling" "$C/stations/station-1/.git/info/exclude"
-ok "fresh stations are clean (seeded files excluded)" test -z "$(git -C "$C/stations/station-1" status --porcelain)"
-ok "setup prints the git clean -fdx warning" has "$out" "git clean -fdx"
+ok "setup creates station-1 and station-2" test -e "$CS/station-1/.git" -a -e "$CS/station-2/.git"
+ok "stations are worktrees (.git is a file)" test -f "$CS/station-2/.git"
+ok "setup adds no ignore line for a kitchen next to the repo" bash -c '! grep -q stations "$1/.gitignore"' _ "$C"
+ok "setup copies copy_into_stations files" test -f "$CS/station-1/.env"
+ok "setup seeds settings.local.json" test -f "$CS/station-1/.claude/settings.local.json"
+ok "setup keeps the grilling marker out of the station's status" grep -qx ".claude/grilling" "$C/.git/info/exclude"
+ok "fresh stations are clean (seeded files excluded)" test -z "$(git -C "$CS/station-1" status --porcelain)"
+ok "setup skips the git clean -fdx warning (the kitchen is outside the repo)" bash -c '! printf "%s" "$1" | grep -q "git clean -fdx"' _ "$out"
+ok "setup prints the shared-stash warning" has "$out" "Stashes are shared"
 ok "setup says cooks start already running /bk:line-cook" has "$out" "cooks start already running"
 out=$("$K" setup 2>&1)
 ok "setup is idempotent (existing stations left alone)" has "$out" "station-1: exists"
 out=$("$K" setup -n 3 2>&1)
 ok "setup -n grows the kitchen, keeping existing stations" has "$out" "station-2: exists"
-ok "…and adding the new one" test -d "$C/stations/station-3/.git"
+ok "…and adding the new one" test -e "$CS/station-3/.git"
 out=$("$K" open --terminal print)
 ok "open without -n takes every station, not just the configured count" has "$out" "--name app-cook-3"
 out=$("$K" open --terminal print -n 2)
 ok "open -n N takes only the first N" bash -c "! printf '%s' \"\$1\" | grep -q app-cook-3" _ "$out"
-rm -rf "$C/stations/station-3"
+git -C "$C" worktree remove --force "$CS/station-3"
 
 # A cook already at work: a stub claude sleeping in station-1 (killed right after).
 CB="$TMP/cookbin"; mkdir -p "$CB"; printf '#!/bin/sh\nsleep 30\n' > "$CB/claude"; chmod +x "$CB/claude"
-(cd "$C/stations/station-1" && exec "$CB/claude") & COOK=$!
+(cd "$CS/station-1" && exec "$CB/claude") & COOK=$!
 sleep 1
 out=$("$K" open --terminal print -m "o s")
 ok "open leaves a station with a running cook alone" has "$out" "left alone: station-1"
 ok "…opening only the free ones" bash -c "! printf '%s' \"\$1\" | grep -q 'name app-cook-1'" _ "$out"
 ok "…and each keeps its own model" has "$out" "app-cook-2 --model sonnet"
-(cd "$C/stations/station-2" && exec "$CB/claude") & COOK2=$!
+(cd "$CS/station-2" && exec "$CB/claude") & COOK2=$!
 sleep 1
 out=$("$K" open --terminal print)
 ok "open with every station busy opens nothing" has "$out" "Every station has a cook"
 pkill -P "$COOK" 2>/dev/null; pkill -P "$COOK2" 2>/dev/null; kill "$COOK" "$COOK2" 2>/dev/null; wait "$COOK" "$COOK2" 2>/dev/null
 
 ok "role is main in the main checkout" test "$("$K" role | cut -d' ' -f1)" = main
-mkdir -p "$C/stations/station-2/lib/deep"
-ok "role is cook from a station subfolder" test "$(cd "$C/stations/station-2/lib/deep" && "$K" role | cut -d' ' -f1-2)" = "cook station-2"
-ok "role from a station names the main checkout" has "$(cd "$C/stations/station-1" && "$K" role)" "$(cd "$C" && pwd -P)\$"
+mkdir -p "$CS/station-2/lib/deep"
+ok "role is cook from a station subfolder" test "$(cd "$CS/station-2/lib/deep" && "$K" role | cut -d' ' -f1-2)" = "cook station-2"
+ok "role from a station names the main checkout" has "$(cd "$CS/station-1" && "$K" role)" "$(cd "$C" && pwd -P)\$"
 
 out=$("$K" rail)
 ok "rail lists open tickets" has "$out" "BKLG-001"
@@ -184,10 +185,10 @@ ok "open passes CLAUDE_CONFIG_DIR through when set" has "$out" "CLAUDE_CONFIG_DI
 # .claude/cook, the hand restart: a stub claude prints the profile and args it got.
 EB="$TMP/echobin"; mkdir -p "$EB"
 printf '#!/bin/sh\necho "pwd=$(pwd -P) profile=${CLAUDE_CONFIG_DIR-unset} args=$*"\n' > "$EB/claude"; chmod +x "$EB/claude"
-S2="$C/stations/station-2"
+S2="$CS/station-2"
 before=$(git -C "$S2" status --porcelain)
 CLAUDE_CONFIG_DIR="/x/my profile" "$K" open --terminal print -m "o s" >/dev/null
-ok "open writes an executable .claude/cook in each station" test -x "$C/stations/station-1/.claude/cook" -a -x "$S2/.claude/cook"
+ok "open writes an executable .claude/cook in each station" test -x "$CS/station-1/.claude/cook" -a -x "$S2/.claude/cook"
 ok "…kept out of git" test "$before" = "$(git -C "$S2" status --porcelain)"
 out=$(cd /tmp && PATH="$EB:$PATH" CLAUDE_CONFIG_DIR=/wrong "$S2/.claude/cook")
 ok ".claude/cook runs in its station, from anywhere" has "$out" "pwd=$(cd "$S2" && pwd -P) "
@@ -234,10 +235,12 @@ ok "an unknown --terminal is named" has "$out" "Unknown terminal 'bogus'"
 ok "…and the commands are printed" has "$out" "claude --name app-cook-1"
 out=$("$K" open --terminal print -m zz 2>&1); rc=$?
 ok "open rejects an unknown model" test "$rc" -ne 0
-out=$(BRIGADE_KITCHEN_MODE=bogus "$K" status 2>&1); rc=$?
-ok "an invalid kitchen_mode is refused" test "$rc" -ne 0
+out=$(BRIGADE_KITCHEN_MODE=clone "$K" status 2>&1); rc=$?
+ok "a config that still says kitchen_mode: clone is refused, with one line" bash -c 'test "$1" -eq 1 && test "$(printf "%s\n" "$2" | wc -l | tr -d " ")" = 1 && printf "%s" "$2" | grep -q "kitchen_mode: clone is gone.*kitchen.sh remove.*kitchen.sh setup"' _ "$rc" "$out"
+out=$(BRIGADE_KITCHEN_MODE=worktree "$K" status 2>&1); rc=$?
+ok "kitchen_mode: worktree is ignored, not an error" test "$rc" -eq 0
 
-S1="$C/stations/station-1"
+S1="$CS/station-1"
 git -C "$S1" switch -q -c bklg-001-open origin/main
 mkdir -p "$S1/db/migrations" "$S1/docs/plans" "$S1/docs/journal"
 touch "$S1/db/migrations/001_add.sql" "$S1/docs/plans/BKLG-001-open.md"
@@ -248,7 +251,7 @@ out=$("$K" status)
 ok "status shows the cook's branch" has "$out" "station-1 +bklg-001-open"
 out=$("$K" sync)
 ok "sync skips a dirty station" has "$out" "station-1: dirty"
-ok "sync resets a clean station" has "$out" "station-2: synced to origin/main"
+ok "sync re-detaches a clean station" has "$out" "station-2: synced, detached at origin/main"
 
 section "questions"
 ok "no open questions before any journal" has "$("$K" questions)" "No open questions"
@@ -312,14 +315,14 @@ cp "$TMP/brigade.md.bak" "$C/.claude/brigade.md"
 : > "$TB/tmux.log"; PATH="$TB:$NB" BRIGADE_CLAUDE_ARGS="--plugin-dir /p/bk" "$K" open >/dev/null
 ok "BRIGADE_CLAUDE_ARGS is added to the sous's command" has "$(cat "$TB/tmux.log")" 'sous claude --model opus --plugin-dir /p/bk "/bk:sous-chef"'
 ok "…and to each cook's" has "$(cat "$TB/tmux.log")" 'station-1 claude --name app-cook-1 --model sonnet --permission-mode auto --plugin-dir /p/bk "/bk:line-cook"'
-ok "…and is baked into .claude/cook" has "$(cat "$C/stations/station-1/.claude/cook")" 'permission-mode auto --plugin-dir /p/bk "\$@"'
+ok "…and is baked into .claude/cook" has "$(cat "$CS/station-1/.claude/cook")" 'permission-mode auto --plugin-dir /p/bk "\$@"'
 # a paused kitchen (bk stop) left session ids: open resumes them, once
-echo sid-sous > "$C/.claude/sous-session"; echo sid-one > "$C/stations/station-1/.claude/cook-session"
+echo sid-sous > "$C/.claude/sous-session"; echo sid-one > "$CS/station-1/.claude/cook-session"
 : > "$TB/tmux.log"; PATH="$TB:$NB" "$K" open >/dev/null
 ok "a saved sous session is resumed" has "$(cat "$TB/tmux.log")" 'sous claude --model opus --resume sid-sous "/bk:sous-chef"'
 ok "a saved cook session is resumed" has "$(cat "$TB/tmux.log")" 'app-cook-1 --model sonnet --permission-mode auto --resume sid-one "/bk:line-cook"'
 ok "…a station without one starts fresh" bash -c '! grep "station-2 claude" "$1" | grep -q resume' _ "$TB/tmux.log"
-ok "…and the ids are used once" test ! -e "$C/.claude/sous-session" -a ! -e "$C/stations/station-1/.claude/cook-session"
+ok "…and the ids are used once" test ! -e "$C/.claude/sous-session" -a ! -e "$CS/station-1/.claude/cook-session"
 ok "the bk hints replace the tmux ones when bk opened the kitchen" has "$(PATH="$TB:$NB" BRIGADE_VIA_BK=1 "$K" open)" "bk attach .*bk peek 1 .*bk stop"
 # a session that already exists gains windows instead of being refused
 printf '#!/bin/sh\n[ "$1" = has-session ] && exit 0\n[ "$1" = list-windows ] && { echo sous; echo station-1; exit 0; }\n[ "$1" = display-message ] && { echo node; exit 0; }\necho "tmux $*" >> "%s"\n' "$TB/tmux.log" > "$TB/tmux"
@@ -995,10 +998,10 @@ ok "ship merges an open, green, up-to-date PR against trunk" bash -c '[ "$1" = 0
 ok "…with a merge commit" has "$(cat "$GB/gh.log")" "gh pr merge 12 --merge"
 ok "…and #N is accepted too" has "$(ship "$GOOD" '#13')" "^Merged #13"
 cp "$C/.claude/brigade.md" "$TMP/brigade.ship.bak"
-printf -- '---\ntrunk: main\nkitchen_mode: clone\ngates:\n  merge: sous-chef\n  merge_method: squash\n---\n' > "$C/.claude/brigade.md"
+printf -- '---\ntrunk: main\ngates:\n  merge: sous-chef\n  merge_method: squash\n---\n' > "$C/.claude/brigade.md"
 : > "$GB/gh.log"; out=$(ship "$GOOD" 14)
 ok "gates.merge_method: squash is passed to gh" has "$(cat "$GB/gh.log")" "gh pr merge 14 --squash"
-printf -- '---\ntrunk: main\nkitchen_mode: clone\ngates:\n  merge: head-chef\n---\n' > "$C/.claude/brigade.md"
+printf -- '---\ntrunk: main\ngates:\n  merge: head-chef\n---\n' > "$C/.claude/brigade.md"
 : > "$GB/gh.log"; out=$(ship "$GOOD" 15); rc=$?
 ok "gates.merge: head-chef makes ship refuse: the merge is the head chef's" bash -c '[ "$1" != 0 ] && printf "%s" "$2" | grep -q "gates.merge is head-chef .* the head chef'"'"'s"' _ "$rc" "$out"
 ok "…without calling gh at all" test ! -s "$GB/gh.log"
@@ -1011,11 +1014,117 @@ ok "open with the default gate seeds the sous's gh permissions in the main check
 ok "…kept out of git" test "$(git -C "$C" status --porcelain | grep -c settings.local)" = 0
 rm -f "$C/.claude/settings.local.json"
 
-section "remove (clone)"
-out=$(echo nope | "$K" remove 2>&1)
+section "done: a merged ticket's station goes back to trunk"
+# A repo of its own with a bare origin, two worktree stations, and a stub gh: `pr list` answers
+# with $GH_LIST, the lines the real command's --jq prints ("<number> <state> <head sha> <base branch>").
+D="$TMP/done/app"; mkdir -p "$TMP/done"
+new_repo "$D" 'trunk: main
+install: "true"
+stations: 2'
+push_all "$D" "brigade setup"
+(cd "$D" && "$K" setup >/dev/null 2>&1)
+DS="$TMP/done/app-stations"; DG="$D.git"
+DGB="$TMP/donegh"; mkdir -p "$DGB"
+printf '#!/bin/sh\ncase "$1 $2" in\n  "pr list") printf "%%s\\n" "$GH_LIST" ;;\n  *) exit 1 ;;\nesac\n' > "$DGB/gh"; chmod +x "$DGB/gh"
+done_() { (cd "$D" && GH_LIST="$1" PATH="$DGB:$PATH" "$K" 'done' "$2" 2>&1); }
+# cook <station> <branch>: a ticket branch in the station with one commit, pushed to origin; prints nothing
+cook() { local st="$DS/$1"; git -C "$st" switch -q -c "$2" origin/main && echo "$2" > "$st/f-$2" && git -C "$st" add -A && git -C "$st" commit -qm "work $2" && git -C "$st" push -q origin "$2" 2>/dev/null; }
+local_has() { git -C "$D" rev-parse --verify -q "refs/heads/$1" >/dev/null; }
+origin_has() { git --git-dir "$DG" rev-parse --verify -q "refs/heads/$1" >/dev/null; }
+D1="$DS/station-1"; D2="$DS/station-2"
+# the per-station files a real kitchen keeps out of git (info/exclude is shared by the worktrees)
+printf '%s\n' .claude/cook .claude/check.log .claude/check.out .claude/grilling .claude/go >> "$D/.git/info/exclude"
+mkdir -p "$D1/.claude"; : > "$D1/.claude/cook"; : > "$D1/.claude/check.log"; : > "$D1/.claude/check.out"; : > "$D1/.claude/grilling"; : > "$D1/.claude/go"
+
+ok "done without a station is a usage error" bash -c '! (cd "$1" && "$2" done >/dev/null 2>&1)' _ "$D" "$K"
+out=$(done_ "" station-9); ok "done on an unknown station is refused" has "$out" "No such station: station-9"
+cook station-1 issue-1-merged; tip=$(git -C "$D1" rev-parse HEAD)
+out=$(done_ "7 OPEN $tip main" station-1); rc=$?
+ok "done refuses a branch whose PR is still open, naming it" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "Not done: issue-1-merged has no merged PR (7 OPEN"' _ "$rc" "$out"
+ok "…the local branch is still there" local_has issue-1-merged
+ok "…and so is the origin branch" origin_has issue-1-merged
+ok "…and the station is still on it" test "$(git -C "$D1" branch --show-current)" = issue-1-merged
+out=$(done_ "7 CLOSED $tip main" station-1); rc=$?
+ok "done refuses a PR that was closed without merging" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "no merged PR"' _ "$rc" "$out"
+out=$(done_ "7 MERGED $tip develop" station-1); rc=$?
+ok "done refuses a merged PR that went into another branch (a stacked PR), naming it" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "went into another branch (#7 into develop), not main"' _ "$rc" "$out"
+ok "…and kept both branches" bash -c 'git -C "$1" rev-parse --verify -q refs/heads/issue-1-merged >/dev/null && git --git-dir "$2" rev-parse --verify -q refs/heads/issue-1-merged >/dev/null' _ "$D" "$DG"
+out=$(done_ "" station-1); rc=$?
+ok "done refuses a branch with no PR at all" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "no PR found"' _ "$rc" "$out"
+ok "…and deleted nothing" bash -c 'local_has() { git -C "$1" rev-parse --verify -q "refs/heads/$2" >/dev/null; }; local_has "$1" issue-1-merged && git --git-dir "$3" rev-parse --verify -q refs/heads/issue-1-merged >/dev/null' _ "$D" issue-1-merged "$DG"
+# the station has a commit the merged PR does not
+echo late > "$D1/late"; git -C "$D1" add -A; git -C "$D1" commit -qm late
+out=$(done_ "7 MERGED $tip main" station-1); rc=$?
+ok "done refuses a station whose tip is not the merged PR's head, with both shas" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "has commits the PR does not"' _ "$rc" "$out"
+ok "…the branch survives, the station stays on it" bash -c 'test "$(git -C "$1" branch --show-current)" = issue-1-merged' _ "$D1"
+git -C "$D1" reset -q --hard "$tip"
+echo dirty > "$D1/untracked"
+out=$(done_ "7 MERGED $tip main" station-1); rc=$?
+ok "done refuses a station with uncommitted work" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "has uncommitted work"' _ "$rc" "$out"
+rm -f "$D1/untracked"
+# a busy cook in the station (a sleeper stands in for claude, registered where Claude Code keeps sessions)
+DREG="$HOME/.claude/sessions"; mkdir -p "$DREG"
+sleep 300 >/dev/null 2>&1 & dp=$!
+printf '{"pid":%s,"sessionId":"sid-d1","cwd":"%s","status":"busy","tmux":"%%9","name":"app-cook-1","updatedAt":1}\n' "$dp" "$D1" > "$DREG/$dp.json"
+out=$(done_ "7 MERGED $tip main" station-1); rc=$?
+ok "done refuses a station whose cook is busy" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "is busy"' _ "$rc" "$out"
+sed -i.bak 's/"busy"/"idle"/' "$DREG/$dp.json"
+out=$(done_ "7 OPEN $tip main
+8 MERGED $tip main" station-1); rc=$?
+ok "done goes ahead for an idle cook, and takes the merged PR among several" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "^station-1: PR #8 merged. Detached at origin/main"' _ "$rc" "$out"
+kill "$dp" 2>/dev/null; rm -f "$DREG/$dp.json" "$DREG/$dp.json.bak"
+ok "the summary says what was deleted" has "$out" "local branch issue-1-merged: deleted; origin branch: deleted"
+ok "the local branch is gone" bash -c '! git -C "$1" rev-parse --verify -q refs/heads/issue-1-merged' _ "$D"
+ok "the origin branch is gone" bash -c '! git --git-dir "$1" rev-parse --verify -q refs/heads/issue-1-merged' _ "$DG"
+ok "the station is detached at origin/main" bash -c 'test -z "$(git -C "$1" branch --show-current)" && test "$(git -C "$1" rev-parse HEAD)" = "$(git -C "$1" rev-parse origin/main)"' _ "$D1"
+ok "the station is clean" test -z "$(git -C "$D1" status --porcelain)"
+ok "check.log, check.out, grilling and go are gone" bash -c 'for f in check.log check.out grilling go; do test ! -e "$1/.claude/$f" || exit 1; done' _ "$D1"
+ok "the cook's launcher and its permissions stay" test -e "$D1/.claude/cook" -a -e "$D1/.claude/settings.local.json"
+out=$(done_ "" station-1); rc=$?
+ok "done on a station already on trunk has nothing to do" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "already detached .*nothing to do"' _ "$rc" "$out"
+# the origin branch already gone (GitHub deleted it on merge)
+cook station-2 issue-2-auto; tip2=$(git -C "$D2" rev-parse HEAD); git --git-dir "$DG" update-ref -d refs/heads/issue-2-auto
+out=$(done_ "9 MERGED $tip2 main" station-2); rc=$?
+ok "an origin branch that is already gone is reported, not an error" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "origin branch: already gone"' _ "$rc" "$out"
+# the remote delete is refused (a pre-receive hook on the bare origin that rejects deletions)
+mkdir -p "$DG/hooks"
+printf '#!/bin/sh\nwhile read old new ref; do [ "$new" = 0000000000000000000000000000000000000000 ] && exit 1; done\nexit 0\n' > "$DG/hooks/pre-receive"; chmod +x "$DG/hooks/pre-receive"
+cook station-2 issue-3-refused; tip3=$(git -C "$D2" rev-parse HEAD)
+out=$(done_ "10 MERGED $tip3 main" station-2); rc=$?
+ok "a refused remote delete exits 1 and the summary says NOT deleted" bash -c '[ "$1" -eq 1 ] && printf "%s" "$2" | grep -q "origin branch: NOT deleted"' _ "$rc" "$out"
+ok "…and prints the command to run" has "$out" "run: git push origin --delete issue-3-refused"
+ok "…the station was still reset, the local branch gone" bash -c 'test -z "$(git -C "$1" branch --show-current)" && ! git -C "$2" rev-parse --verify -q refs/heads/issue-3-refused' _ "$D2" "$D"
+ok "…and the origin branch is still there" bash -c 'git --git-dir "$1" rev-parse --verify -q refs/heads/issue-3-refused >/dev/null' _ "$DG"
+rm -f "$DG/hooks/pre-receive"
+# someone pushed to origin/<branch> after the merge: unmerged commits on the remote are never deleted
+cook station-2 issue-4-moved; tip4=$(git -C "$D2" rev-parse HEAD)
+echo more > "$D2/after-merge"; git -C "$D2" add -A; git -C "$D2" commit -qm "after the merge"; git -C "$D2" push -q origin issue-4-moved 2>/dev/null
+git -C "$D2" reset -q --hard "$tip4"
+out=$(done_ "11 MERGED $tip4 main" station-2); rc=$?
+ok "an origin branch that moved past the merged PR is kept, named, and exits 1" bash -c '[ "$1" -eq 1 ] && printf "%s" "$2" | grep -q "origin branch: NOT deleted (it moved past PR #11"' _ "$rc" "$out"
+ok "…the commits are still on origin" bash -c 'git --git-dir "$1" rev-parse --verify -q refs/heads/issue-4-moved >/dev/null' _ "$DG"
+ok "…while the station was reset and the local branch deleted" bash -c 'test -z "$(git -C "$1" branch --show-current)" && ! git -C "$2" rev-parse --verify -q refs/heads/issue-4-moved' _ "$D2" "$D"
+# the station is on trunk's name itself
+cook station-2 issue-5-trunkish
+out=$(cd "$D" && BRIGADE_TRUNK=issue-5-trunkish GH_LIST="12 MERGED $(git -C "$D2" rev-parse HEAD) issue-5-trunkish" PATH="$DGB:$PATH" "$K" 'done' station-2 2>&1); rc=$?
+ok "done refuses a station that is on trunk itself" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "is on issue-5-trunkish itself"' _ "$rc" "$out"
+git -C "$D2" switch -q --detach origin/main
+# an origin ref that merely ends in the branch's name is not the branch
+cook station-2 issue-6-suffix; tip6=$(git -C "$D2" rev-parse HEAD)
+git --git-dir "$DG" update-ref refs/heads/other/issue-6-suffix "$tip6"; git --git-dir "$DG" update-ref -d refs/heads/issue-6-suffix
+out=$(done_ "13 MERGED $tip6 main" station-2); rc=$?
+ok "an origin ref that only ends in the branch's name does not count: already gone, exit 0" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "origin branch: already gone"' _ "$rc" "$out"
+ok "…and the other ref is untouched" bash -c 'git --git-dir "$1" rev-parse --verify -q refs/heads/other/issue-6-suffix >/dev/null' _ "$DG"
+
+section "remove with a legacy clone config"
+git clone -q "$C.git" "$C/stations/station-1" 2>/dev/null
+out=$(echo nope | BRIGADE_KITCHEN_MODE=clone "$K" remove 2>&1)
 ok "remove aborts without 'delete'" test -d "$C/stations/station-1"
-out=$(echo delete | "$K" remove 2>&1)
-ok "remove deletes the stations folder" test ! -e "$C/stations"
+ok "…and leaves the worktree stations alone" test -f "$CS/station-1/.git"
+out=$(echo delete | BRIGADE_KITCHEN_MODE=clone "$K" remove 2>&1)
+ok "remove deletes the old stations/ folder of a clone kitchen" test ! -e "$C/stations"
+ok "…and says to drop the line and run setup" has "$out" "delete the kitchen_mode line .* run kitchen.sh setup"
+ok "…the worktree stations survive it" test -f "$CS/station-1/.git"
 
 # =============================================================================
 section "worktree mode, inside a workspace repo"
@@ -1265,21 +1374,10 @@ rail_suite() {
   (cd "$S1" && git checkout -q --detach "origin/main" 2>/dev/null)
 }
 
-RM="$TMP/railmd"
-new_repo "$RM" 'trunk: main
-install: "true"
-stations: 2
-rail:
-  adapter: markdown
-  commit: direct'
-push_all "$RM" "brigade setup"
-rail_suite "clone" "$RM" "$RM/stations"
-
 RW="$TMP/railws/app"; mkdir -p "$TMP/railws"
 git init -q "$TMP/railws"; git -C "$TMP/railws" checkout -q -b deploy; echo app > "$TMP/railws/.gitignore"; git -C "$TMP/railws" add -A; git -C "$TMP/railws" commit -qm workspace
 new_repo "$RW" 'trunk: main
 install: "true"
-kitchen_mode: worktree
 stations: 2
 rail:
   adapter: markdown
@@ -1316,7 +1414,7 @@ rail:
   commit: direct
   github: { owner: acme, project: 4, status_field: Status }'
 push_all "$GR" "brigade setup"; (cd "$GR" && "$K" setup >/dev/null 2>&1)
-G1="$GR/stations/station-1"
+G1="$TMP/railgh-stations/station-1"
 gh_() { (cd "$1" && shift && GH_LOG="$GRB/gh.log" PATH="$GRB:$PATH" "$K" "$@" 2>&1); }
 ghenv() { GH_ITEM="$1" gh_ "${@:2}"; }
 export GH_ITEM
@@ -1564,16 +1662,9 @@ procs_suite() {
   ok "$label: …it still runs" living "$pm"
 }
 
-PC="$TMP/procsc/app"; mkdir -p "$TMP/procsc"
-new_repo "$PC" 'trunk: main
-install: "true"
-stations: 2'
-procs_suite "clone" "$PC" "$PC/stations"
-
 PW="$TMP/procsw/app"; mkdir -p "$TMP/procsw"
 new_repo "$PW" 'trunk: main
 install: "true"
-kitchen_mode: worktree
 stations: 2'
 procs_suite "worktree" "$PW" "$TMP/procsw/app-stations"
 
