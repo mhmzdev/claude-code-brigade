@@ -11,6 +11,7 @@
 | [64-record-protected-trunk.md](64-record-protected-trunk.md) | The record reaches a protected trunk, and a docs-only change needs no release | #64 |
 | [65-routine-kinds-script.md](65-routine-kinds-script.md) | route routine message kinds to script; measure the sous's turns per ticket by kind (and take #59: ticket ids from the rail's own form) | #65 |
 | [66-check-tree-hash.md](66-check-tree-hash.md) | kitchen check — run the config's check once per tree, record the result with the tree's hash | #66 |
+| [68-checkpoint-ref.md](68-checkpoint-ref.md) | A checkpoint ref for a station's uncommitted work (kitchen.sh checkpoint / restore) | #68 |
 | [85-worktrees-only.md](85-worktrees-only.md) | worktrees only; drop clone mode; `kitchen.sh done` deletes a merged ticket's branch and resets the station | #85 |
 | [86-kitchen-procs.md](86-kitchen-procs.md) | kitchen.sh procs: the kitchen registers, reaps and scans the processes it started; never a system or unknown process | #86 |
 | [89-clear-served-cook.md](89-clear-served-cook.md) | kitchen.sh clear passes a served cook on trunk, and no longer trusts a journal's mtime alone | #89 |

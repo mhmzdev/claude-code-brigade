@@ -233,6 +233,12 @@ ls .claude
 kitchen.sh grant --show
 kitchen.sh rail claim '#91' todo
 kitchen.sh check
+kitchen.sh checkpoint
+kitchen.sh checkpoint --show station-1
+kitchen.sh restore 68
+git update-ref refs/brigade/station-1/68 HEAD
+git commit-tree 'HEAD^{tree}' -p HEAD -m checkpoint
+git for-each-ref refs/brigade/
 EOT
 
   section "positive authorization ($label): the word that runs"

@@ -142,6 +142,26 @@
 #                                         PR's head (and the PR went into trunk); refuses a dirty station
 #                                         or a busy session. Never force-pushes; one summary line says
 #                                         what was and wasn't deleted
+#   kitchen.sh checkpoint                 a cook's copy of its uncommitted work (#68), in a station on a
+#                                         ticket branch: the working tree (tracked, deleted and untracked
+#                                         files, minus what git ignores; the tree `check` hashes) is written
+#                                         to refs/brigade/<station>/<ticket> as a commit object whose
+#                                         parent is HEAD. Never a commit on the branch: HEAD, the branch,
+#                                         the index and the working tree are not touched, and nothing is
+#                                         forced (update-ref is given the old value). One ref per ticket,
+#                                         replaced each time; "unchanged" when nothing moved. Every
+#                                         worktree shares the ref, so it survives `git worktree remove`
+#                                         and the main checkout can read it. In the main checkout it says
+#                                         so and exits 0
+#   kitchen.sh checkpoint --show [station-N]
+#                                         "<ref> <sha> tree=<tree> current|behind": exit 0 when the
+#                                         station's tree is the ref's, 2 when it has changed since
+#                                         (behind), 1 when there is no ref. The taster reads this
+#   kitchen.sh restore [<ticket>]         put a ticket's checkpoint back on this station (a cook's):
+#                                         it must be clean; a detached one is moved to the commit the
+#                                         checkpoint was taken on, a station on a branch must already
+#                                         be there. Tracked edits, new files and deletions come back as
+#                                         working-tree changes; the index is left alone
 #   kitchen.sh lessons                    count lesson(...) lines across ticket journals
 #   kitchen.sh decisions                  every "(head chef)" answer in a journal that no doc
 #                                         under the docs map cites and the register doesn't
@@ -364,6 +384,7 @@ HERE_WAITING=""   # --waiting, for here
 HERE_NOTE=""      # --note, for here
 PROCS_ARGS=()     # everything after `procs`: it reads its own arguments (--add takes a pid and a text there)
 GRANT_ARGS=()     # everything after `grant`: a station, actions, --none, --show
+CKPT_ARGS=()      # everything after `checkpoint` or `restore`: --show, a station, a ticket
 SESSION_NAME=""   # --session, for budget --journal-line
 CLEAR_WHO=""      # station-N | sous, for clear
 SHIP_PR=""        # a PR number, for ship
@@ -380,6 +401,8 @@ if [[ "$CMD" == rail && "${1:-}" =~ ^(brief|claim|move)$ ]]; then POS=("$@"); se
 if [[ "$CMD" == procs ]]; then PROCS_ARGS=("$@"); set --; fi
 # grant reads its own words too: actions (commit, push, open-pr) and --none, --show are not flags of another command
 if [[ "$CMD" == grant ]]; then GRANT_ARGS=("$@"); set --; fi
+# checkpoint and restore read their own: a ticket id (68, #68) is not a PR number to ship
+if [[ "$CMD" == checkpoint || "$CMD" == restore ]]; then CKPT_ARGS=("$@"); set --; fi
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -n) N="$2"; N_GIVEN=true; shift 2 ;;
@@ -975,6 +998,10 @@ cmd_sync() {
     git -C "$s" fetch --quiet origin "$TRUNK" \
       && git -C "$s" switch --quiet --detach "origin/$TRUNK" \
       && echo "  $name: synced, detached at origin/$TRUNK ($(git -C "$s" rev-parse --short HEAD))"
+    # work a removed or reset station left behind (#68): a served ticket's ref is dropped by `done`
+    while IFS= read -r ref; do
+      [[ -n "$ref" ]] && echo "  $name: holds a checkpoint for ${ref##*/} (kitchen.sh restore ${ref##*/})"
+    done < <(git -C "$s" for-each-ref --format='%(refname)' "refs/brigade/$name/")
   done < <(stations)
   $found || echo "No stations in $KITCHEN_REL/."
 }
@@ -2617,7 +2644,7 @@ cmd_ship() {
 # the origin branch only when it still is at that head. The PR must be merged into trunk.
 # ---------------------------------------------------------------------------
 cmd_done() {
-  local who="$CLEAR_WHO" dir branch rows pr="" pretip="" other="" n st tip base reg f lstate rstate rsha rc=0
+  local who="$CLEAR_WHO" dir branch rows pr="" pretip="" other="" n st tip base reg f lstate rstate rsha rc=0 ckref ckstate
   [[ "$who" == station-* ]] || { echo "Usage: kitchen.sh done <station-N>" >&2; return 1; }
   dir="$KITCHEN/$who"; [[ -e "$dir/.git" ]] || { echo "No such station: $who" >&2; return 1; }
   command -v gh >/dev/null 2>&1 || { echo "done needs the gh CLI on your PATH, logged in." >&2; return 1; }
@@ -2664,8 +2691,97 @@ cmd_done() {
   fi
   for f in go check.log check.out grilling; do rm -f "$dir/.claude/$f"; done
   rm -f "$(grant_file "$who")"   # the ticket is over: so is its grant (Contract 5)
-  echo "$who: PR #$pr merged. Detached at origin/$TRUNK ($(git -C "$dir" rev-parse --short HEAD)); local branch $branch: $lstate; origin branch: $rstate; per-ticket files cleared."
+  # the ticket is over: so is its checkpoint (#68), which only the merged PR makes safe to drop
+  ckstate=""; ckref="$(ckpt_ref "$who" "$(branch_ticket "$branch")")"
+  if [[ "$ckref" != */- ]] && git -C "$dir" rev-parse -q --verify "$ckref" >/dev/null 2>&1; then
+    if git -C "$dir" update-ref -d "$ckref"; then ckstate=" Checkpoint $ckref dropped."; else ckstate=" Checkpoint $ckref NOT dropped."; rc=1; fi
+  fi
+  echo "$who: PR #$pr merged. Detached at origin/$TRUNK ($(git -C "$dir" rev-parse --short HEAD)); local branch $branch: $lstate; origin branch: $rstate; per-ticket files cleared.$ckstate"
   return $rc
+}
+# ---------------------------------------------------------------------------
+# checkpoint / restore — a copy of a cook's uncommitted work that is not a commit on its branch
+# (#68, Contract 8). Nothing is committed before the sous's [go] (Contract 5), so a ticket's
+# whole tree sits in one folder for hours. `checkpoint` writes that tree (the one `check` hashes
+# and its receipts name) to refs/brigade/<station>/<ticket> as a commit object whose parent is
+# HEAD, with git plumbing: HEAD, the branch, the index and the files are never touched. Every
+# worktree shares refs, so it survives `git worktree remove` and the main checkout reads it.
+# ---------------------------------------------------------------------------
+ckpt_ref() { local id="${2#\#}"; printf 'refs/brigade/%s/%s' "$1" "$(printf '%s' "$id" | tr '[:upper:]' '[:lower:]')"; }   # ckpt_ref <station> <ticket as branch_ticket prints it>
+cmd_checkpoint() {
+  local show=false st="" a me dir branch ticket ref tree head old new n reftree zero
+  set -- "${CKPT_ARGS[@]+"${CKPT_ARGS[@]}"}"
+  for a in "$@"; do
+    case "$a" in
+      --show) show=true ;;
+      station-*) st="$a" ;;
+      *) echo "Usage: kitchen.sh checkpoint | checkpoint --show [station-N]" >&2; return 1 ;;
+    esac
+  done
+  me="$(rail_actor)"
+  if [[ -n "$me" ]]; then
+    $show || [[ -z "$st" || "$st" == "$me" ]] || { echo "A cook checkpoints its own station ($me), not $st." >&2; return 1; }
+    [[ -n "$st" ]] || st="$me"
+  elif ! $show; then
+    echo "checkpoint: not in a station, nothing to do."; return 0
+  fi
+  [[ -n "$st" ]] || { echo "Usage: kitchen.sh checkpoint --show <station-N> (from the main checkout)" >&2; return 1; }
+  if [[ "$st" == "$me" ]]; then dir="$HERE"; else dir="$KITCHEN/$st"; fi
+  [[ -e "$dir/.git" ]] || { echo "No such station: $st" >&2; return 1; }
+  branch="$(git -C "$dir" branch --show-current)"; ticket="$(branch_ticket "$branch")"
+  [[ "$ticket" != - ]] || { echo "checkpoint: $st is not on a ticket branch (${branch:-detached}), so there is no ticket to name a ref." >&2; return 1; }
+  ref="$(ckpt_ref "$st" "$ticket")"
+  tree="$(tree_hash "$dir")" || { echo "checkpoint: couldn't hash the tree in $dir." >&2; return 1; }
+  old="$(git -C "$dir" rev-parse -q --verify "$ref" 2>/dev/null || true)"
+  if $show; then
+    [[ -n "$old" ]] || { echo "no checkpoint $ref" >&2; return 1; }
+    reftree="$(git -C "$dir" rev-parse "$old^{tree}")"
+    if [[ "$reftree" == "$tree" ]]; then echo "$ref $old tree=$reftree current"; return 0; fi
+    echo "$ref $old tree=$reftree behind"; return 2
+  fi
+  head="$(git -C "$dir" rev-parse HEAD)"
+  if [[ "$tree" == "$(git -C "$dir" rev-parse 'HEAD^{tree}')" ]]; then echo "checkpoint: nothing to checkpoint, $branch has no uncommitted work."; return 0; fi
+  if [[ -n "$old" && "$(git -C "$dir" rev-parse "$old^{tree}")" == "$tree" && "$(git -C "$dir" rev-parse "$old^")" == "$head" ]]; then
+    echo "checkpoint: unchanged, $ref is at ${old:0:7}"; return 0
+  fi
+  # commit-tree needs a committer; a machine with none gets one for this call, and no config is written
+  if ! git -C "$dir" var GIT_COMMITTER_IDENT >/dev/null 2>&1; then
+    export GIT_AUTHOR_NAME=Brigade GIT_AUTHOR_EMAIL=brigade@localhost GIT_COMMITTER_NAME=Brigade GIT_COMMITTER_EMAIL=brigade@localhost
+  fi
+  new="$(git -C "$dir" commit-tree "$tree" -p "$head" -m "checkpoint $st $ticket on $branch")" || { echo "checkpoint: could not write the commit object." >&2; return 1; }
+  zero="$(printf '%*s' "${#new}" '' | tr ' ' 0)"
+  # the old value makes this a compare-and-swap: a ref that moved since it was read is refused, never overwritten
+  git -C "$dir" update-ref "$ref" "$new" "${old:-$zero}" || { echo "checkpoint: $ref changed while it was being written; run it again." >&2; return 1; }
+  n="$(git -C "$dir" diff --name-only "$head" "$new" | wc -l | tr -d ' ')"
+  echo "checkpoint: $ref at ${new:0:7} ($n file(s) differ from ${head:0:7}; $branch is untouched)"
+}
+cmd_restore() {
+  local want="" a id refs ref n parent head branch cbranch sub files
+  set -- "${CKPT_ARGS[@]+"${CKPT_ARGS[@]}"}"
+  for a in "$@"; do
+    case "$a" in -*|station-*) echo "Usage: kitchen.sh restore [<ticket>]" >&2; return 1 ;; *) want="$a" ;; esac
+  done
+  [[ -n "$(rail_actor)" ]] || { echo "restore puts a checkpoint back on a station: run it in one." >&2; return 1; }
+  branch="$(git -C "$HERE" branch --show-current)"
+  if [[ -z "$want" ]]; then want="$(branch_ticket "$branch")"; [[ "$want" != - ]] || { echo "restore: name the ticket (kitchen.sh restore #68); this station is not on a ticket branch." >&2; return 1; }; fi
+  id="$(printf '%s' "${want#\#}" | tr '[:upper:]' '[:lower:]')"
+  refs="$(git -C "$HERE" for-each-ref --format='%(refname)' refs/brigade/ | awk -F/ -v id="$id" 'NF==4 && $4==id')"
+  n="$(printf '%s' "$refs" | grep -c .)"
+  (( n > 0 )) || { echo "restore: no checkpoint for $want." >&2; return 1; }
+  (( n == 1 )) || { echo "restore: $want has $n checkpoints ($(printf '%s' "$refs" | tr '\n' ' ')); ask the sous which one." >&2; return 1; }
+  ref="$refs"
+  [[ -z "$(git -C "$HERE" status --porcelain)" ]] || { echo "restore: this station has uncommitted work; a checkpoint goes on a clean one." >&2; return 1; }
+  parent="$(git -C "$HERE" rev-parse "$ref^")"; head="$(git -C "$HERE" rev-parse HEAD)"
+  cbranch="$(git -C "$HERE" log -1 --format=%s "$ref" | sed -n 's/^.* on //p')"
+  if [[ "$head" != "$parent" ]]; then
+    if [[ -n "$branch" ]]; then
+      echo "restore: $ref was taken on ${parent:0:7} and this station is on $branch at ${head:0:7}. Put it there first: git switch --detach ${parent:0:7}" >&2; return 1
+    fi
+    git -C "$HERE" switch --quiet --detach "$parent" || { echo "restore: could not move the station to ${parent:0:7}." >&2; return 1; }
+  fi
+  git -C "$HERE" diff --binary "$parent" "$ref" | git -C "$HERE" apply || { echo "restore: the checkpoint did not apply; the station is where it was (${parent:0:7}), nothing was changed." >&2; return 1; }
+  files="$(git -C "$HERE" status --porcelain | wc -l | tr -d ' ')"
+  echo "restored: $ref, $files path(s), on ${parent:0:7}. Next: git switch -c ${cbranch:-<the branch>}"
 }
 # seed_sous_permissions: the sous runs in a mode that asks before a shell command, and nobody
 # watches its pane for long. When the merge is the sous's, open seeds the main checkout's
@@ -3237,6 +3353,6 @@ case "$CMD" in
   role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   decisions) cmd_decisions ;; inbox) cmd_inbox ;; asks) cmd_asks ;; gaps) cmd_gaps ;; doctor) cmd_doctor ;; index) cmd_index ;;
   record-pr) cmd_record_pr ;;
-  procs) cmd_procs ;; scope) cmd_scope ;; grant) cmd_grant ;;
+  procs) cmd_procs ;; scope) cmd_scope ;; grant) cmd_grant ;; checkpoint) cmd_checkpoint ;; restore) cmd_restore ;;
   sessions) cmd_sessions ;; clear) cmd_clear ;; ship) cmd_ship ;; done) cmd_done ;; check) cmd_check ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; *) usage ;;
 esac
