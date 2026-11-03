@@ -109,7 +109,9 @@
 #                                         types /clear into its tmux pane, then the role skill
 #                                         (/bk:line-cook, or /bk:sous-chef: the sous's own call
 #                                         waits for its turn to end), once it is idle, its handoff is newer
-#                                         than its last turn and nothing it sent still waits
+#                                         than its last turn (by its own stamp; a cook served
+#                                         and back on trunk, its handoff committed, needs no
+#                                         newer one) and nothing it sent still waits
 #                                         for an answer. Refuses otherwise, saying why.
 #                                         Needs node (reads the session's transcript)
 #   kitchen.sh grant <station-N> <commit|push|open-pr>...
@@ -2335,8 +2337,12 @@ cmd_sessions() {
 # clear — the sous clears a session (Contract 5). Clearing is deterministic, so it needs
 # no human judgement: `clear <station-N|sous>` refuses unless the session is idle (the
 # registry's word, <config>/sessions/<pid>.json), its handoff is newer than its last turn
-# (a cook: the newest journal in the station with a "## Handoff" section; the sous:
-# .claude/sous-handoff.md) and nothing it sent still waits for an answer (a cook: a
+# (a cook: its ticket's journal, else the newest in the station, with a "## Handoff" section,
+# proved by the section's own YYYY-MM-DD HH:MM stamp, the mtime only for one with no stamp, since a
+# checkout refreshes it; the sous: .claude/sous-handoff.md) or the cook is served (`done` left
+# .claude/served, the station is clean and detached at trunk, and the ticket's journal
+# committed there has its "## Handoff": nothing is left to hand off, and an ack is a turn),
+# and nothing it sent still waits for an answer (a cook: a
 # [gate], [plan], [handoff] or [walk-in] with no reply since; the sous: an open ask).
 # Then it types /clear into the session's tmux pane (the pane the registry names, the
 # way bk stop types /bk:handoff), waits for the session to say idle, and for a cook types
@@ -2380,14 +2386,43 @@ session_state() {  # session_state <transcript> → key=value lines from session
   node "$dir/server/live/session-state.js" "$1"
 }
 state_field() { printf '%s\n' "$1" | sed -n "s/^$2=//p" | head -1; }
-newest_handoff() {  # newest_handoff <station> → the station journal with a "## Handoff" section modified last
-  local f best="" best_t=0 t
-  for f in "$1/$(cfg_docs journal docs/journal)"/*.md; do
-    [[ -f "$f" ]] && grep -q '^## Handoff' "$f" || continue
+# has_handoff [file]: does the journal (a file, else stdin) carry a real "## Handoff" section? The
+# journal template shows one as an example inside <!-- -->, which is not a handoff.
+has_handoff() { awk '/<!--/{c=1} !c && /^## Handoff/{f=1} /-->/{c=0} END{exit !f}' "$@"; }
+newest_handoff() {  # newest_handoff <station> → the journal with a "## Handoff": the branch ticket's own, else the one modified last
+  local f best="" best_t=0 t id jdir; jdir="$1/$(cfg_docs journal docs/journal)"
+  id="$(branch_ticket "$(git -C "$1" branch --show-current 2>/dev/null)")"
+  if [[ "$id" != - ]]; then   # a checkout gives every journal on trunk a fresh mtime: the ticket's own is the one that counts
+    for f in "$jdir/${id#\#}"-*.md; do [[ -f "$f" ]] && has_handoff "$f" && { echo "$f"; return 0; }; done
+  fi
+  for f in "$jdir"/*.md; do
+    [[ -f "$f" ]] && has_handoff "$f" || continue
     t="$(mtime_ms "$f")"; (( t >= best_t )) && { best="$f"; best_t=$t; }
   done
   [[ -n "$best" ]] && echo "$best"
   return 0
+}
+handoff_stamp() {  # handoff_stamp <journal> → epoch seconds of its newest "## Handoff — YYYY-MM-DD HH:MM" heading (local time, as /bk:handoff stamps it), or exit 1
+  local s
+  s="$(sed -nE 's/^## Handoff[^0-9]*([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}).*/\1/p' "$1" | tail -1)"
+  [[ -n "$s" ]] || return 1
+  date -d "$s:00" +%s 2>/dev/null || date -j -f '%Y-%m-%d %H:%M:%S' "$s:00" +%s 2>/dev/null   # GNU first, then BSD
+}
+served_handoff() {  # served_handoff <station> → the journal path at HEAD holding the served ticket's "## Handoff", or exit 1
+  local dir="$1" f ticket id jdir path want
+  f="$dir/.claude/served"; [[ -f "$f" ]] || return 1   # written by `done`, the one place that knows the PR merged
+  ticket="$(sed -n 's/^ticket: //p' "$f" | head -1)"; id="${ticket#\#}"
+  [[ -n "$id" && "$id" != - ]] || return 1
+  [[ -z "$(git -C "$dir" branch --show-current)" ]] || return 1       # on a ticket branch: mid-ticket
+  [[ -z "$(git -C "$dir" status --porcelain)" ]] || return 1          # unfinished work
+  git -C "$dir" merge-base --is-ancestor HEAD "origin/$TRUNK" 2>/dev/null || return 1
+  want="$(printf '%s' "$id" | tr '[:upper:]' '[:lower:]')"
+  jdir="$(cfg_docs journal docs/journal)"
+  while IFS= read -r path; do
+    case "$(basename "$path" | tr '[:upper:]' '[:lower:]')" in "$want"-*.md) ;; *) continue ;; esac
+    git -C "$dir" show "HEAD:$path" 2>/dev/null | has_handoff && { echo "$path"; return 0; }
+  done < <(git -C "$dir" ls-tree --name-only HEAD "$jdir/")
+  return 1
 }
 # context_warning: one line for the board when the sous's own session carries too much
 # (its last ten turns over the budget's context line). Silent without node or a sous.
@@ -2458,7 +2493,7 @@ cmd_grant() {
   grant_line "$st"
 }
 cmd_clear() {
-  local who="$CLEAR_WHO" dir reg name pane handoff tr state open last_turn hmtime n i defer
+  local who="$CLEAR_WHO" dir reg name pane handoff tr state open last_turn hmtime stamp n i defer
   case "$who" in
     sous) dir="$ROOT" ;;
     station-*) dir="$KITCHEN/$who"; [[ -e "$dir/.git" ]] || { echo "No such station: $who" >&2; return 1; } ;;
@@ -2481,10 +2516,20 @@ cmd_clear() {
   tr="$(transcript_of "$reg")" || { echo "Not cleared: no transcript found for $who ($name)." >&2; return 1; }
   state="$(session_state "$tr")" || { echo "Not cleared: couldn't read $tr." >&2; return 1; }
   last_turn="$(state_field "$state" lastTurnStart)"; last_turn="${last_turn:-0}"
-  if [[ "$who" == sous ]]; then handoff="$ROOT/.claude/sous-handoff.md"; else handoff="$(newest_handoff "$dir")"; fi
-  [[ -n "$handoff" && -f "$handoff" ]] || { echo "Not cleared: $who ($name) has no handoff on disk. Ask it for /bk:handoff first." >&2; return 1; }
-  hmtime="$(mtime_ms "$handoff")"
-  (( hmtime >= last_turn )) || { echo "Not cleared: $who's handoff ($handoff) is older than its last turn. Ask it for /bk:handoff first." >&2; return 1; }
+  if [[ "$who" != sous ]] && handoff="$(served_handoff "$dir")"; then
+    : # served and merged, clean on trunk, its closing handoff committed there: nothing is left to hand off, whatever its last turn (an ack is a turn)
+  else
+    if [[ "$who" == sous ]]; then handoff="$ROOT/.claude/sous-handoff.md"; else handoff="$(newest_handoff "$dir")"; fi
+    [[ -n "$handoff" && -f "$handoff" ]] || { echo "Not cleared: $who ($name) has no handoff on disk. Ask it for /bk:handoff first." >&2; return 1; }
+    # the handoff's own stamp is the proof; a checkout refreshes the mtime, so that is only the fallback for a handoff with none
+    stamp=""; [[ "$who" != sous ]] && stamp="$(handoff_stamp "$handoff")"
+    if [[ -n "$stamp" ]]; then
+      (( stamp * 1000 + 59999 >= last_turn )) || { echo "Not cleared: $who's newest handoff section ($handoff) is stamped before its last turn (the file may only have been touched since, e.g. by a checkout). Ask it for /bk:handoff first." >&2; return 1; }
+    else
+      hmtime="$(mtime_ms "$handoff")"
+      (( hmtime >= last_turn )) || { echo "Not cleared: $who's handoff ($handoff) is older than its last turn. Ask it for /bk:handoff first." >&2; return 1; }
+    fi
+  fi
   # 3. nothing open
   if [[ "$who" == sous ]]; then
     n="$(asks_count open)"; (( n == 0 )) || { echo "Not cleared: the sous has $n open ask(s) to the head chef (kitchen.sh asks). Answer them first." >&2; return 1; }
@@ -2600,6 +2645,9 @@ cmd_done() {
   if ! git -C "$dir" fetch --quiet origin "$TRUNK" || ! git -C "$dir" switch --quiet --detach "origin/$TRUNK"; then
     echo "Not done: could not detach $who at origin/$TRUNK." >&2; return 1
   fi
+  # what was served, for `clear` (#89): the branch is about to be gone, and only `done` knows its PR merged. Kept out of git; a cook may not write it (guard.sh)
+  mkdir -p "$dir/.claude"; exclude_locally .claude/served "$dir"
+  printf 'ticket: %s\nbranch: %s\npr: %s\nat: %s\n' "$(branch_ticket "$branch")" "$branch" "$pr" "$(date +%s)" > "$dir/.claude/served"
   lstate=deleted; rstate="already gone"
   git -C "$dir" branch -D "$branch" >/dev/null 2>&1 || { lstate="NOT deleted"; rc=1; }
   # the exact ref, and only at the PR's head: a push after the merge is unmerged work on origin

@@ -921,27 +921,38 @@ if command -v node >/dev/null 2>&1; then
   : > "$TB/tmux.log"
   p1=$(reg "$S1" sid-c1 busy %7 app-cook-1)
   "$K" grant station-1 commit push open-pr >/dev/null 2>&1
-  out=$(PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
+  out=$(TZ=UTC PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
   ok "clear refuses a busy cook" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "is busy"' _ "$rc" "$out"
   ok "…and a refused clear leaves the cook's grant" test -s "$C/.claude/grants/station-1"
   sed -i.bak 's/"busy"/"idle"/' "$REG/$p1.json"
-  out=$(PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
+  out=$(TZ=UTC PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
   ok "clear refuses a cook with no handoff on disk" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "no handoff"' _ "$rc" "$out"
   printf '# journal\n\n## Handoff — 2026-01-01 09:00 · app-cook-1\n- Stage: served\n' > "$S1/docs/journal/BKLG-001-open.md"
   touch -t 202512310000 "$S1/docs/journal/BKLG-001-open.md"   # older than the last turn (2026-01-01 10:02)
-  out=$(PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
-  ok "clear refuses a handoff older than the cook's last turn" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "older than its last turn"' _ "$rc" "$out"
-  touch "$S1/docs/journal/BKLG-001-open.md"   # now: newer than the last turn
+  out=$(TZ=UTC PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
+  ok "clear refuses a handoff stamped before the cook's last turn" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "stamped before its last turn"' _ "$rc" "$out"
+  touch "$S1/docs/journal/BKLG-001-open.md"   # a checkout: the file is now newer than the last turn, the handoff in it is not
+  out=$(TZ=UTC PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
+  ok "clear refuses an old handoff whose journal was touched after the last turn (a checkout), by its own stamp" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "stamped before its last turn"' _ "$rc" "$out"
+  printf '# journal\n\n## Handoff — 2026-01-01 09:00 · app-cook-1\n- Stage: mid\n\n## Handoff — 2026-01-01 10:05 · app-cook-1\n- Stage: served\n' > "$S1/docs/journal/BKLG-001-open.md"   # a new handoff, written in the last turn
   { tline assistant 2026-01-01T10:03:00Z assistant m2 1000 "$(snd t2 '[gate] BKLG-001 Q1, see journal. commis: nothing')"; } >> "$PJ/sid-c1.jsonl"
-  out=$(PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
+  out=$(TZ=UTC PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
   ok "clear refuses a cook still waiting on an answer" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "waiting on an answer to its \[gate\]"' _ "$rc" "$out"
   ok "…and typed nothing into tmux" test ! -s "$TB/tmux.log"
   { tline user 2026-01-01T10:04:00Z user u3 0 "$(txt '<cross-session-message from-name=\"app-sous\">\n[heard] Q1: three')"; } >> "$PJ/sid-c1.jsonl"
   touch "$S1/docs/journal/BKLG-001-open.md"
-  out=$(PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
+  out=$(TZ=UTC PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
   ok "clear clears an idle, handed-off, answered cook" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "^Cleared station-1 (app-cook-1)"' _ "$rc" "$out"
   ok "clear takes the cleared cook's grant away" test ! -e "$C/.claude/grants/station-1"
   ok "…typing /clear into its pane, then /bk:line-cook" bash -c 'grep -q "send-keys -t %7 -l /clear" "$1" && grep -q "send-keys -t %7 -l /bk:line-cook" "$1" && [ "$(grep -c "send-keys -t %7 Enter" "$1")" = 2 ]' _ "$TB/tmux.log"
+  # a handoff with no stamp (an older journal) is judged by its mtime
+  printf '# journal\n\n## Handoff\n- Stage: served\n' > "$S1/docs/journal/BKLG-001-open.md"
+  touch -t 202512310000 "$S1/docs/journal/BKLG-001-open.md"
+  out=$(TZ=UTC PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
+  ok "clear refuses an unstamped handoff whose mtime is older than the last turn" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "older than its last turn"' _ "$rc" "$out"
+  touch "$S1/docs/journal/BKLG-001-open.md"
+  out=$(TZ=UTC PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
+  ok "…and clears one whose mtime is newer" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "^Cleared station-1"' _ "$rc" "$out"
   # The sous: named in .claude/sous, its handoff is .claude/sous-handoff.md, its "open" is an open ask.
   PS="$HOME/.claude/projects/$(slug "$C")"; mkdir -p "$PS"
   { tline user 2026-01-01T11:00:00Z user s1 0 "$(txt 'run the kitchen')"
@@ -1171,6 +1182,61 @@ git --git-dir "$DG" update-ref refs/heads/other/issue-6-suffix "$tip6"; git --gi
 out=$(done_ "13 MERGED $tip6 main" station-2); rc=$?
 ok "an origin ref that only ends in the branch's name does not count: already gone, exit 0" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "origin branch: already gone"' _ "$rc" "$out"
 ok "…and the other ref is untouched" bash -c 'git --git-dir "$1" rev-parse --verify -q refs/heads/other/issue-6-suffix >/dev/null' _ "$DG"
+
+section "clear: a served cook on trunk (#89)"
+# After ship and done a cook is served: its station is clean, detached at trunk, and the ticket's
+# journal (with its closing handoff) is on trunk. Every ack it answers is a new turn, so the
+# journal's mtime can never be newer than its last turn; the committed handoff is the proof.
+if command -v node >/dev/null 2>&1; then
+  mkdir -p "$REG"; : > "$TB/tmux.log"
+  git -C "$D2" switch -q -c issue-15-served origin/main
+  mkdir -p "$D2/docs/journal"
+  printf '# journal\n\n## Handoff — 2026-01-01 09:00 · app-cook-2\n- Stage: served (PR #15)\n' > "$D2/docs/journal/15-served.md"
+  git -C "$D2" add -A; git -C "$D2" commit -qm "work 15 and its handoff"; git -C "$D2" push -q origin issue-15-served 2>/dev/null
+  tip15=$(git -C "$D2" rev-parse HEAD); git --git-dir "$DG" update-ref refs/heads/main "$tip15"   # the PR merges
+  out=$(done_ "15 MERGED $tip15 main" station-2)
+  ok "done leaves a marker of what it served" bash -c 'grep -q "^ticket: #15$" "$1/.claude/served" && grep -q "^pr: 15$" "$1/.claude/served" && grep -q "^branch: issue-15-served$" "$1/.claude/served"' _ "$D2"
+  ok "…kept out of git" test -z "$(git -C "$D2" status --porcelain)"
+  PJ2="$HOME/.claude/projects/$(slug "$D2")"; mkdir -p "$PJ2"
+  { tline user 2099-01-01T10:00:00Z user v1 0 "$(txt '[heard] #15 served, thanks')"; } > "$PJ2/sid-d2.jsonl"   # the ack's answer: a turn after the handoff
+  p2=$(reg "$D2" sid-d2 idle %8 app-cook-2)
+  clr2() { (cd "$D" && TZ=UTC PATH="$TB:$PATH" "$K" clear station-2 2>&1); }
+  cp "$D2/.claude/served" "$TMP/served.keep"
+  echo wip > "$D2/untracked"
+  out=$(clr2); rc=$?
+  ok "clear refuses a served cook whose station is dirty" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "stamped before its last turn"' _ "$rc" "$out"
+  rm -f "$D2/untracked"
+  sed -i.bak 's/^ticket: .*/ticket: #16/' "$D2/.claude/served"; rm -f "$D2/.claude/served.bak"
+  out=$(clr2); rc=$?
+  ok "clear refuses when the served ticket has no handoff on trunk" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "stamped before its last turn"' _ "$rc" "$out"
+  rm -f "$D2/.claude/served"
+  out=$(clr2); rc=$?
+  ok "clear refuses a cook that never went through done (no marker): the old proof stands" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "stamped before its last turn"' _ "$rc" "$out"
+  cp "$TMP/served.keep" "$D2/.claude/served"
+  git -C "$D2" switch -q -c issue-16-wip origin/main
+  out=$(clr2); rc=$?
+  ok "clear refuses a cook on a new ticket branch even with the marker still there" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "Not cleared"' _ "$rc" "$out"
+  git -C "$D2" switch -q --detach origin/main; git -C "$D2" branch -q -D issue-16-wip
+  ok "…and nothing was typed into tmux" test ! -s "$TB/tmux.log"
+  out=$(clr2); rc=$?
+  ok "clear clears a served cook on trunk, whatever its last turn" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "^Cleared station-2 (app-cook-2)"' _ "$rc" "$out"
+  ok "…typing /clear into its pane, then /bk:line-cook" bash -c 'grep -q "send-keys -t %8 -l /clear" "$1" && grep -q "send-keys -t %8 -l /bk:line-cook" "$1"' _ "$TB/tmux.log"
+  { tline assistant 2099-01-01T10:05:00Z assistant v2 1000 "$(snd tv '[gate] #15 Q1, see journal. commis: nothing')"; } >> "$PJ2/sid-d2.jsonl"
+  out=$(clr2); rc=$?
+  ok "…but not one still waiting on an answer" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "waiting on an answer to its \[gate\]"' _ "$rc" "$out"
+  # a trunk journal that only has the template's commented example "## Handoff" is no handoff: the cook never wrote one
+  git -C "$D2" switch -q -c issue-17-nohandoff origin/main
+  cp "$(dirname "$K")/../../templates/journal.md" "$D2/docs/journal/17-nohandoff.md"
+  git -C "$D2" add -A; git -C "$D2" commit -qm "work 17, no handoff"; git -C "$D2" push -q origin issue-17-nohandoff 2>/dev/null
+  tip17=$(git -C "$D2" rev-parse HEAD); git --git-dir "$DG" update-ref refs/heads/main "$tip17"
+  out=$(done_ "17 MERGED $tip17 main" station-2)
+  out=$(clr2); rc=$?
+  ok "clear refuses a served cook whose journal on trunk only holds the template's commented handoff" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "stamped before its last turn"' _ "$rc" "$out"
+  for f in "$REG"/*.json; do kill "$(sed -n 's/.*"pid":\([0-9]*\).*/\1/p' "$f")" 2>/dev/null; done
+  rm -rf "$REG" "$PJ2"
+else
+  echo "# node not installed: skipping the served-cook clear tests"
+fi
 
 section "remove with a legacy clone config"
 git clone -q "$C.git" "$C/stations/station-1" 2>/dev/null

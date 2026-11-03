@@ -561,7 +561,7 @@ One cook, one ticket, one shift. When a cook's PR is open and LGTM'd:
 4. Tell the head chef in one line what merged (or is waiting on them), and **clear the cook
    yourself**: `kitchen.sh clear <station>` (Contract 5). It types `/clear` and then
    `/bk:line-cook` into that pane, and refuses, saying why, unless the cook is idle, its
-   handoff is newer than its last turn and nothing it sent still waits for an answer. A
+   handoff is newer than its last turn (a cook you have just `done`d needs none: its closing handoff is on trunk, so the ack it answers doesn't matter) and nothing it sent still waits for an answer. A
    refusal is an instruction: wait for the turn, ask for `/bk:handoff`, or answer the open
    message, then run it again. Never type into a cook's pane yourself by another route.
 5. Say which ticket that station gets next, one line of why.

@@ -333,7 +333,8 @@ one to a cook.
 before `/clear`, and no skill clears a session by itself. **The sous clears sessions**, with
 `kitchen.sh clear <station|sous>`: it types `/clear` into the pane (then `/bk:line-cook`
 for a cook) and refuses unless the session is idle, its handoff is newer than its last turn
-and nothing it sent still waits for an answer. Those three checks need no judgement, so the
+(by the handoff's own timestamp; a cook that has been served and merged, back on trunk with its
+handoff committed, needs no newer one) and nothing it sent still waits for an answer. Those three checks need no judgement, so the
 job is the sous's; you can still clear any session by hand.
 
 `/bk:handoff` works out its role from the directory it runs in:
