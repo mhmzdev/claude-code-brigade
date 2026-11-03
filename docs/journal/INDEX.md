@@ -14,3 +14,4 @@
 | [66-check-tree-hash.md](66-check-tree-hash.md) | kitchen: the check re-runs three to four times per pass on an unchanged tree; record a tree hash with each result | #66 |
 | [85-worktrees-only.md](85-worktrees-only.md) | kitchen: worktrees only; drop clone mode; a station's ticket branch is deleted and the station reset when the ticket is done | #85 |
 | [86-kitchen-procs.md](86-kitchen-procs.md) | kitchen / sous-chef: the kitchen reaps the processes it started (kitchen.sh procs: register, reap, scan); never a system or unknown process | #86 |
+| [90-gate-receipts.md](90-gate-receipts.md) | gate receipts: every check run writes a receipt naming the tree, the command and its exit; the pass trusts the receipt | #90 |

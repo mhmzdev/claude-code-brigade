@@ -145,7 +145,9 @@ const iso = (min) => new Date(T0 + min * 60000).toISOString().replace(/\.\d+Z$/,
 fs.mkdirSync(path.join(stationDir, '.claude'), { recursive: true });
 fs.writeFileSync(path.join(stationDir, '.claude', 'check.log'), [
   `${iso(-55)} tree=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa rc=1 secs=40 cmd=0123456789ab`,
-  `${iso(-53)} tree=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb rc=1 secs=41 cmd=0123456789ab`,
+  // a receipt for this station (counted), and a red one that names another station (a copied line: not counted)
+  `${iso(-53)} tree=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb rc=1 secs=41 cmd=0123456789ab start=${iso(-54)} out=${'d'.repeat(64)} station=${path.basename(stationDir)} check=scripts/check.sh`,
+  `${iso(-52)} tree=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb rc=1 secs=41 cmd=0123456789ab start=${iso(-53)} out=${'d'.repeat(64)} station=station-99 check=scripts/check.sh`,
   `${iso(-51)} tree=cccccccccccccccccccccccccccccccccccccccc rc=0 secs=42 cmd=0123456789ab moved`,
   'a line that is not a run',
 ].join('\n') + '\n');

@@ -1,6 +1,6 @@
 ---
 name: open-pr
-description: Commit, bring trunk in, run the check (once per tree), push and open (or update) the pull request for the current ticket — branch <lowercase id>-<slug>, title "[ID] summary", body Why / Change summary / Linked ticket / Test plan / Deploy prerequisites. Rescues work stranded on trunk onto a branch. Never force-pushes, never pushes to trunk. In a line-cook session it runs only after the sous chef's [go] and reports the PR URL back. Use when the user says "open a PR", "ship this", "put this up for review", "push this up", "/bk:open-pr".
+description: Commit, bring trunk in, run the check (once per tree; it leaves a receipt), push only a tree with a green receipt, and open (or update) the pull request for the current ticket — branch <lowercase id>-<slug>, title "[ID] summary", body Why / Change summary / Linked ticket / Test plan / Deploy prerequisites. Rescues work stranded on trunk onto a branch. Never force-pushes, never pushes to trunk. In a line-cook session it runs only after the sous chef's [go] and reports the PR URL back. Use when the user says "open a PR", "ship this", "put this up for review", "push this up", "/bk:open-pr".
 argument-hint: "[<ticket id> | title hint] [--base <branch>]"
 allowed-tools: Read, Grep, Glob, Bash, SendMessage, ListAgents, ToolSearch
 ---
@@ -78,12 +78,16 @@ Trunk moved while you cooked. Merge it now, so the PR is reviewed against today'
 ```bash
 git fetch origin
 git merge origin/<trunk>
+"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" index      # rewrites the generated INDEX files
+git add -A -- '*INDEX.md' && { git diff --cached --quiet || git commit -m "[<ID>] index"; }   # commit what it changed
 "${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" check
 ```
 
-The merge changes the tree whenever trunk moved, so the check runs; when trunk added nothing, the last green for this exact tree is reported instead.
+The index is committed before the check, so the receipt names the tree of the commit you will push.
 
-- A merge conflict in a generated `INDEX.md` (plans, journals, checklists; Contract 12) → run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" index`. It rewrites the whole table from the files now in the tree, so no row is lost and no marker is left; then `git add` the INDEX files and finish the merge (`git commit --no-edit`). Never pick a side by hand. After a clean merge, run it anyway and stage what it changed. A conflict in a hand-kept `INDEX.md` (any other folder, or one `index` calls hand-written) → keep **both** rows: `--ours`/`--theirs` deletes another station's entry.
+The merge changes the tree whenever trunk moved, so the check runs and writes a receipt; when trunk added nothing, the last green receipt for this exact tree is reported instead. A check that does not exit 0 stops here.
+
+- A merge conflict in a generated `INDEX.md` (plans, journals, checklists; Contract 12) → run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" index`. It rewrites the whole table from the files now in the tree, so no row is lost and no marker is left; then `git add` the INDEX files and finish the merge (`git commit --no-edit`). Never pick a side by hand. After a clean merge, run it anyway (it is in the block above, before the check) and commit what it changed. A conflict in a hand-kept `INDEX.md` (any other folder, or one `index` calls hand-written) → keep **both** rows: `--ours`/`--theirs` deletes another station's entry.
 - Any other conflict → stop and ask (cook: `[gate]` to the sous).
 - A red check → stop, and don't push red. Solo: fix it and re-run `/bk:review-task` for anything it touched. Cook: fixing it changes code after `[go]`, so fix it, then send `[handoff]` again for a new pass before pushing.
 
@@ -122,6 +126,15 @@ Find the prerequisites concretely: changed files under `migrations:`, env exampl
 Write the body to a tempfile so Markdown survives the shell.
 
 ## 6 — Push and open
+
+A commit is pushed only with a green receipt (Contract 8: a check's proof is its receipt). `git push` sends `HEAD`, and the receipt names a working tree, so right before the push require both that nothing is uncommitted and that the receipt is for the tree of `HEAD`:
+
+```bash
+test -z "$(git status --porcelain)"                                                     # the working tree is the commit
+"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" check --receipt "$(git rev-parse 'HEAD^{tree}')"   # must exit 0
+```
+
+Either failing → don't push. A dirty status: commit or remove what it lists, then run `kitchen.sh check` again. `--receipt` exit `1` (`no receipt for this tree`): something changed the tree after the check, so run `kitchen.sh check` again. `2`: the receipt is red, or the config's `check:` line changed since it was written; say which it printed. Never edit `.claude/check.log` to get past it. Only now is it true that the receipt names the commit you push.
 
 ```bash
 git push -u origin <branch>

@@ -21,7 +21,7 @@ const GREEN = '#6fcf7a', RED = '#e0533f', AMBER = '#e9a93c';
 
 export const HELPER = {
   commis: { cap: '#4d7fd6', role: 'the record', about: 'The junior who fetches for the line. Before any question goes up, searches the record for a decision already made or a fact already written. Reads only; decides nothing.' },
-  taster: { cap: '#8e6bd6', role: 'reviews', about: 'Tastes every plate before it leaves the pass. Reads a cook\'s diff, runs the check, walks the ticket\'s "Done when", and hands the sous a verdict with numbered findings.' },
+  taster: { cap: '#8e6bd6', role: 'reviews', about: 'Tastes every plate before it leaves the pass. Reads a cook\'s diff and the check\'s receipt, walks the ticket\'s "Done when", and hands the sous a verdict with numbered findings.' },
   inspector: { cap: '#4fa86f', role: 'hygiene', about: 'The health inspector: looks, never cooks. Reads a branch diff and reports what should not be there, plus dead code the diff leaves behind.' },
   runner: { cap: '#e0843c', role: 'the noisy jobs', about: 'Runs one noisy command (a test suite, a scan) and brings back only pass or fail and the lines that matter, so nobody reads the whole output.' },
 };

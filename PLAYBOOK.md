@@ -461,7 +461,7 @@ Sub-agents are short-lived helpers a session spawns. None is started by hand.
 |---|---|---|---|
 | **commis** | a cook before any question, the sous before asking you, `grill-me` before every round | searches the record (the `docs:` map, `CLAUDE.md`, the stations' journals) and returns a verdict with sources: settled, fact, blocked, conflict or nothing. Runs on Opus | write anything, or decide anything |
 | **inspector** | a cook, through `/bk:clean check` and `/bk:review-task` | reads the branch's diff and reports what a reviewer would reject, plus dead code in the diff | write anything: it holds no tool that can |
-| **taster** | the sous, at the pass, on a cook's `[handoff]` | reads the station's diff, runs the check there (`kitchen.sh check`: once per tree, trusting a green it recorded for the exact tree), walks the ticket's "Done when" boxes, runs the leak check, returns a verdict with numbered findings | edit, commit or message anyone |
+| **taster** | the sous, at the pass, on a cook's `[handoff]` | reads the station's diff, reads the check's receipt for the exact tree (`kitchen.sh check --receipt`; it never runs the check), walks the ticket's "Done when" boxes, runs the leak check, returns a verdict with numbered findings | edit, commit or message anyone |
 | **runner** | anyone | runs one noisy command (a test suite, a scan) and returns pass or fail plus the lines that matter | decide or edit anything |
 
 The point of all four is to keep long output, and long searches, out of the session that has to keep thinking.

@@ -81,7 +81,7 @@ function watchBudget(cfg, store, every = 10000, ciEvery = 10 * 60000) {
   const c = setTimeout(() => { ci(); const i = setInterval(ci, ciEvery); i.unref?.(); }, 20000); c.unref?.();
 }
 
-// The check machine reads each station's .claude/check.log (kitchen.sh check writes a line per real
+// The check machine reads each station's .claude/check.log (kitchen.sh check writes a receipt per real
 // run). Today's lines are replayed when the Window opens, then new ones as they land; from the first
 // line the log is the machine's only source (state.check.source), so a skipped run never counts.
 export function watchChecks(cfg, store, every = 5000) {
