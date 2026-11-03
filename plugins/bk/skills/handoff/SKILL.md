@@ -38,7 +38,7 @@ Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`.
 1. **Find the ticket**: the id in the branch name (`bklg-004-…` → `BKLG-004`). No ticket →
    say so and stop.
 2. **Find or create the journal** at `<docs.journal>/<ID>-<slug>.md` in this station, from
-   `${CLAUDE_SKILL_DIR}/../../templates/journal.md`. Add its row to `<docs.journal>/INDEX.md`.
+   `${CLAUDE_SKILL_DIR}/../../templates/journal.md`, with `ticket:` and `title:` filled in, then run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" index` for its row in `<docs.journal>/INDEX.md` (never type one, Contract 12; if it says that INDEX is hand-written, add the row by hand).
 3. **Work out the stage from the files, not memory**: plan `status:` and phases marked Done,
    whether a checklist exists, whether a PR exists (`gh pr list --head <branch>`), whether the
    sous has sent `[go]` (the journal says).

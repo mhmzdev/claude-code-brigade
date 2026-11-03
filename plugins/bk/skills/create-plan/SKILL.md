@@ -137,7 +137,7 @@ Body, every section filled with specifics:
 
 ## Step 6 — Rail, index, sign-off
 
-1. Add a row to `<docs.plans>/INDEX.md` (`| [<file>](<file>) | <one line> | <ticket> |`); create the index if missing.
+1. Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" index`: the plan's `title:` and `ticket:` are its row in `<docs.plans>/INDEX.md`, and you never type one (Contract 12). If it says that folder's INDEX is hand-written, add the row by hand (`| [<file>](<file>) | <one line> | <ticket> |`).
 2. Rail stays `todo` (set in Step 0).
 3. **Run the self-check** below.
 4. **Present it and stop. Don't ask "does this look right?"** Show the path, the phases in

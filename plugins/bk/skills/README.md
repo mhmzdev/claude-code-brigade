@@ -293,7 +293,10 @@ checklists and branches use them the same way (`gh-123-<slug>`, `abc-123-<slug>`
 stay in `docs/specs/` on every rail.
 
 `<slug>` is lowercase-kebab, 2–5 words. Every docs folder has an `INDEX.md` with one
-row per file; the skill that writes a file adds its row.
+row per file. For plans, journals and checklists the table is generated
+(`kitchen.sh index`, Contract 12): the skill that writes the file gives it `title:` and
+`ticket:` in its frontmatter and runs the command, and never types a row. For every other
+folder, the skill that writes a file still adds its row.
 
 Beyond the rail, the record (Contract 12) adds:
 
@@ -910,6 +913,34 @@ commis searches, and nothing outside the map counts as recorded.
    The one exception is a change that breaks the schema other docs already follow:
    renaming or removing a type, changing a required field, or editing a vendored schema
    file. That goes to the head chef first, as a `ruling` gap would.
+
+**The INDEX of plans, journals and checklists is generated, never typed.** Every ticket
+adds one row to each of the three, at the same place in the same file, so two tickets
+cooked at the same time conflict by construction. The rows hold nothing the files'
+frontmatter doesn't, so `kitchen.sh index` writes them:
+
+- **What it writes.** For `docs.plans`, `docs.journal` and `docs.checklists`, in the
+  checkout it runs in (a cook's station, not the main checkout): `| File | Summary |
+  Ticket |`, one row per file under the folder (`INDEX.md` excluded), sorted by path in
+  byte order. Summary is the file's `title:`, else the title of the plan its `plan:` names
+  (a checklist), else its first `# ` heading, else its filename. Ticket is `ticket:` as
+  written, or `—` when there is none. A marker comment under the heading says so, and the same files give the
+  same bytes on every branch.
+- **Who runs it.** The skill that writes a plan, a journal or a checklist, after it has
+  written the file (it gives the file `title:` and `ticket:`, and never types a row), and
+  `open-pr`, before it commits and again after it brings trunk in. `kitchen.sh index --check` writes nothing and exits
+  1 if one of the three is out of date; `kitchen.sh doctor` warns about the same.
+- **A conflict in one** is resolved by running the command, never by keeping both rows or
+  picking a side: it rewrites the whole file from the tree, even when conflict markers sit
+  inside it. GitHub can still report a conflict when two PRs add adjacent rows, because it
+  merges the text without the command; the answer is the same, merge trunk locally, run
+  `kitchen.sh index`, push.
+- **What stays hand-kept.** Every other folder's INDEX, and any INDEX in these three
+  folders that lacks the marker, which `index` leaves alone and says so. A repo with its
+  own doc schema, or its own hand-written index, is not changed by an upgrade; `index
+  --adopt` is the explicit opt-in, and lists the rows it drops (a row whose file is gone).
+  Where `index` says a folder's INDEX is hand-written, the skill adds the row by hand, as
+  before.
 
 **A decision that the domain has moved past** is caught by showing, not hiding: a grilling
 lists settled questions as *"already settled: <answer> (<source>), say if that changed"*,

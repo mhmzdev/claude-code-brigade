@@ -63,7 +63,9 @@ The branch is `<lowercase id>-<slug>`, e.g. `bklg-004-fix-login`, reusing the pl
 
 It prints one dated line (money, tokens, brief→PR with the phases known so far, the helpers) read from the transcripts of every cook session on the ticket and the sous's sub-agents for it, so it costs nothing to write. If it fails (no node, or nothing recorded), say so in one line and go on: the line is a record, not a gate. The ship phase and the CI minutes are not known yet; they land in `.claude/budget.jsonl` later (the sous's handoff and the open Window fetch CI).
 
-Stage only the ticket's files: the ones in the diff that the plan, the ticket's `files:` and the checklist account for, plus the ticket's plan, checklist and **journal** (`<docs.journal>/<ID>-<slug>.md`) and their INDEX rows. The journal is the one file allowed to have changed since the sous's `[go]`: it carries the closing handoff and the cost line. A file you had to guess about is a fork: ask. Never `git add -A` unasked.
+**Regenerate the indexes** (Contract 12): `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" index`. It rebuilds the plans, journals and checklists INDEX from the files' frontmatter, so the PR carries the rows for the files it adds; a folder it reports as hand-written keeps its hand-added row.
+
+Stage only the ticket's files: the ones in the diff that the plan, the ticket's `files:` and the checklist account for, plus the ticket's plan, checklist and **journal** (`<docs.journal>/<ID>-<slug>.md`) and the INDEX files `kitchen.sh index` rewrites for them. The journal is the one file allowed to have changed since the sous's `[go]`: it carries the closing handoff and the cost line. A file you had to guess about is a fork: ask. Never `git add -A` unasked.
 
 **Leak check before the commit, and again before the push** (Contract 2): `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" leaks`, the second time with `--also <the PR body file>`. It prints `file:line` for any test-account secret that reached a file, a commit message or the PR body. A non-zero exit → stop, remove it (name the account instead), and run it again; a cook then sends `[handoff]` again if the fix changed anything but the journal.
 
@@ -79,7 +81,7 @@ git merge origin/<trunk>
 <check>
 ```
 
-- A merge conflict in an `INDEX.md` table → keep **both** rows. `--ours`/`--theirs` deletes another station's entry.
+- A merge conflict in a generated `INDEX.md` (plans, journals, checklists; Contract 12) → run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" index`. It rewrites the whole table from the files now in the tree, so no row is lost and no marker is left; then `git add` the INDEX files and finish the merge (`git commit --no-edit`). Never pick a side by hand. After a clean merge, run it anyway and stage what it changed. A conflict in a hand-kept `INDEX.md` (any other folder, or one `index` calls hand-written) → keep **both** rows: `--ours`/`--theirs` deletes another station's entry.
 - Any other conflict → stop and ask (cook: `[gate]` to the sous).
 - A red check → stop, and don't push red. Solo: fix it and re-run `/bk:review-task` for anything it touched. Cook: fixing it changes code after `[go]`, so fix it, then send `[handoff]` again for a new pass before pushing.
 
@@ -140,7 +142,7 @@ The PR URL, title, base, created or updated, every Deploy prerequisite repeated 
 |---|---|
 | Rescuing work stranded on trunk | it moves trunk itself; the one path that can lose commits |
 | Files whose inclusion you had to guess | a commit is hard to take back |
-| A merge conflict outside INDEX rows | never auto-resolve |
+| A merge conflict outside the INDEX files | never auto-resolve |
 | Base branch other than `trunk` | the wrong base retargets someone's release |
 
 ## Never

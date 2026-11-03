@@ -12,6 +12,42 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.31.0] - 2026-11-03
+
+**The sous clears sessions.** Clearing a session was yours, so cooks sat spent after their
+PR until you got to their terminal, and the sous ran hundreds of turns past the context line
+because it could only suggest its own clearing. The three conditions for a safe clear need
+no judgement: the session is idle, its handoff is newer than its last turn, and nothing it
+sent still waits for an answer. So the job moves to the sous. `kitchen.sh clear
+<station-N|sous>` checks those three against the live session registry and the transcript,
+refuses otherwise and says why, and when they hold types `/clear` into the session's tmux
+pane (then `/bk:line-cook` for a cook, so it checks in fresh). The sous runs it on a cook
+after its `[served]` and handoff, and on itself after about three passes or when the board's
+new `Context:` line says its last ten turns are over the budget's context line, handoff
+first. Contract 5, the sous-chef, line-cook and handoff skills, the PLAYBOOK and the README
+say so. Nothing to install (`clear` needs node, like the budget); you can still clear any
+session by hand. What you must do: nothing. Expect the cooks to be fresh when you look, and
+the sous to restart itself now and then with a one-line note.
+
+## [0.30.0] - 2026-11-03
+
+**The plan, journal and checklist indexes now write themselves, so two cooks stop
+conflicting on them.** Every ticket used to add a row to `docs/plans/INDEX.md`,
+`docs/journal/INDEX.md` and `docs/checklists/INDEX.md` at the same place, so any two tickets
+cooked together conflicted when the second merged (PR #52 took five rounds, PR #53 three).
+Now `kitchen.sh index` rebuilds those three tables from each file's own frontmatter (`title`
+and `ticket`), sorted by path, and the skills that write those files call it instead of
+typing a row. `/bk:open-pr` runs it after bringing trunk in, and a conflict in one of these
+files is cleared by running it, never by keeping both rows. `kitchen.sh index --check` says
+whether one is out of date, and `kitchen.sh doctor` warns about the same. GitHub can still
+flag two PRs that add adjacent rows, since it merges the text without the command; the fix
+is then the same, merge trunk locally, run `kitchen.sh index`, push. A checklist now carries
+a `title:` in its frontmatter. Nothing to install. What you must do: in a repo that
+already has hand-written index files there, nothing changes until you ask: `kitchen.sh index`
+leaves them alone and says so, and `kitchen.sh index --adopt` takes them over (it lists any
+row whose file is gone). The indexes of specs, backlog, brainstorms, research, decisions,
+conventions, knowledge and questions stay hand-kept.
+
 ## [0.29.1] - 2026-11-03
 
 **The budget no longer bills your own sessions to the sous.** Every session in the main

@@ -1,6 +1,6 @@
 ---
 name: review-task
-description: Close a ticket's inner loop before anything is committed. Runs the inspector on the branch diff, derives the acceptance checklist from intent (ticket + plan) plus the diff, proves each criterion at the cheapest honest layer ([x] passing test or file:line read, [?] runtime proof still owed, [!] fails or missing), writes docs/checklists/<id>-<slug>.md with its INDEX row, and moves the ticket to rfr. In a line-cook session it ends with a [handoff] to the sous chef and waits for [go]. Use when the user says "review this", "is this done", "acceptance checklist", "verify the ticket", "check what we built", "/bk:review-task".
+description: Close a ticket's inner loop before anything is committed. Runs the inspector on the branch diff, derives the acceptance checklist from intent (ticket + plan) plus the diff, proves each criterion at the cheapest honest layer ([x] passing test or file:line read, [?] runtime proof still owed, [!] fails or missing), writes docs/checklists/<id>-<slug>.md and regenerates its INDEX row, and moves the ticket to rfr. In a line-cook session it ends with a [handoff] to the sous chef and waits for [go]. Use when the user says "review this", "is this done", "acceptance checklist", "verify the ticket", "check what we built", "/bk:review-task".
 argument-hint: "[<ticket id> | <plan path> | free-text intent] [--no-inspector]"
 allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent, SendMessage, ListAgents, ToolSearch
 ---
@@ -53,7 +53,7 @@ exactly what to look at.
 3. **Seed criteria from the source of truth**: the ticket's `## Done when` boxes, the plan's success criteria, the spec's decisions for lane A. Then add what the diff implies, including anything the intent asked for that the diff **doesn't** contain.
 4. **Run the check command** once. A red check is an `[!]` on its own line.
 5. **Route every criterion** on the ladder below. Write a test when one is cheap. That is the best `[x]` you can get.
-6. **Write or update** `<checklists>/<id>-<slug>.md` (same slug as the plan) and its row in `<checklists>/INDEX.md`. If the file exists, **append and re-verify**: flip every item the diff touches back to `[ ]` and prove it again. Never regenerate it.
+6. **Write or update** `<checklists>/<id>-<slug>.md` (same slug as the plan), with `ticket:`, `title:` (the plan's), `plan:` and `last_verified:` in its frontmatter, then run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" index` for its row in `<checklists>/INDEX.md` (never type one, Contract 12; if it says that INDEX is hand-written, add the row by hand). If the file exists, **append and re-verify**: flip every item the diff touches back to `[ ]` and prove it again. Never regenerate it.
 7. **Move the ticket and hand off** (below).
 8. **Report**: counts of `[x]` / `[?]` / `[!]`, every `[!]` in full, every `[?]` recipe, the inspector's findings, and the next step.
 
@@ -96,5 +96,5 @@ Start from `${CLAUDE_SKILL_DIR}/../../templates/checklist.md`. Write outcomes, n
 - Need a login to walk a flow? Use a test account from the main checkout's `.claude/brigade.local.md` (Contract 2; `kitchen.sh role` prints the main checkout): a cook asks the sous for one by `[gate]`. The checklist names the account, never its password. A write on production needs the head chef's yes for that action first.
 - `[!]` means not done. Report it at the top; don't bury it.
 - Every `file:line` and test name was read in this run. No invented references.
-- This skill writes only the checklist, its INDEX row, and (solo/sous only) the rail. It never touches code, git history or another station.
+- This skill writes only the checklist, its INDEX row (by `kitchen.sh index`), and (solo/sous only) the rail. It never touches code, git history or another station.
 - A cook never commits, pushes or edits a ticket file from this skill.
