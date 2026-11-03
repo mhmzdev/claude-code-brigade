@@ -44,3 +44,5 @@ It reaches trunk with the PR, next to the plan and checklist.
 - lesson(repo): mutate-a-copy | to prove a test can fail, mutate a COPY of the script outside the checkout; a detached loop mutating the live file survived a killed pid, left a mutation behind, and a later "restore" saved the mutation | #64 (used again here, it worked)
 - lesson(repo): copy-needs-plugins-link | a copy of tests/kitchen.test.sh outside the checkout runs if its folder holds tests/ and a symlink `plugins` to the checkout's: the suite reads only $REPO/plugins (REPO is its own parent folder) | #50
 - 2026-11-03 · claude-code-brigade-cook-1 · cost line: not written. `kitchen.sh budget --ticket '#50' --journal-line` answers "No spend recorded for #50" (the budget only knows S###-##, BKLG-###, HYG-### ids: #59); went on without it, as the skill allows.
+- 2026-11-03 · claude-code-brigade-cook-1 · open-pr: committed c715b7d, merged origin/main d0e3be5 (docs only, no conflicts). Waiting on the sous for the gate slot (#65's taster is using check.sh).
+- 2026-11-03 · claude-code-brigade-cook-1 · open-pr: gate slot given by the sous; running the one check on the merged tree.
