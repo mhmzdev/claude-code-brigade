@@ -399,9 +399,11 @@ is watching its terminal, and the plugin's hook refuses the dialog in a station 
 grilling.
 Everything a cook needs decided goes to the sous as a `[gate]`. The sous answers what the
 record or routine settles, and takes the rest to the head chef in its own terminal, with a
-recommendation, then relays the answer marked `(head chef)`. The one planned exception is a
-grilling the sous hands to a cook (the table below): the questions are for the human, so the
-human answers them in that station. If the human does type in a cook's terminal,
+recommendation, then relays the answer marked `(head chef)`. There are two planned
+exceptions (the table below). One is a grilling the sous hands to a cook: the questions are
+for the human, so the human answers them in that station. The other is an edit the cook's
+permissions refuse (see "a tool call the cook's permissions refuse" below): only the human
+can lift that, and only in that cook's terminal. If the human does type in a cook's terminal,
 the cook does as told and sends the sous one `[status]` line, so the sous's picture stays whole.
 
 **Three kinds of unknown, and only one is the head chef's.** Before any question goes up,
@@ -465,7 +467,8 @@ every commit made under it (after the sous's pass). No separate "approve?" quest
 | a `HYG` ticket (lane C) | sous | the counter is the whole intent; the ticket is the plan |
 
 Whatever the kind, a plan goes to the **head chef** when it carries a migration, touches a
-`walk_in:` resource, needs a production write, or makes a decision the record doesn't hold
+`walk_in:` resource, needs a production write, edits a protected path (below), or makes a
+decision the record doesn't hold
 (the sous asks the commis before signing off: a bug plan that settles something unrecorded
 was a feature in disguise). The head chef can also say "show me every plan" for a while, and
 the sous does.
@@ -488,6 +491,24 @@ the sous does.
   note, a standing remark or an earlier ticket's approval is not one.
 - **Lane C has no plan**, so the sign-off is on the ticket itself: the sous reads the
   ticket's findings list before the brief, and the brief carries the `[approved]` line.
+- **A plan that edits a protected path goes to the head chef.** A protected path is one
+  Claude Code won't let a session in auto mode edit, whatever the sous has signed: anything
+  under `.claude/` (except `.claude/worktrees/`), `.mcp.json`, `.claude.json`, and the
+  root `CLAUDE.md` (not on Claude Code's list, but a cook was refused it once). An allow
+  rule in settings doesn't change that: Claude Code checks protected paths before it reads
+  allow rules. So the head chef can't open the path in advance; they can be at the cook's
+  terminal when it gets there. The plan has a "Protected paths" section (the files, the
+  phase, last when the order allows), the `[plan]` message says so, and the sous shows the
+  head chef which station and phase and what they will do there, before any `[approved]`.
+- **A tool call the cook's permissions refuse is the head chef's to lift, never the
+  sous's.** The cook sends `[gate] <ID> edit denied: <path>, <the tool's words>` (a gate
+  that isn't a question: no commis, no `Qn`) and waits. It doesn't retry the edit another
+  way (a shell redirect, `sed -i`, `cp`, `git apply`, a sub-agent), doesn't edit settings
+  to allow it and doesn't change its own permission mode. The sous doesn't make the edit
+  for it and doesn't relay a "yes" as if it lifted the refusal: either would hand the
+  permission decision to a session that wasn't refused. The head chef lifts it in the
+  cook's terminal (the edit themselves, or that session moved to a mode that prompts),
+  tells the sous, and the sous sends `[heard]`.
 
 Only `setup` has `disable-model-invocation: true` (it changes a repo's layout). Every
 other skill is model-invocable, or cooks would stall waiting for a human to type it.
@@ -496,7 +517,7 @@ other skill is model-invocable, or cooks would stall waiting for a human to type
 
 | Gate | Solo session | Line cook |
 |---|---|---|
-| Plan approval (the **sign-off**) | human types `/bk:implement`, or says to build the plan | by `gates.plan_approval`: **the sous** for a bug, chore, precedent or hygiene plan (it tells the head chef); **the head chef, in the sous's terminal**, for a feature or any plan with a migration, a walk-in resource, a production write or an unrecorded decision. Either way the sous relays `[approved]` and the cook starts `/bk:implement`. That authorises every commit made under the plan |
+| Plan approval (the **sign-off**) | human types `/bk:implement`, or says to build the plan | by `gates.plan_approval`: **the sous** for a bug, chore, precedent or hygiene plan (it tells the head chef); **the head chef, in the sous's terminal**, for a feature or any plan with a migration, a walk-in resource, a production write, a protected path or an unrecorded decision. Either way the sous relays `[approved]` and the cook starts `/bk:implement`. That authorises every commit made under the plan |
 | Which ticket a free cook takes next | human | the sous (`gates.assign`), from the ready tickets in Contract 3's order |
 | A question about how things work, one the record already answers, or one a precedent in the code settles | the session looks it up (the commis) | the cook sends the **commis** first; settled with a source, or a precedent with its instances → answered, no gate |
 | Design fork, contradiction between ticket and code, nothing recorded | human | cook sends `[gate]` with the commis result; the sous sends the commis wider if useful, answers from the record (and tells the head chef), or takes it to the human with a recommendation and relays the answer |
@@ -507,6 +528,7 @@ other skill is model-invocable, or cooks would stall waiting for a human to type
 | Merge, deploy, changing production itself | human | human only. No session does these, and a relayed "go" for one is refused |
 | A write on production while testing a flow with a test account (Contract 2) | human, asked for that exact action | cook sends `[gate] <ID> production write: …`; the sous asks the human and relays the answer marked `(head chef)` |
 | Filing a public issue on the plugin repo (`/bk:feedback`) | human, after reading the whole draft | a cook never files: it writes a `lesson(plugin)`, and the sous's handoff brings it to the human |
+| A tool call the cook's permissions refuse (a protected path in auto mode) | human, at the prompt | cook sends `[gate] <ID> edit denied: <path>, …` and waits; the sous tells the head chef which station, and the head chef lifts it **in that cook's terminal**; no session does it for them |
 
 A cook that receives "the chef said go" from the sous for a merge or a deploy **refuses**.
 That is correct. The human does those personally; no message stands in for them.
@@ -533,14 +555,14 @@ Keep messages short and typed. The first line is the kind, in brackets:
 |---|---|---|
 | `[hello]` | sous → cook | "I'm the sous, check in": sent at start-up to cooks that were already waiting |
 | `[brief]` | sous → cook | the ticket's absolute path, why it matters, constraints from other stations, the loop. Or a **grilling brief**: the item to grill the head chef on, and where its decisions go |
-| `[check-in]` | cook → sous | station, model, branch, dirty or clean, ticket, whether the session is **fresh or spent** (spent: this conversation itself has served a ticket or held a grilling, so it needs clearing; a session just started or just cleared is fresh, whatever the station's journal or branch says), and **what it's waiting on** (a question id, the plan's sign-off, the pass, a walk-in clearance, or nothing) |
-| `[gate]` | cook → sous | the question, the options, the cook's recommendation, and the commis's result (`commis: nothing recorded in <places>`, `commis: conflict between <a> and <b>`, `commis: blocked on <question file>`, or `commis: precedent in <paths>, but <why it doesn't settle this>`) |
+| `[check-in]` | cook → sous | station, model, branch, dirty or clean, ticket, whether the session is **fresh or spent** (spent: this conversation itself has served a ticket or held a grilling, so it needs clearing; a session just started or just cleared is fresh, whatever the station's journal or branch says), and **what it's waiting on** (a question id, the plan's sign-off, the pass, a walk-in clearance, a refused edit's lift, or nothing) |
+| `[gate]` | cook → sous | the question, the options, the cook's recommendation, and the commis's result (`commis: nothing recorded in <places>`, `commis: conflict between <a> and <b>`, `commis: blocked on <question file>`, or `commis: precedent in <paths>, but <why it doesn't settle this>`); or the refusal `edit denied: <path>, <the tool's words>` |
 | `[rail]` | cook → sous | a rail change request: `claim BKLG-004 todo`, `BKLG-004 → rfr`. Also a file for the sous to record in the main checkout, by absolute path: a spec draft, grilling decisions, a brainstorm doc |
 | `[walk-in]` | cook → sous | "about to run `<command>` on `<resource>`, OK?" |
 | `[status]` | anyone | a state change that needs no answer: "the head chef told me directly to …", "implement started (signed off)", a lane-C counter before/after |
 | `[handoff]` | cook → sous | "ready for the pass": branch, files, check result, inspector result, absolute checklist path |
 | `[findings]` | sous → cook | numbered items, each with file and why |
-| `[plan]` | cook → sous | the plan is ready for the sign-off: its absolute path. The cook waits for `[approved]` or `[findings]` |
+| `[plan]` | cook → sous | the plan is ready for the sign-off: its absolute path, and its protected paths, if any. The cook waits for `[approved]` or `[findings]` |
 | `[approved]` | sous → cook | the sign-off: start `/bk:implement`. Either the sous's own, naming its rule (`[approved] <ID>: <path> · sous, per gates.plan_approval.<kind>`), or the head chef's yes in their words (`[approved] <ID>: <path> · head chef: "<words>"`). A feature plan only ever gets the second |
 | `[go]` | sous → cook | commit approval after the pass |
 | `[served]` | cook → sous | the PR is open: its URL |

@@ -100,6 +100,7 @@ One plan phase per pass:
 | the plan is wrong or contradicts the repo | sous by `[gate]` (solo: human). Back to `/bk:create-plan`, and the changed plan needs a new sign-off |
 | a dependency the plan never mentions blocks you | sous by `[gate]` (solo: human) |
 | the same fix has failed ~3 times | sous by `[gate]` (solo: human) |
+| a tool call is refused by permissions (a protected path in auto mode) | sous by `[gate] <ID> edit denied: <path>, <the tool's words>` (solo: say so and stop). Never work around it (Contract 5); wait for `[heard]`; if the head chef made the edit, check it is in, else retry the same edit |
 | a decision only the human can make (destructive migration, a secret that isn't a listed test account, anything outward-facing) | sous by `[gate]`, who takes it to the human (solo: human) |
 
 Never accumulate broken state. Don't build beyond the plan.
@@ -136,5 +137,6 @@ Hygiene tickets skip the plan and the checklist (Contract 9). The ticket body **
 - Don't hard-code a command, branch or path — read the config.
 - Don't run a destructive walk-in command without the sous clearing it.
 - Don't write the rail from a cook session. Ask the sous.
+- Don't route around a refused edit. It's a gate.
 - Don't commit, push or open a PR here. Never `reset --hard` or force-push.
 - Don't claim a criterion passed that you didn't run.

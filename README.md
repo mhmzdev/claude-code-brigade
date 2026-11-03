@@ -118,8 +118,9 @@ That starts everything in one tmux session and puts you in front of the sous:
 
 The sous picks the next ready ticket for each free cook, briefs it, answers its questions
 from the record, reviews its diff before anything is committed, and tells you what it
-assigned. You talk to the sous only. It comes to you for two things: a yes on a feature
-plan, and the merge.
+assigned. You talk to the sous only, bar a grilling and an edit auto mode refuses (you
+lift that in the cook's terminal). It comes to you for a yes on a feature plan (or any plan
+that edits `.claude/`), and the merge.
 
 | You want to | Type |
 |---|---|
@@ -262,6 +263,7 @@ The rules every skill follows are in [`plugins/bk/skills/README.md`](plugins/bk/
 | `bk version` prints `init error: No such file or directory` | a bare `brew install bk` installed Homebrew's `bk`, an EPUB reader | `brew uninstall bk && brew install mhmzdev/brigade/bk` |
 | `bk stop` says a session is still busy after the timeout | its handoff didn't finish | it was saved and stopped anyway; `bk open` resumes it. `bk stop --timeout 1200` waits longer |
 | the sous can't find a cook, or the reverse | they run under different Claude Code profiles | open everything with `bk open`; to restart one cook by hand, run `.claude/cook` in its station, which keeps the profile |
+| a cook has sat on one edit for a long time, and the sous says "edit denied" | auto mode refuses writes under `.claude/` (and sometimes `CLAUDE.md`); an allow rule in settings doesn't help, and no session may do it for the cook | go to that cook's terminal: make the edit yourself, or move that session to a mode that prompts (`default` or `acceptEdits`), then tell the sous |
 | a station is dirty right after setup | the install step wrote into it | `git -C stations/station-N diff`, fix the cause in the main checkout, then `git -C stations/station-N checkout -- .` |
 
 ## Feedback

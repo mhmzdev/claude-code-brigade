@@ -17,6 +17,7 @@ created: YYYY-MM-DD
 - [Goal](#goal)
 - [Current state](#current-state)
 - [Approach](#approach)
+- [Protected paths](#protected-paths)
 - [Phases](#phases)
 - [Success criteria](#success-criteria)
 - [Risks](#risks)
@@ -32,6 +33,12 @@ created: YYYY-MM-DD
 ## Approach
 
 <The chosen design, and the alternative it beat.>
+
+## Protected paths
+
+<!-- Delete this section (and its Contents line) when `files:` lists no protected path (Contract 5). -->
+
+<Each protected path (Contract 5) this plan edits, and the phase that edits it, last when the order allows. Auto mode will refuse the edit; the head chef lifts it at the station.>
 
 ## Phases
 
