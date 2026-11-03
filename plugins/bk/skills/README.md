@@ -27,13 +27,13 @@ skill has a bug.
 
 | Role | Who | Does | Never does |
 |---|---|---|---|
-| **Head Chef** | the human | talks to **one** session, the sous: makes the decisions nobody has made yet (new features and flows, real forks), merges, deploys, opens the kitchen | relays messages between sessions, watches the cooks' terminals, clears sessions as a routine (the sous does, by rule), or answers what the record already answers |
-| **Sous Chef** | one Claude Code session in the **main checkout**, running `/bk:sous-chef` | assigns tickets, answers every gate the record or routine can settle, signs off bug, chore, precedent and hygiene plans, brings feature plans and real forks to the head chef with a recommendation and relays the answer, keeps the record (Contract 12), reviews every diff before commit, **is the only writer of the rail** | writes code in a station, merges, deploys, decides a fork the record doesn't settle |
+| **Head Chef** | the human | talks to **one** session, the sous: makes the decisions nobody has made yet (new features and flows, real forks), deploys, opens the kitchen; merges only when the config keeps the merge (`gates.merge: head-chef`) | relays messages between sessions, watches the cooks' terminals, clears sessions or merges green PRs as a routine (the sous does both, by rule; `gates.merge: head-chef` keeps the merge), or answers what the record already answers |
+| **Sous Chef** | one Claude Code session in the **main checkout**, running `/bk:sous-chef` | assigns tickets, answers every gate the record or routine can settle, signs off bug, chore, precedent and hygiene plans, brings feature plans and real forks to the head chef with a recommendation and relays the answer, keeps the record (Contract 12), reviews every diff before commit, merges a PR that passed its pass and is green (`kitchen.sh ship`, Contract 5), **is the only writer of the rail** | writes code in a station, deploys, merges a PR that hasn't passed its pass or isn't green, decides a fork the record doesn't settle |
 | **Line Cook** | one Claude Code session per **station** (started by `kitchen open`, or any session in a station) | works one ticket from plan to PR; sends the commis before it sends a question | edits ticket files, touches another station, empties the walk-in without asking, settles a design fork on its own |
 | **Commis** | the `commis` sub-agent, spawned by a cook or the sous before any question goes up | searches the record for a decision already made, the code for a precedent (the same kind of thing, done twice already), or a fact already written, and returns a short verdict with its sources (the junior who fetches for the line) | holds any tool that can write; decides anything |
 | **Inspector** | the `inspector` sub-agent | reads a diff and reports what shouldn't be there (the health inspector: looks, never cooks) | holds any tool that can write |
-| **Taster** | the `taster` sub-agent, spawned by the sous at the pass | reads a cook's diff, re-runs the check, walks "Done when", returns a verdict and numbered findings, so the sous doesn't read whole diffs | edits, commits, or messages anyone |
-| **Runner** | the `runner` sub-agent, anyone may spawn it | runs one noisy command (the check, a test suite, a scan) and returns only pass/fail plus the failing lines | decides anything, or edits |
+| **Taster** | the `taster` sub-agent, spawned by the sous at the pass | reads a cook's diff, runs the check (`kitchen.sh check`: once per tree, trusting a green it recorded for the exact tree it reads, and saying so), walks "Done when", returns a verdict and numbered findings, so the sous doesn't read whole diffs | edits, commits, or messages anyone |
+| **Runner** | the `runner` sub-agent, anyone may spawn it | runs one noisy command (a test suite, a scan) and returns only pass/fail plus the failing lines | decides anything, or edits |
 
 **A session inside a station is a line cook, whether or not `/bk:line-cook` was typed.**
 After a `/clear`, the next skill may run straight away: it must still
@@ -89,7 +89,8 @@ gates:
     precedent: sous-chef                 # kind: precedent (the code already does this twice; the record says why)
     hygiene: sous-chef                   # HYG tickets (the ticket is the plan)
   pre_commit: sous-chef
-  merge: head-chef
+  merge: sous-chef                       # sous-chef (merges a PR that passed its pass and is green: kitchen.sh ship) | head-chef
+  merge_method: merge                    # merge | squash | rebase: what kitchen.sh ship passes to gh
   deploy: head-chef
 clean:                                   # lane C counters; each command prints one finding per line
   counters:
@@ -257,8 +258,8 @@ accumulates them on a `rail/YYYY-MM-DD` branch and opens one PR. Cooks read tick
 **absolute path in the main checkout**, so they never wait for either.
 
 **Closing.** A tracker usually closes the ticket on merge. A markdown rail has nothing to
-do that, so the sous closes the ticket (`status: done`) through `/bk:rail` once the
-head chef has merged.
+do that, so the sous closes the ticket (`status: done`) through `/bk:rail` once the PR has
+merged (its own `kitchen.sh ship`, or the head chef's merge with `gates.merge: head-chef`).
 
 **A backlog item that became a spec closes when the spec is written**, not when the code
 merges. `close` then also records the spec: `spec: SNNN` on a markdown rail, a closing
@@ -282,6 +283,7 @@ because only one session (the sous) hands them out. They are zero-padded and nev
 | The register: promoted lessons and handled decisions | `docs/lessons.md` (`docs.lessons`) | — (one row per promoted key or kept answer) |
 | Sous handoff | `.claude/sous-handoff.md`, **gitignored** | — (overwritten each handoff) |
 | Sous's session name | `.claude/sous`, kept out of git (`.git/info/exclude`) | — (written by `kitchen.sh sous --set` when the sous starts) |
+| Check log and output | `.claude/check.log`, `.claude/check.out` in each checkout, kept out of git (`.git/info/exclude`) | — (written only by `kitchen.sh check`: one log line per real run, `<time> tree=<hash> rc=<n> secs=<n> cmd=<id>`, plus ` moved` when the run changed its own tree; a green for the same tree and command is trusted, a red or a moved one never; the budget and the Window read it) |
 | Research | `docs/research/YYYY-MM-DD-<slug>.md` | — |
 | Brainstorm | `docs/brainstorm/YYYY-MM-DD-<slug>.md` | — |
 | Branch | `<lowercase id>-<slug>` e.g. `bklg-004-fix-login` | — |
@@ -554,13 +556,14 @@ other skill is model-invocable, or cooks would stall waiting for a human to type
 | Brainstorming (`/bk:brainstorm`) | human | the sous's and the human's: the sous never hands one to a cook. Only the human typing `/bk:brainstorm` in a station starts one there |
 | Every other confirmation ("confirm scope?", "continue to phase 2?", "which of these two helpers?") | human | **sous chef, by `SendMessage`**, never a dialog nobody is watching |
 | Pre-commit review (**the pass**) | human | sous spawns the `taster`, questions its verdict, checks across stations, then says `[go]` |
-| Merge, deploy, changing production itself | human | human only. No session does these, and a relayed "go" for one is refused |
+| Merge | human | **the sous**, by `kitchen.sh ship <PR>` after its pass, when `gates.merge` is `sous-chef` (the default): the PR must be open, not a draft, against trunk, mergeable, up to date and green on every check, else `ship` refuses and names the condition. Merging at that point is no decision, and a trunk that breaks is the next ticket, briefed at once. With `gates.merge: head-chef` the merge is the human's, and the human can always hold one PR by saying so |
+| Deploy, changing production itself | human | human only. No session does these, and a relayed "go" for one is refused |
 | A write on production while testing a flow with a test account (Contract 2) | human, asked for that exact action | cook sends `[gate] <ID> production write: …`; the sous asks the human and relays the answer marked `(head chef)` |
 | Filing a public issue on the plugin repo (`/bk:feedback`) | human, after reading the whole draft | a cook never files: it writes a `lesson(plugin)`, and the sous's handoff brings it to the human |
 | A tool call the cook's permissions refuse (a protected path in auto mode) | human, at the prompt | cook sends `[gate] <ID> edit denied: <path>, …` and waits; the sous tells the head chef which station, and the head chef lifts it **in that cook's terminal**; no session does it for them |
 
 A cook that receives "the chef said go" from the sous for a merge or a deploy **refuses**.
-That is correct. The human does those personally; no message stands in for them.
+That is correct. A cook never merges or deploys: the sous merges (`kitchen.sh ship`, or the human with `gates.merge: head-chef`), and the human deploys personally; no message stands in for them.
 
 **Cooks stop for decisions, not ceremony.** Once `/bk:implement` starts, it runs straight
 through its phases. It only stops for a criterion that genuinely needs eyes, and that
@@ -805,7 +808,7 @@ journal, written at handoff:
   ticket is done (say, inside a plan moved to `completed/`) still counts.
 - **Threshold:** a `repo` lesson is due at **2 tickets**; a `plugin` lesson at **1**.
 - **Action for `repo`:** fire a normal `BKLG` ticket, "promote lesson `<key>` into
-  CLAUDE.md / the config notes". It goes through a cook, the pass, and the head chef's
+  CLAUDE.md / the config notes". It goes through a cook, the pass, and the
   merge. Add the key to the register, `docs.lessons` (default `docs/lessons.md`), as
   `` | `<key>` | repo | <ticket> | `` so it's
   never promoted twice. The register also holds the decisions the sous has handled

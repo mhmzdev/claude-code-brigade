@@ -55,6 +55,17 @@
 #                                         e.g. a PR body) for any test-account secret in
 #                                         .claude/brigade.local.md. Prints file:line only,
 #                                         never the value; exits 1 on a hit
+#   kitchen.sh check [--force]            the config's check command, run once per tree. It
+#                                         hashes this checkout's working state (tracked,
+#                                         deleted and untracked files, minus what git
+#                                         ignores) and looks in .claude/check.log for a
+#                                         green run of the same command on that tree: found,
+#                                         it says so and runs nothing; else it runs the
+#                                         command, appends one line to the log and prints
+#                                         green or red (the last 40 lines on red; the full
+#                                         output is in .claude/check.out). --force runs it
+#                                         anyway. Exits with the check's own code. Both
+#                                         files are kept out of git
 #   kitchen.sh remove                     delete every station (asks first)
 #   kitchen.sh role                       "cook <station> <main checkout>" when run inside
 #                                         a station, else "main <main checkout>"
@@ -69,6 +80,13 @@
 #                                         than its last turn and nothing it sent still waits
 #                                         for an answer. Refuses otherwise, saying why.
 #                                         Needs node (reads the session's transcript)
+#   kitchen.sh ship <PR number>           merge that PR, the sous's job when gates.merge is
+#                                         sous-chef (the default): open, not a draft, against
+#                                         trunk, mergeable, up to date, every check green
+#                                         (refuses otherwise, naming the condition), then
+#                                         `gh pr merge --merge` (gates.merge_method: merge |
+#                                         squash | rebase). With gates.merge: head-chef it
+#                                         refuses: the merge is the head chef's there
 #   kitchen.sh lessons                    count lesson(...) lines across ticket journals
 #   kitchen.sh decisions                  every "(head chef)" answer in a journal that no doc
 #                                         under the docs map cites and the register doesn't
@@ -189,6 +207,18 @@ cfg() {
     }' "$CONFIG"
 }
 
+# cfg_gate <key> [default] → gates.<key> from the nested gates: block ("" or the default if absent)
+cfg_gate() {
+  local v=""
+  [[ -f "$CONFIG" ]] && v="$(awk -v k="$1" '
+    NR==1 && $0=="---" { inside=1; next }
+    inside && $0=="---" { exit }
+    inside && /^gates:/ { ing=1; next }
+    ing && /^[^ ]/ { ing=0 }
+    ing && $0 ~ "^  " k ":" { sub("^  " k ":[ ]*", ""); sub(/[ ]+#.*$/, ""); gsub(/^"|"$/, ""); print; exit }' "$CONFIG")"
+  printf '%s' "${v:-${2:-}}"
+}
+
 # cfg_docs <name> → docs.<name> from the nested docs: block, with a default
 cfg_docs() {  # cfg_docs <key> [default] → docs.<key>, else the default, else docs/<key>
   local v=""
@@ -248,8 +278,10 @@ SINCE="today"     # --since, for budget
 CI=false          # --ci, for budget
 JSON=false        # --json, for budget
 JOURNAL_LINE=false # --journal-line, for budget
+FORCE=false       # --force, for check
 SESSION_NAME=""   # --session, for budget --journal-line
 CLEAR_WHO=""      # station-N | sous, for clear
+SHIP_PR=""        # a PR number, for ship
 CHECK_INDEX=false # --check, for index
 ADOPT=false       # --adopt, for index
 ARGV=()   # set by native_argv
@@ -278,8 +310,10 @@ while [[ $# -gt 0 ]]; do
     --ci) CI=true; shift ;;
     --json) JSON=true; shift ;;
     --journal-line) JOURNAL_LINE=true; shift ;;
+    --force) FORCE=true; shift ;;
     --session) SESSION_NAME="$2"; shift 2 ;;
     sous|station-*) CLEAR_WHO="$1"; shift ;;
+    [0-9]*|'#'[0-9]*) SHIP_PR="${1#\#}"; shift ;;
     --check) CHECK_INDEX=true; shift ;;
     --adopt) ADOPT=true; shift ;;
     -m|--model) shift
@@ -516,12 +550,13 @@ busy() {
   return 1
 }
 
-# exclude_locally <path in the main checkout>: keep a machine-local file out of git
-# through .git/info/exclude, so no tracked file (like .gitignore) changes.
+# exclude_locally <path> [checkout]: keep a machine-local file out of git (in the main
+# checkout, or in the checkout given) through .git/info/exclude, so no tracked file (like
+# .gitignore) changes.
 exclude_locally() {
-  local exclude
-  git -C "$ROOT" check-ignore -q "$ROOT/$1" && return 0
-  exclude="$(git -C "$ROOT" rev-parse --path-format=absolute --git-path info/exclude)"
+  local exclude repo="${2:-$ROOT}"
+  git -C "$repo" check-ignore -q "$repo/$1" && return 0
+  exclude="$(git -C "$repo" rev-parse --path-format=absolute --git-path info/exclude)"
   mkdir -p "$(dirname "$exclude")"
   # a file that doesn't end in a newline would fuse our line onto its last one
   [[ -s "$exclude" && -n "$(tail -c1 "$exclude")" ]] && echo "" >> "$exclude"
@@ -696,6 +731,7 @@ EOF
 # open
 # ---------------------------------------------------------------------------
 cmd_open() {
+  seed_sous_permissions
   local list=() s i norm bad=()
   while IFS= read -r s; do list+=("$s"); done < <(stations)
   if (( ${#list[@]} == 0 )); then
@@ -1817,6 +1853,70 @@ cmd_clear() {
 }
 
 # ---------------------------------------------------------------------------
+# ship — the sous merges a PR (Contract 5). Once a PR has passed the pass, is green on CI,
+# mergeable and up to date with trunk, merging it is no decision, so `gates.merge:
+# sous-chef` (the default) makes it the sous's: `ship <PR>` checks every one of those through
+# gh and refuses, naming the condition, when one fails (a check still running says so); when
+# they all hold it runs `gh pr merge --merge` (gates.merge_method: merge | squash | rebase)
+# and says which stations are now behind trunk. With `gates.merge: head-chef` it refuses:
+# the merge stays the head chef's in that kitchen. Whether the pass happened is the sous's
+# word, not checked here: the sous runs this only after its LGTM.
+# ---------------------------------------------------------------------------
+cmd_ship() {
+  local n="$SHIP_PR" gate method line state draft base head mergeable mstate checks s pending=0 failed=0 ok=0
+  [[ -n "$n" ]] || { echo "Usage: kitchen.sh ship <PR number>" >&2; return 1; }
+  gate="$(cfg_gate merge sous-chef)"
+  [[ "$gate" == sous-chef ]] || { echo "Not merged: gates.merge is $gate in .claude/brigade.md, so merging #$n is the head chef's." >&2; return 1; }
+  command -v gh >/dev/null 2>&1 || { echo "ship needs the gh CLI on your PATH, logged in." >&2; return 1; }
+  line="$(cd "$ROOT" && gh pr view "$n" --json state,isDraft,baseRefName,headRefName,mergeable,mergeStateStatus,statusCheckRollup \
+    --jq '[.state, (.isDraft|tostring), .baseRefName, .headRefName, .mergeable, .mergeStateStatus, ([.statusCheckRollup[]? | (.conclusion // .status // "PENDING")] | join(","))] | join("|")' 2>/dev/null)" \
+    || { echo "Not merged: gh could not read PR #$n (does it exist, and are you logged in?)." >&2; return 1; }
+  IFS='|' read -r state draft base head mergeable mstate checks <<<"$line"
+  [[ "$state" == OPEN ]] || { echo "Not merged: #$n is $state, not open." >&2; return 1; }
+  [[ "$draft" == false ]] || { echo "Not merged: #$n is a draft." >&2; return 1; }
+  [[ "$base" == "$TRUNK" ]] || { echo "Not merged: #$n targets $base, not $TRUNK." >&2; return 1; }
+  for s in ${checks//,/ }; do
+    case "$s" in SUCCESS|NEUTRAL|SKIPPED) ok=$((ok+1)) ;; FAILURE|CANCELLED|TIMED_OUT|ACTION_REQUIRED|STARTUP_FAILURE|STALE) failed=$((failed+1)) ;; *) pending=$((pending+1)) ;; esac
+  done
+  (( failed == 0 )) || { echo "Not merged: #$n has $failed red check(s) ($checks). Send the cook [findings]." >&2; return 1; }
+  (( pending == 0 )) || { echo "Not merged: #$n has $pending check(s) still running. Wait: gh pr checks $n --watch" >&2; return 1; }
+  [[ "$mergeable" == MERGEABLE ]] || { echo "Not merged: #$n is $mergeable (a conflict with $TRUNK, or GitHub is still computing: try again in a minute). The cook brings $TRUNK in." >&2; return 1; }
+  case "$mstate" in
+    CLEAN|HAS_HOOKS|UNSTABLE) ;;
+    BEHIND) echo "Not merged: #$n ($head) is behind $TRUNK. The cook brings $TRUNK in and pushes." >&2; return 1 ;;
+    BLOCKED) echo "Not merged: #$n is blocked (a required review, a protection rule, or a check GitHub still waits on: gh pr view $n). Not the sous's to override." >&2; return 1 ;;
+    *) echo "Not merged: #$n merge state is $mstate." >&2; return 1 ;;
+  esac
+  method="$(cfg_gate merge_method merge)"
+  case "$method" in merge|squash|rebase) ;; *) echo "Not merged: gates.merge_method is $method; use merge, squash or rebase." >&2; return 1 ;; esac
+  (cd "$ROOT" && gh pr merge "$n" "--$method") || { echo "Not merged: gh pr merge #$n failed (see above)." >&2; return 1; }
+  echo "Merged #$n ($head) into $TRUNK by $method (gates.merge: sous-chef). $TRUNK moved: stations on a branch bring it in before their PR; kitchen.sh status shows who is behind."
+}
+# seed_sous_permissions: the sous runs in a mode that asks before a shell command, and nobody
+# watches its pane for long. When the merge is the sous's, open seeds the main checkout's
+# .claude/settings.local.json (kept out of git) with the gh lines ship uses, once.
+seed_sous_permissions() {
+  local f="$ROOT/.claude/settings.local.json"
+  [[ "$(cfg_gate merge sous-chef)" == sous-chef ]] || return 0
+  if [[ -f "$f" ]]; then
+    grep -q 'gh pr merge' "$f" || echo "  sous: .claude/settings.local.json has no \"Bash(gh pr merge:*)\" allow line; kitchen.sh ship will ask in the sous's pane until you add one."
+    return 0
+  fi
+  mkdir -p "$ROOT/.claude"
+  cat > "$f" <<'EOF'
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr view:*)", "Bash(gh pr checks:*)", "Bash(gh pr merge:*)", "Bash(gh pr list:*)"
+    ]
+  }
+}
+EOF
+  exclude_locally .claude/settings.local.json
+  echo "  sous: permissions seeded (.claude/settings.local.json: gh pr view, checks, merge, list), so kitchen.sh ship runs without a prompt"
+}
+
+# ---------------------------------------------------------------------------
 # budget — what the kitchen spends. The reading lives in the Window's server
 # (window/server/live/budget.js) so the terminal and the Window sum the same way; this
 # only finds node and runs it from the main checkout.
@@ -1845,6 +1945,59 @@ cmd_debrief() {
   args=(--root "$ROOT" --since 7d --debrief --register "$REC/$(cfg_docs lessons docs/lessons.md)")
   $JSON && args+=(--json)
   node "$dir/server/live/budget.js" "${args[@]}"
+}
+
+# ---------------------------------------------------------------------------
+# check — the config's check command, run once per tree (#66). A pass runs the check three
+# or four times on a tree that has not changed; this records each real run in
+# <checkout>/.claude/check.log, one line: <time> tree=<hash> rc=<n> secs=<n> cmd=<id>, plus
+# " moved" when the run changed the tree it ran on. A green line for the same tree and the
+# same command is trusted and nothing runs; a red or a "moved" line never is. A skipped call
+# writes nothing, so the log counts real runs (the budget and the Window read it).
+# ---------------------------------------------------------------------------
+
+# tree_hash <dir> → a tree object id of <dir>'s working state, built in a throwaway index so
+# nothing in <dir> is touched. Tracked, deleted and untracked files count; what git ignores
+# (including .claude/check.log) does not.
+tree_hash() {
+  local dir="$1" tmp idx real rc
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/brigade-tree.XXXXXX")" || return 1
+  idx="$tmp/index"
+  real="$(git -C "$dir" rev-parse --path-format=absolute --git-path index)"
+  if [[ -f "$real" ]]; then cp "$real" "$idx"; else GIT_INDEX_FILE="$idx" git -C "$dir" read-tree HEAD 2>/dev/null || true; fi
+  GIT_INDEX_FILE="$idx" git -C "$dir" add -A >/dev/null 2>&1 && GIT_INDEX_FILE="$idx" git -C "$dir" write-tree
+  rc=$?; rm -rf "$tmp"; return $rc
+}
+
+cmd_check() {
+  local dir="$HERE" cmd cmdid log out before after start secs rc line rec
+  cmd="$(cfg check)"
+  [[ -n "$cmd" ]] || { echo "No check: command in $CONFIG." >&2; return 1; }
+  mkdir -p "$dir/.claude"; log="$dir/.claude/check.log"; out="$dir/.claude/check.out"
+  exclude_locally .claude/check.log "$dir"; exclude_locally .claude/check.out "$dir"
+  cmdid="$(printf '%s' "$cmd" | git hash-object --stdin | cut -c1-12)"
+  before="$(tree_hash "$dir")" || { echo "check: couldn't hash the tree in $dir." >&2; return 1; }
+  if ! $FORCE; then
+    rec="$(grep -E " tree=$before rc=0 secs=[0-9]+ cmd=$cmdid\$" "$log" 2>/dev/null | tail -1)"
+    if [[ -n "$rec" ]]; then
+      echo "check: green on this tree, not re-run (recorded ${rec%% *}, $(printf '%s' "$rec" | sed -E 's/.* secs=([0-9]+) .*/\1/')s)"
+      return 0
+    fi
+  fi
+  start="$(date +%s)"
+  (cd "$dir" && bash -c "$cmd") > "$out" 2>&1; rc=$?
+  secs=$(( $(date +%s) - start ))
+  after="$(tree_hash "$dir")" || after="unhashable"
+  line="$(date -u +%Y-%m-%dT%H:%M:%SZ) tree=$after rc=$rc secs=$secs cmd=$cmdid"
+  [[ "$after" == "$before" ]] || line="$line moved"
+  echo "$line" >> "$log"
+  if (( rc == 0 )); then
+    echo "check: green (ran, ${secs}s)"
+    [[ "$after" == "$before" ]] || echo "check: the run changed files in the tree, so this green is not trusted; the next call runs once more."
+  else
+    echo "check: RED (rc $rc, ${secs}s). Last lines of $out:"; tail -40 "$out"
+  fi
+  return $rc
 }
 
 # ---------------------------------------------------------------------------
@@ -1945,5 +2098,5 @@ case "$CMD" in
   role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   decisions) cmd_decisions ;; inbox) cmd_inbox ;; asks) cmd_asks ;; gaps) cmd_gaps ;; doctor) cmd_doctor ;; index) cmd_index ;;
   record-pr) cmd_record_pr ;;
-  sessions) cmd_sessions ;; clear) cmd_clear ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; *) usage ;;
+  sessions) cmd_sessions ;; clear) cmd_clear ;; ship) cmd_ship ;; check) cmd_check ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; *) usage ;;
 esac

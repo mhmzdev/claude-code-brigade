@@ -29,7 +29,7 @@ gates:
     precedent: sous-chef
     hygiene: sous-chef
   pre_commit: sous-chef
-  merge: head-chef
+  merge: sous-chef
   deploy: head-chef
 clean:
   counters:

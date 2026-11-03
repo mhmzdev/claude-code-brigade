@@ -1,6 +1,6 @@
 ---
 name: taster
-description: The Brigade's taster — reviews one line cook's work at the pass for the sous chef, so the sous reads a verdict instead of a whole diff. Reads the station's diff from its merge base with trunk, re-runs the repo's check command there, walks the ticket's "Done when" boxes and the plan's success criteria, and returns a verdict with numbered findings. Never edits, commits or messages anyone. Spawned by /bk:sous-chef on a cook's [handoff].
+description: The Brigade's taster — reviews one line cook's work at the pass for the sous chef, so the sous reads a verdict instead of a whole diff. Reads the station's diff from its merge base with trunk, runs the repo's check there once per tree (it trusts a green that `kitchen.sh check` recorded for the exact tree it reads, and says so), walks the ticket's "Done when" boxes and the plan's success criteria, and returns a verdict with numbered findings. Never edits, commits or messages anyone. Spawned by /bk:sous-chef on a cook's [handoff].
 tools: Read, Grep, Glob, Bash
 model: inherit
 maxTurns: 40
@@ -17,7 +17,7 @@ check command and the leak check only.
 - **Trunk**: e.g. `origin/main`.
 - **Ticket**: path to the ticket file (or tracker id and its text).
 - **Plan**: path to the plan in the station, or "none" for a lane C (`HYG-`) ticket.
-- **Check**: the repo's check command, from `.claude/brigade.md`.
+- **Check**: `kitchen.sh check` (absolute path), which runs the repo's check command from `.claude/brigade.md` once per tree.
 - **Journal**: path to the ticket's journal in the station.
 - **Rules**: the repo's "what not to add" list path, or "none".
 - **Leak check**: the exact `kitchen.sh leaks --dir <station>` command to run.
@@ -35,12 +35,12 @@ check command and the leak check only.
    git -C <station> ls-files --others --exclude-standard
    ```
    Read every changed and new file you need to judge the change, not just the hunks.
-2. **The check.** Run it in the station and keep only the exit code and the failing lines:
+2. **The check.** Run the `Check:` command the sous gave you (`kitchen.sh check`) in the station and keep only its verdict line, the exit code and the failing lines:
    ```bash
-   cd <station> && out=$(<check> 2>&1); rc=$?; echo "rc=$rc"; printf '%s\n' "$out" | tail -40
+   cd <station> && out=$(<Check> 2>&1); rc=$?; echo "rc=$rc"; printf '%s\n' "$out" | tail -40
    ```
-   Capture the exit code this way; `cmd | tail` reports tail's status, not the check's. If the
-   check changed tracked files (`git -C <station> status --porcelain` differs from before),
+   Capture the exit code this way; `cmd | tail` reports tail's status, not the check's. `kitchen.sh check` runs the check once per tree: when its line says `green on this tree, not re-run`, it found a green that `kitchen.sh` itself recorded for the exact tree you are reading, and you trust it. Say which you did in the report, `CHECK: ran` or `CHECK: trusted the record of <time>`.
+   If the check changed tracked files (`git -C <station> status --porcelain` differs from before),
    report that as a finding.
 3. **Done when.** Walk every box in the ticket's "Done when" and every success criterion in
    the plan. For each: ✅ with the evidence (`file:line`, a test name, the check result), or ❌
@@ -61,7 +61,7 @@ check command and the leak check only.
 
 ```
 VERDICT: pass | findings | blocked
-CHECK: rc=<n> — <one line>
+CHECK: ran | trusted the record of <time> — rc=<n>, <one line>
 DONE WHEN: <n>/<m> met
   ✅ <box> — <evidence>
   ❌ <box> — <what's missing>

@@ -1,6 +1,6 @@
 ---
 name: open-pr
-description: Commit, bring trunk in, re-run the check, push and open (or update) the pull request for the current ticket — branch <lowercase id>-<slug>, title "[ID] summary", body Why / Change summary / Linked ticket / Test plan / Deploy prerequisites. Rescues work stranded on trunk onto a branch. Never force-pushes, never pushes to trunk. In a line-cook session it runs only after the sous chef's [go] and reports the PR URL back. Use when the user says "open a PR", "ship this", "put this up for review", "push this up", "/bk:open-pr".
+description: Commit, bring trunk in, run the check (once per tree), push and open (or update) the pull request for the current ticket — branch <lowercase id>-<slug>, title "[ID] summary", body Why / Change summary / Linked ticket / Test plan / Deploy prerequisites. Rescues work stranded on trunk onto a branch. Never force-pushes, never pushes to trunk. In a line-cook session it runs only after the sous chef's [go] and reports the PR URL back. Use when the user says "open a PR", "ship this", "put this up for review", "push this up", "/bk:open-pr".
 argument-hint: "[<ticket id> | title hint] [--base <branch>]"
 allowed-tools: Read, Grep, Glob, Bash, SendMessage, ListAgents, ToolSearch
 ---
@@ -78,8 +78,10 @@ Trunk moved while you cooked. Merge it now, so the PR is reviewed against today'
 ```bash
 git fetch origin
 git merge origin/<trunk>
-<check>
+"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" check
 ```
+
+The merge changes the tree whenever trunk moved, so the check runs; when trunk added nothing, the last green for this exact tree is reported instead.
 
 - A merge conflict in a generated `INDEX.md` (plans, journals, checklists; Contract 12) → run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" index`. It rewrites the whole table from the files now in the tree, so no row is lost and no marker is left; then `git add` the INDEX files and finish the merge (`git commit --no-edit`). Never pick a side by hand. After a clean merge, run it anyway and stage what it changed. A conflict in a hand-kept `INDEX.md` (any other folder, or one `index` calls hand-written) → keep **both** rows: `--ours`/`--theirs` deletes another station's entry.
 - Any other conflict → stop and ask (cook: `[gate]` to the sous).
@@ -134,7 +136,7 @@ gh pr create --base <trunk> --head <branch> --title "<title>" --body-file "$body
 The PR URL, title, base, created or updated, every Deploy prerequisite repeated in full, and the unchecked Test plan items.
 
 - **Line cook** → send the sous: `[served] <ID> <url> · deploy prereqs: <none | list>`. Then tell the sous your shift is over; it clears this session (`kitchen.sh clear <station>`) once you are idle, your handoff is written and nothing you sent is unanswered.
-- **Solo or sous** → leave the ticket at `rfr`. The merge is what makes it `done` (a tracker's own close-on-merge, or the sous closing it through `/bk:rail` after the human merges).
+- **Solo or sous** → leave the ticket at `rfr`. The merge is what makes it `done` (a tracker's own close-on-merge, or the sous closing it through `/bk:rail` after the merge: the sous's own with `kitchen.sh ship` when `gates.merge` is `sous-chef`, else the head chef's).
 
 ## Stop and ask only for
 
@@ -151,4 +153,4 @@ The PR URL, title, base, created or updated, every Deploy prerequisite repeated 
 - A second PR for a branch that already has one open.
 - An approval-sounding line ("LGTM", "ready to merge"). That's the reviewer's call.
 - A board or rail change from here. `review-task` owns `rfr`; the merge owns `done`.
-- Merging. Only the head chef merges.
+- Merging. The sous merges a passed, green PR with `kitchen.sh ship` (the head chef when `gates.merge` is `head-chef`); never this skill.
