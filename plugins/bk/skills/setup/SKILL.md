@@ -152,11 +152,15 @@ Add to `.gitattributes` (create it if needed, merge if not):
 docs/**/INDEX.md merge=union
 ```
 
-Every cook's PR appends a row to a shared `INDEX.md` (plans, checklists), so two PRs
-merging close together would conflict on it every time. `merge=union` keeps both rows. It
-only applies to merges git runs locally, which is why `/bk:open-pr` merges trunk into the
-branch before pushing. If GitHub still shows a conflict there, merge trunk locally and push;
-never resolve an INDEX by picking one side, which deletes the other cook's row.
+The plans, journals and checklists `INDEX.md` files are generated (`kitchen.sh index`,
+Contract 12), because every cook's PR adds a row to each and two PRs merging close together
+would conflict on them every time. A conflict in a generated one is resolved by running the
+command, so `merge=union` matters for the INDEX files the Brigade doesn't generate (specs,
+brainstorms, decisions, questions, the backlog), where it keeps both rows (the glob also
+matches the three generated ones; union there does no harm, since the command rewrites them). It only applies
+to merges git runs locally, which is why `/bk:open-pr` merges trunk into the branch before
+pushing. If GitHub still shows a conflict on an INDEX, merge trunk locally and push; never
+resolve one by picking one side, which deletes the other cook's row.
 In **clone** mode, add `/stations/` to `.gitignore` too (and `stations/` to `.dockerignore`
 if it exists). In **worktree** mode, set `kitchen_mode: worktree` and leave `kitchen:` out
 (it defaults to `../<repo>-stations`); `kitchen.sh setup` adds the ignore line to whichever
@@ -180,6 +184,12 @@ table with one row per file):
 - markdown or mixed-with-markdown-tickets rail: `docs/backlog/`
 - the record (Contract 12), unless the map says `none` or points at a folder that exists:
   `docs/decisions/`, `docs/conventions/`, `docs/domains/`, `docs/questions/`
+
+The INDEX of `docs/plans/`, `docs/journal/` and `docs/checklists/` is generated, not written
+(Contract 12): once the folders exist, run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" index`
+for those three. In a repo that already has an INDEX there, `index` leaves it alone and says
+so; offer `index --adopt` (it rebuilds the table from the files and lists any row it drops)
+and use it only on a yes. The other folders keep a hand-written INDEX.
 
 In a repo **with its own doc schema**, create only what the schema allows and register the
 rest through its extension point (never edit a vendored `SCHEMA.md`); run its docs check

@@ -113,7 +113,7 @@ List the manual criteria from every phase as one numbered checklist. In a statio
 
 ## Step 4 — Finish and hand off
 
-1. Set the plan's `status: done` (implementation finished; merge is tracked on the rail, not here) and update its `INDEX.md` row.
+1. Set the plan's `status: done` (implementation finished; merge is tracked on the rail, not here). Its INDEX row has no status, so there is nothing to update there.
 2. Leave the rail at `in-progress`. `review-task` moves it to `rfr`.
 3. **Don't commit.** Commits happen in `open-pr`: after the sous's pass in a station, or when the human runs `/bk:open-pr` solo (running it is the yes).
 4. Hand off: lanes A/B → `/bk:review-task <plan>`. It's not optional for a feature. Never auto-chain; say it and stop (a cook continues by itself: `/bk:clean check`, then `/bk:review-task`).
