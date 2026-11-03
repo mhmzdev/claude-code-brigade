@@ -6,7 +6,7 @@ status: draft          # draft | approved | active | done — /bk:implement sets
 approved: null         # YYYY-MM-DD, set by /bk:implement once the chef's sign-off is there
 open_questions: none   # must be "none" before implement will start
 migration: false       # true if any phase adds one
-files: []              # every path the plan touches
+files: []              # every path the plan touches: the ticket's write scope, which the pass enforces (kitchen.sh scope). Exact paths, globs, or a folder/
 created: YYYY-MM-DD
 ---
 

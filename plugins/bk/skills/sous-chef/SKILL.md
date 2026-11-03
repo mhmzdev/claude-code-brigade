@@ -152,11 +152,15 @@ They say "that one is new" if you're wrong, and it goes back to `item`. A `fact`
 instance, or instances that disagree on the point the item raises) is not a precedent: the
 item needs its grilling. The first of its kind always does.
 
-Then check the two hard rules against the `files` board. A pick that fails one is skipped
-for the next ready ticket, not forced:
+Then check the two hard rules, the first with `kitchen.sh scope --overlap` (it compares every
+station's plan and in-flight diff with every ready ticket's plan or `files:` and prints each
+collision as ticket × ticket, with the paths and each side's stage; `--ticket <ID>` names a
+candidate a github rail can't list). A pick that fails one is skipped for the next ready
+ticket, not forced:
 
-- **Overlapping files → one cook.** A ticket whose `files:` overlap another station's work
-  in flight waits for that cook, or goes to that cook next.
+- **Overlapping files → one cook.** A ticket whose scope (a plan's `files:`, Contract 4)
+  overlaps another station's plan or work in flight waits for that cook, or goes to that cook
+  next. The report names the pair; the second waits for the first to merge.
 - **One migration at a time.** A second migration-bearing ticket waits until the first merges.
 
 **4. Brief the cook, then tell the head chef** in one line each: *"station-1 → S001-02
@@ -291,7 +295,7 @@ without a spec is a **feature** and needs the head chef; a `kind: bug`, a `kind:
 
 1. **Read the plan** by its absolute path in the station, and the ticket.
 2. **Check what the cook can't see:** its files against the other stations' work
-   (`kitchen.sh files`), a second migration, a clash with a ticket queued behind it. Check
+   (`kitchen.sh scope --overlap`), a second migration, a clash with a ticket queued behind it. Check
    what it should have seen: every `Done when` box is covered, and `open_questions: none`
    is honest.
 3. **A plain defect goes back first**, as `[findings]`, whoever signs. Don't spend the head
@@ -482,6 +486,7 @@ what fills a sous's context fastest, so **the taster does the reading**:
                   Plan: <station>/<docs.plans>/<ID>-*.md (or none for HYG).
                   Check: <abs path of kitchen.sh> check --receipt. Journal: <station>/<docs.journal>/<ID>-*.md.
                   Rules: <what-not-to-add file, or none>.
+                  Scope check: <abs path of kitchen.sh> scope <station-N>.
                   Leak check: <abs path of kitchen.sh> leaks --dir <station>.")
    ```
 2. Read its verdict. **You still own the call**: open the files behind any ❌ or finding, and
@@ -489,7 +494,7 @@ what fills a sous's context fastest, so **the taster does the reading**:
    questioned is a report you trusted.
 3. Require the cook's clean `/bk:clean check` report too; if none is attached, send it back.
 4. Look across stations yourself for what the taster can't see: migration collisions
-   (`kitchen.sh files`) and another cook's overlapping work.
+   (`kitchen.sh files`) and another cook's overlapping work (`kitchen.sh scope --overlap`).
 5. Findings go back as `[findings]`: numbered, each with file and why. A `blocked` verdict for
    no or a stale receipt goes back the same way: the cook runs `kitchen.sh check` as its last act and
    hands off again; you do not run it for the cook. When clean, send

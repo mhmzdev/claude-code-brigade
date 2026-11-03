@@ -101,6 +101,8 @@ files:
 ---
 ```
 
+**`files:` is the ticket's write scope** (Contract 4): the pass runs `kitchen.sh scope` against it. List every path the phases touch and no more; to widen it later, edit `files:` and write one line of why under Decisions → How.
+
 Body, every section filled with specifics:
 
 ```markdown
@@ -133,7 +135,7 @@ Body, every section filled with specifics:
 ## References               — ticket, spec, research, similar code `path:line`
 ```
 
-**Done only when:** every change names a real path marked `(new)` or `(edit)`; every edit has a `file:line` read this run; every non-trivial change carries code; every criterion is a command or a numbered manual procedure; every path in `files:` has been checked against the protected paths in Contract 5.
+**Done only when:** every change names a real path marked `(new)` or `(edit)`; every edit has a `file:line` read this run; every non-trivial change carries code; every criterion is a command or a numbered manual procedure; every path in `files:` has been checked against the protected paths in Contract 5; `files:` lists every path the phases touch and no more (it is the write scope the pass enforces).
 
 ## Step 6 — Rail, index, sign-off
 

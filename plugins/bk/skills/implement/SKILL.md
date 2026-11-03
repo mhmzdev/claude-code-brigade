@@ -79,7 +79,7 @@ Do this before anything else. No sign-off → change nothing and stop.
 1. Branch off fresh trunk, never work on trunk: `git fetch origin && git switch -c <lowercase id>-<slug> origin/<trunk>` (or switch to the existing branch when resuming).
 2. Set the plan's `status: active`. Move the rail to `in-progress`: cook → `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" rail move <ID> in-progress` (a refusal means send the sous `[rail] <ID> → in-progress`); sous or solo → the rail's **claim** operation.
 3. **State the scope in one message and begin**: phases, files, the check command. The plan was approved; **don't ask for a second go-ahead.**
-4. Read the files the current phase touches and their nearest siblings. Match what's there. Don't re-audit the codebase — if the plan lacks research, that's a plan defect to name.
+4. Read the files the current phase touches and their nearest siblings. Match what's there. The plan's `files:` is your write scope and the pass enforces it (`kitchen.sh scope` shows where you stand): a file the phase needs that `files:` doesn't cover is a plan edit first, adding it to `files:` with a line of why under Decisions → How, then the change. Don't re-audit the codebase — if the plan lacks research, that's a plan defect to name.
 
 ## Step 2 — The phase loop
 
