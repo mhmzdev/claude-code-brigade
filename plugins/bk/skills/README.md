@@ -302,6 +302,7 @@ because only one session (the sous) hands them out. They are zero-padded and nev
 | Sous's session name | `.claude/sous`, kept out of git (`.git/info/exclude`) | — (written by `kitchen.sh sous --set` when the sous starts) |
 | Check log and output | `.claude/check.log`, `.claude/check.out` in each checkout, kept out of git (`.git/info/exclude`) | — (written only by `kitchen.sh check`: one **receipt** per real run, `<ended> tree=<hash> rc=<n> secs=<n> cmd=<id> start=<started> out=<sha256 of the output> station=<folder, spaces and % encoded as %20 and %25>`, plus ` moved` when the run changed its own tree, then `check=<the config's check: line>` to the end of the line; `kitchen.sh check --receipt [<tree>]` prints the newest one for a tree and exits 0 when it is green and the config's `check:` line is still the one it ran, 1 when there is none, 2 when it is red or stale; a moved line is never a receipt, and a line from before receipts is read by the budget and the Window as a run but is not one; the budget and the Window read the log, and drop a receipt that names another station; the guard refuses a cook's Edit or Write on `.claude/check.log`: no model writes a receipt) |
 | Grants | `.claude/grants/<station>` in the main checkout, kept out of git (`.git/info/exclude`) | — (one action per line, `commit`, `push` or `open-pr`; written only by `kitchen.sh grant`, from the main checkout, and removed by `grant <station> --none`, `done` and `clear`; read by `hooks/guard.sh`, which refuses a cook's Edit or Write on it and any Bash command that names the folder) |
+| Checkpoint | `refs/brigade/<station>/<ticket>` in the repo's refs (shared by every worktree; the ticket as the branch carries it, lower-case, no `#`) | — (a commit object whose tree is the station's working tree and whose parent is `HEAD`; written by `kitchen.sh checkpoint`, read by the taster and `restore`, listed by `sync`, dropped by `done`; never on the branch, never pushed) |
 | Research | `docs/research/YYYY-MM-DD-<slug>.md` | — |
 | Brainstorm | `docs/brainstorm/YYYY-MM-DD-<slug>.md` | — |
 | Branch | `<lowercase id>-<slug>` e.g. `bklg-004-fix-login` | — |
@@ -596,7 +597,8 @@ other skill is model-invocable, or cooks would stall waiting for a human to type
 and opens a PR only on a **grant** the sous writes: `kitchen.sh grant <station> commit push
 open-pr`, which puts the actions in `<main>/.claude/grants/<station>` (out of git, written
 only from the main checkout, never by a cook). The sous grants all three with its `[go]`, at
-the end of the pass, so nothing is committed before it; takes them away with `grant <station>
+the end of the pass, so nothing is committed before it (a checkpoint, Contract 8, is a copy kept
+in a ref outside the branch, not a commit on it, and needs no grant); takes them away with `grant <station>
 --none` at `[served]`; grants `commit push` again when it asks a cook to bring trunk in after
 the PR is open; and `done` and `clear` take them away too. A cook with no grant for what it
 is about to do sends `[gate] <ID> no grant on record: <action>` (not a question: no commis)
@@ -792,6 +794,27 @@ only in the stash (`git show <sha>^3:<path>`), so compare before you drop it; an
 `git reset -q` unstages. The tree changed, so its receipt is stale: run `kitchen.sh check`
 again before `[handoff]`, and say in the journal that trunk came in. A branch that already has
 commits waits for a grant.
+
+**A checkpoint is a copy of a station's uncommitted work that is not a commit on its branch**
+(Contract 5's rule that nothing is committed before `[go]` stands). `kitchen.sh checkpoint`, run in a
+station on a ticket branch, writes the working tree (tracked, deleted and untracked files, minus what
+git ignores: the very tree `kitchen.sh check` hashes and its receipt names) to
+`refs/brigade/<station>/<ticket>` as a commit object whose parent is `HEAD`, with git plumbing: `HEAD`,
+the branch, the index and the files are not touched, and nothing is forced (the ref is replaced only
+if it still holds what was read). One ref per ticket, replaced each time. Every worktree shares git's
+refs, so the ref survives `git worktree remove`, `kitchen.sh remove` and a cleared session, and the
+main checkout reads it with no entry into the station; it lives in the repo's own object store, so
+it is not a backup against losing the disk, and nothing pushes it. `implement` runs it after each
+phase's check, `review-task` as its very last act after `kitchen.sh check` (the ref is outside the
+tree, so the receipt stays good), and the cook's handoff after the journal. `checkpoint --show
+[station-N]` says `current` or `behind` (the station has changed since): the taster reads the diff
+from the ref, `merge-base(ref, trunk)..ref`, untracked files included, and a station `behind` its
+checkpoint is not reviewable. The receipt log, `scope`, the plan and the journal are still read in
+the station. A trunk fast-forward changes the tree, so the checkpoint reads `behind` until the cook
+runs `check` and `checkpoint` again. `kitchen.sh restore [<ticket>]` puts a checkpoint back on a clean
+station (a detached one is moved to the commit it was taken on) as working-tree changes, and
+`kitchen.sh sync` says which clean stations still hold one; `done` drops the ref once the PR is
+merged and never before.
 
 **A station's write scope is its plan's `files:`** (Contract 4), and two scopes that share a path
 do not run at once. `kitchen.sh scope --overlap` compares every station's plan and in-flight

@@ -1238,6 +1238,105 @@ else
   echo "# node not installed: skipping the served-cook clear tests"
 fi
 
+section "checkpoint / restore: a ref for a station's uncommitted work (#68)"
+# A repo with a bare origin and two worktree stations. A cook's tree is never committed before [go],
+# so `checkpoint` keeps it in refs/brigade/<station>/<ticket> without touching HEAD, the branch or the index.
+KP="$TMP/ckpt/app"; mkdir -p "$TMP/ckpt"
+new_repo "$KP" 'trunk: main
+install: "true"
+stations: 2'
+echo base > "$KP/keep.txt"; echo gone > "$KP/delete-me.txt"; echo one > "$KP/edit.txt"
+push_all "$KP" "brigade setup"
+(cd "$KP" && "$K" setup >/dev/null 2>&1)
+KPS="$TMP/ckpt/app-stations"; KP1="$KPS/station-1"; KP2="$KPS/station-2"
+REF=refs/brigade/station-1/68
+ck() { (cd "$KP1" && "$K" checkpoint "$@" 2>&1); }
+nrefs() { git -C "$KP" for-each-ref refs/brigade/ | wc -l | tr -d ' '; }
+out=$(cd "$KP" && "$K" checkpoint 2>&1); rc=$?
+ok "checkpoint in the main checkout does nothing and exits 0" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "not in a station"' _ "$rc" "$out"
+out=$(ck); rc=$?
+ok "checkpoint in a station with no ticket branch exits 1 and says why" bash -c '[ "$1" -eq 1 ] && printf "%s" "$2" | grep -q "not on a ticket branch"' _ "$rc" "$out"
+git -C "$KP1" switch -q -c issue-68-demo origin/main
+out=$(ck); rc=$?
+ok "a branch with no uncommitted work has nothing to checkpoint, and no ref is written" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "nothing to checkpoint" && [ "$3" = 0 ]' _ "$rc" "$out" "$(nrefs)"
+# a tracked edit, a staged new file, an untracked file, a deleted file, a binary file
+echo two > "$KP1/edit.txt"; echo staged > "$KP1/staged.txt"; git -C "$KP1" add staged.txt
+echo loose > "$KP1/loose.txt"; rm "$KP1/delete-me.txt"; printf '\000\001\002bin' > "$KP1/bin.dat"; cp "$KP1/bin.dat" "$TMP/ckpt/bin.keep"
+snap() { printf '%s|%s|%s|%s' "$(git -C "$KP1" rev-parse HEAD)" "$(git -C "$KP1" rev-parse issue-68-demo)" "$(git -C "$KP1" status --porcelain)" "$(git -C "$KP1" ls-files -s)"; }
+before=$(snap); tip=$(git -C "$KP1" rev-parse HEAD)
+out=$(ck); rc=$?
+ok "checkpoint writes refs/brigade/<station>/<ticket> and says so" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "^checkpoint: refs/brigade/station-1/68 at "' _ "$rc" "$out"
+ok "…HEAD, the branch tip, the status and the index are exactly as they were (no commit on the branch)" test "$(snap)" = "$before"
+ok "…its parent is the station's HEAD" test "$(git -C "$KP1" rev-parse "$REF^")" = "$tip"
+ok "…it holds the tracked edit" test "$(git -C "$KP1" show "$REF:edit.txt")" = two
+ok "…the staged new file and the untracked file" bash -c 'git -C "$1" cat-file -e "$2:staged.txt" && git -C "$1" cat-file -e "$2:loose.txt"' _ "$KP1" "$REF"
+ok "…the binary file, byte for byte" bash -c 'git -C "$1" show "$2:bin.dat" | cmp -s - "$3"' _ "$KP1" "$REF" "$TMP/ckpt/bin.keep"
+ok "…and not the deleted file" bash -c '! git -C "$1" cat-file -e "$2:delete-me.txt" 2>/dev/null' _ "$KP1" "$REF"
+ok "…and the branch has no commit of its own (the ref is the only new object)" test "$(git -C "$KP1" rev-list --count origin/main..issue-68-demo)" = 0
+ref1=$(git -C "$KP1" rev-parse "$REF")
+out=$(ck); ok "a second checkpoint with nothing changed says unchanged and keeps the ref" bash -c 'printf "%s" "$1" | grep -q "unchanged" && [ "$(git -C "$2" rev-parse "$3")" = "$4" ]' _ "$out" "$KP1" "$REF" "$ref1"
+out=$(ck --show); rc=$?
+ok "--show says current (exit 0) for an unchanged tree" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q " current$"' _ "$rc" "$out"
+echo loose-two > "$KP1/loose.txt"
+out=$(ck --show); rc=$?
+ok "--show says behind (exit 2) once the station has changed" bash -c '[ "$1" -eq 2 ] && printf "%s" "$2" | grep -q " behind$"' _ "$rc" "$out"
+out=$(cd "$KP" && "$K" checkpoint --show station-1 2>&1); rc=$?
+ok "--show reads a station from the main checkout" bash -c '[ "$1" -eq 2 ] && printf "%s" "$2" | grep -q "^refs/brigade/station-1/68 "' _ "$rc" "$out"
+out=$(ck); ref2=$(git -C "$KP1" rev-parse "$REF")
+ok "a changed tree gets a new checkpoint on the same parent" bash -c '[ "$1" != "$2" ] && [ "$(git -C "$3" rev-parse "$4^")" = "$5" ] && [ "$(git -C "$3" show "$4:loose.txt")" = loose-two ]' _ "$ref1" "$ref2" "$KP1" "$REF" "$tip"
+ok "…and --show is current again" bash -c '(cd "$1" && "$2" checkpoint --show) >/dev/null' _ "$KP1" "$K"
+ok "the main checkout reads the ref (one object store)" test "$(git -C "$KP" show "$REF:edit.txt")" = two
+# the station goes away with its work still uncommitted
+git -C "$KP" worktree remove --force "$KP1"
+ok "the checkpoint survives git worktree remove of the station" bash -c 'test ! -e "$1" && test "$(git -C "$2" show "$3:loose.txt")" = loose-two' _ "$KP1" "$KP" "$REF"
+(cd "$KP" && "$K" setup >/dev/null 2>&1)
+out=$(cd "$KP1" && "$K" sync 2>&1)
+ok "sync lists a clean station that still holds a checkpoint" has "$out" "station-1: holds a checkpoint for 68 \(kitchen.sh restore 68\)"
+out=$(cd "$KP1" && "$K" restore 999 2>&1); rc=$?
+ok "restore of a ticket with no checkpoint is refused" bash -c '[ "$1" -eq 1 ] && printf "%s" "$2" | grep -q "no checkpoint for 999"' _ "$rc" "$out"
+out=$(cd "$KP" && "$K" restore 68 2>&1); rc=$?
+ok "restore in the main checkout is refused" bash -c '[ "$1" -eq 1 ] && printf "%s" "$2" | grep -q "run it in one"' _ "$rc" "$out"
+out=$(cd "$KP1" && "$K" restore 68 2>&1); rc=$?
+ok "restore puts the checkpoint back on a recreated station" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "^restored: refs/brigade/station-1/68, .*Next: git switch -c issue-68-demo"' _ "$rc" "$out"
+ok "…the tracked edit" test "$(cat "$KP1/edit.txt")" = two
+ok "…the new files, with the edit made after the first checkpoint" bash -c 'test "$(cat "$1/staged.txt")" = staged && test "$(cat "$1/loose.txt")" = loose-two' _ "$KP1"
+ok "…the binary file, byte for byte" cmp -s "$KP1/bin.dat" "$TMP/ckpt/bin.keep"
+ok "…the deletion" test ! -e "$KP1/delete-me.txt"
+ok "…as working-tree changes only (nothing staged, HEAD at the checkpoint's parent)" bash -c 'git -C "$1" diff --cached --quiet && test "$(git -C "$1" rev-parse HEAD)" = "$2"' _ "$KP1" "$tip"
+out=$(cd "$KP1" && "$K" restore 68 2>&1); rc=$?
+ok "restore on a station with uncommitted work is refused" bash -c '[ "$1" -eq 1 ] && printf "%s" "$2" | grep -q "uncommitted work"' _ "$rc" "$out"
+# trunk moves, the station is clean again
+echo newer > "$KP/newer.txt"; git -C "$KP" add -A; git -C "$KP" commit -qm "trunk moves"; git -C "$KP" push -q origin main 2>/dev/null
+git -C "$KP1" reset -q --hard; git -C "$KP1" clean -fdq; git -C "$KP1" fetch -q origin
+git -C "$KP1" switch -q -c other origin/main
+out=$(cd "$KP1" && "$K" restore 68 2>&1); rc=$?
+ok "restore on a branch that is not where the checkpoint was taken is refused, with the command" bash -c '[ "$1" -eq 1 ] && printf "%s" "$2" | grep -q "git switch --detach"' _ "$rc" "$out"
+ok "…and changed nothing" test -z "$(git -C "$KP1" status --porcelain)"
+git -C "$KP1" switch -q --detach origin/main
+out=$(cd "$KP1" && "$K" restore 68 2>&1); rc=$?
+ok "restore on a detached station at a newer trunk moves it to where the checkpoint was taken" bash -c '[ "$1" -eq 0 ] && [ "$(git -C "$2" rev-parse HEAD)" = "$3" ] && [ "$(cat "$2/edit.txt")" = two ]' _ "$rc" "$KP1" "$tip"
+git -C "$KP1" reset -q --hard; git -C "$KP1" clean -fdq; git -C "$KP1" branch -q -D other
+git -C "$KP" update-ref refs/brigade/station-2/68 "$ref2"
+out=$(cd "$KP1" && "$K" restore 68 2>&1); rc=$?
+ok "restore of a ticket two stations hold is refused as ambiguous" bash -c '[ "$1" -eq 1 ] && printf "%s" "$2" | grep -q "has 2 checkpoints"' _ "$rc" "$out"
+git -C "$KP" update-ref -d refs/brigade/station-2/68; git -C "$KP" update-ref -d "$REF"
+out=$(cd "$KP1" && "$K" restore 68 2>&1); rc=$?
+ok "without the ref there is nothing to restore" bash -c '[ "$1" -eq 1 ] && printf "%s" "$2" | grep -q "no checkpoint for 68"' _ "$rc" "$out"
+# done drops the served ticket's checkpoint, and only that
+KGB="$TMP/ckpt/gh"; mkdir -p "$KGB"
+printf '#!/bin/sh\ncase "$1 $2" in\n  "pr list") printf "%%s\\n" "$GH_LIST" ;;\n  *) exit 1 ;;\nesac\n' > "$KGB/gh"; chmod +x "$KGB/gh"
+git -C "$KP2" fetch -q origin; git -C "$KP2" switch -q -c issue-70-served origin/main
+echo work > "$KP2/work.txt"; git -C "$KP2" add -A; git -C "$KP2" commit -qm "work 70"; git -C "$KP2" push -q origin issue-70-served 2>/dev/null
+tip70=$(git -C "$KP2" rev-parse HEAD)
+echo wip > "$KP2/wip.txt"; (cd "$KP2" && "$K" checkpoint) >/dev/null; rm "$KP2/wip.txt"
+git -C "$KP" update-ref refs/brigade/station-1/71 "$ref2"
+ok "a checkpoint exists for the served ticket and for another" bash -c 'git -C "$1" rev-parse -q --verify refs/brigade/station-2/70 >/dev/null && git -C "$1" rev-parse -q --verify refs/brigade/station-1/71 >/dev/null' _ "$KP"
+out=$(cd "$KP" && GH_LIST="9 OPEN $tip70 main" PATH="$KGB:$PATH" "$K" 'done' station-2 2>&1)
+ok "done leaves the checkpoint of a ticket whose PR is not merged" git -C "$KP" rev-parse -q --verify refs/brigade/station-2/70
+out=$(cd "$KP" && GH_LIST="9 MERGED $tip70 main" PATH="$KGB:$PATH" "$K" 'done' station-2 2>&1); rc=$?
+ok "done drops the served ticket's checkpoint and says so" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "Checkpoint refs/brigade/station-2/70 dropped" && ! git -C "$3" rev-parse -q --verify refs/brigade/station-2/70 >/dev/null' _ "$rc" "$out" "$KP"
+ok "…and another ticket's checkpoint stays" git -C "$KP" rev-parse -q --verify refs/brigade/station-1/71
+
 section "remove with a legacy clone config"
 git clone -q "$C.git" "$C/stations/station-1" 2>/dev/null
 out=$(echo nope | BRIGADE_KITCHEN_MODE=clone "$K" remove 2>&1)

@@ -17,6 +17,7 @@ is for `git` reads, `kitchen.sh scope`, `kitchen.sh check --receipt` and the lea
 - **Trunk**: e.g. `origin/main`.
 - **Ticket**: path to the ticket file (or tracker id and its text).
 - **Plan**: path to the plan in the station, or "none" for a lane C (`HYG-`) ticket.
+- **Checkpoint**: `kitchen.sh checkpoint --show <station-N>` (absolute path), and the **Main checkout**: where the ref is read from, or "none".
 - **Check**: `kitchen.sh check --receipt` (absolute path), which prints the newest receipt of the cook's check for the tree in the station you run it in.
 - **Journal**: path to the ticket's journal in the station.
 - **Rules**: the repo's "what not to add" list path, or "none".
@@ -28,7 +29,19 @@ is for `git` reads, `kitchen.sh scope`, `kitchen.sh check --receipt` and the lea
 0. **Scope, first.** The plan's `files:` is the ticket's write scope (Contract 4); run the `Scope check` command you were given. Exit 0: every changed path is inside it, and you go on. Exit 1: each path under `outside` is a numbered finding, worded exactly `outside the plan's files: <path>; add it to the plan with why, or revert` (the budget's `scope-drift` rule counts that wording), and a line saying no plan names the ticket is a finding too. You still run the rest, so the sous gets one list.
 1. **The diff.** From the merge base with trunk, never trunk's tip (trunk moves while the cook
    works, and a tip diff shows other stations' merged work reversed). Nothing is committed
-   before the pass, so one ref after `diff`, plus untracked files:
+   before the pass, so the cook's `kitchen.sh checkpoint` is the snapshot (Contract 8): a ref
+   whose tree holds every tracked, deleted and untracked file. Run the `Checkpoint:` command
+   (it only reads). **`current`** (exit 0, it prints `<ref> <sha> tree=… current`): read the diff
+   from the ref, in the main checkout; untracked files are in it as additions:
+   ```bash
+   REF=<the ref it printed>; BASE=$(git -C <main checkout> merge-base "$REF" <trunk>)
+   git -C <main checkout> diff "$BASE" "$REF" --stat
+   git -C <main checkout> diff "$BASE" "$REF"
+   ```
+   **`behind`** (exit 2): the station changed after its last checkpoint. `VERDICT: blocked`, "the
+   station changed after its last checkpoint: the cook runs `kitchen.sh check`, then `kitchen.sh
+   checkpoint`, as its last acts". **No ref** (exit 1) or no `Checkpoint:` input: read the station
+   as before, and say under NOTES that there was no checkpoint:
    ```bash
    git -C <station> fetch origin --quiet
    BASE=$(git -C <station> merge-base HEAD <trunk>)

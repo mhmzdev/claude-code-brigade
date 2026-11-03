@@ -61,8 +61,9 @@ Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`.
      itself: a gate asked the wrong person, a skill stopped for nothing, a rule that didn't
      fit). Reuse an existing key when it's the same lesson (`grep -rh 'lesson(' <docs.journal> <docs.lessons>`
      shows the keys in use) so the count works. Reading keys isn't counting: only the sous's handoff counts. No lesson is fine; don't invent one.
-5. **Tell the sous** in one line, by script: `kitchen.sh here --note "<ID> handoff written, see journal"` (it reads the station's line in `kitchen.sh board`; no message wakes it).
-6. **On `[go]`** (the automatic case), this runs after `/bk:clean around` and before
+5. **Checkpoint** the tree, now that the journal is written: `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" checkpoint` (a copy in `refs/brigade/<station>/<ticket>`, not a commit; Contract 8). A session that is cleared, or a station that is removed, then loses nothing the handoff names.
+6. **Tell the sous** in one line, by script: `kitchen.sh here --note "<ID> handoff written, see journal"` (it reads the station's line in `kitchen.sh board`; no message wakes it).
+7. **On `[go]`** (the automatic case), this runs after `/bk:clean around` and before
    `/bk:open-pr`, so the closing handoff is inside the reviewed PR. The journal is the only
    file allowed to change after the pass.
 
@@ -220,7 +221,9 @@ into the working tree, step 7 lands it, and step 8 tops up the budget before the
 - **A fresh cook** (station check says `cook`, a ticket branch exists): read the ticket's
   journal, take the **last** handoff section as the starting point, and verify it against
   `git status` and the plan. The station wins where they disagree. Then carry on from
-  "Next step".
+  "Next step". A **clean** station (detached at trunk, or a new one) whose journal names
+  work in flight is not empty: `kitchen.sh sync` and `kitchen.sh checkpoint --show <station-N>`
+  say whether a checkpoint is held, and `kitchen.sh restore <ticket>` puts it back (Contract 8).
 - **A fresh sous**: `/bk:sous-chef` reads `.claude/sous-handoff.md` first (Step 0), checks it
   against the rail, stations and journals, and treats it as history once read: **reality
   wins over the note**. What the last sous filed into the record needs no note: the commis

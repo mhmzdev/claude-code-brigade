@@ -484,6 +484,7 @@ what fills a sous's context fastest, so **the taster does the reading**:
    Agent(subagent_type: "bk:taster", description: "taste <ID> in <station>",
          prompt: "Station: <abs path>. Trunk: origin/<trunk>. Ticket: <path>.
                   Plan: <station>/<docs.plans>/<ID>-*.md (or none for HYG).
+                  Checkpoint: <abs path of kitchen.sh> checkpoint --show <station-N>. Main checkout: <abs path>.
                   Check: <abs path of kitchen.sh> check --receipt. Journal: <station>/<docs.journal>/<ID>-*.md.
                   Rules: <what-not-to-add file, or none>.
                   Scope check: <abs path of kitchen.sh> scope <station-N>.
