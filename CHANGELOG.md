@@ -31,6 +31,18 @@ leaves them alone and says so, and `kitchen.sh index --adopt` takes them over (i
 row whose file is gone). The indexes of specs, backlog, brainstorms, research, decisions,
 conventions, knowledge and questions stay hand-kept.
 
+## [0.29.1] - 2026-11-03
+
+**The budget no longer bills your own sessions to the sous.** Every session in the main
+checkout used to count as the sous, so on the first dogfood shift $106 of your own work
+showed up as the sous's, and the debrief said "the sous runs too long" about it. Now a
+session there is the sous only if it is the one `.claude/sous` names (or, with no name
+recorded, the newest running one, as the Window picks), or if it sent a message only a sous
+sends (`[brief]`, `[go]` and the like), which keeps a past shift's sous and a sous before a
+`/clear` the sous's. Every other session in the main checkout is yours: `kitchen.sh budget`
+and the Ledger list it as `head chef`, apart from the kitchen's spend, and the debrief
+leaves it out. Nothing to do. A patch: a fix.
+
 ## [0.29.0] - 2026-11-03
 
 **The sous signs a plan's how; only a change to the ticket comes to you.** On the first
