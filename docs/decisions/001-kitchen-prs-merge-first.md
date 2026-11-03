@@ -1,7 +1,7 @@
 ---
 type: adr
 title: A served kitchen PR merges before the head chef's own next PR
-status: accepted
+status: superseded
 date: 2026-10-25
 source: ask A2 (sous, 2026-10-25)
 supersedes: null
