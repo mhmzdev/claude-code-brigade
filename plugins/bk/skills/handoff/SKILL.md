@@ -77,7 +77,8 @@ the note, and step 7 tops up the budget. They're mechanical lists; the judgement
    ```
    One row per rule tripped this week (the check red three times on a ticket, rework over a
    third of its spend, ten CI minutes or more, a gate the record had after the commis said
-   nothing, a session carrying too much context), with the tickets or sessions that tripped
+   nothing, a session carrying too much context, a head chef `[approved]` with no `why:`),
+   with the tickets or sessions that tripped
    it and the fix the rule names. For each `DUE` row: `repo` scope → fire a `BKLG` chore
    titled with the fix ("run the slow part of the check in a pre-push hook"), the evidence
    lines in its `## Why`, `kind: chore`; it is yours to sign off (Contract 5), so say so to

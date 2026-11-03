@@ -117,7 +117,7 @@ a different answer. Gates that aren't questions (`needs grilling`, `need a test 
 | Any confirmation a skill asks for ("confirm scope?", "continue?", "which helper?") | **sous**, as `[gate]` with your recommendation and the commis line, then wait |
 | A design fork, or a contradiction between ticket and code, that the record doesn't settle | **sous**, as `[gate]`: say it's a real fork, give the options, your recommendation and the commis line. The sous answers from the record if it can, else takes it to the head chef and relays the answer marked `(head chef)` |
 | The ticket's WHAT is still contested (it needs `/bk:grill-me`), or the idea needs a brainstorm | **sous**, as `[gate] <ID> needs grilling: <what's contested>`. Don't start `/bk:grill-me` or `/bk:brainstorm` yourself. Run `/bk:grill-me` when the sous sends a grilling `[brief]`, or either skill when the head chef types it here: then you ask the head chef directly, log the decisions as that skill says, tell the sous, and say this session should be cleared before it takes a ticket |
-| Plan sign-off | **sous**: send `[plan] <ID> ready: <absolute path>` and wait for `[approved]` or `[findings]` (list any protected paths in the `[plan]`, Contract 5). For a bug, chore, precedent or hygiene ticket the sous signs itself (`sous, per gates.plan_approval.<kind>`); for a feature, or any plan with a migration, a walk-in resource, a production write, a protected path or an unrecorded decision, it's the head chef's yes, relayed |
+| Plan sign-off | **sous**: send `[plan] <ID> ready: <absolute path>` and wait for `[approved]` or `[findings]` (list any protected paths in the `[plan]`, Contract 5). For a bug, chore, precedent or hygiene ticket the sous signs itself (`sous, per gates.plan_approval.<kind>`); for a feature, or any plan with a migration, a walk-in resource, a production write, a protected path or a line under the plan's `## Decisions → Changes the ticket`, it's the head chef's yes, relayed. A how choice (a name, a column, an order, which function) goes under `How` and is the sous's: don't file it under Changes the ticket to be safe |
 | Changing a ticket's status or content | **sous**, as `[rail]` |
 | A destructive command on a `walk_in:` resource | **sous**, as `[walk-in]`, then wait |
 | A login to test a flow | **sous**, as `[gate] <ID> need a test account: <environment>, <role>`. It replies with an account **name**; read that entry yourself from `<main checkout>/.claude/brigade.local.md` (`kitchen.sh role` prints the main checkout) |
@@ -159,7 +159,9 @@ lines short; the journal is read by people later, not just by the next session.
 2. **`/bk:pick-ticket <path or id>`**: context and staleness. Claiming means sending
    `[rail] claim <ID> todo`.
 3. **`/bk:create-plan`**: write the plan. Forks go where the table says. Then send
-   `[plan] <ID> ready: <absolute path>` and **wait**. Don't ask "does this look right?".
+   `[plan] <ID> ready: <absolute path>` (plus `· protected paths: <list>` and `· changes
+   the ticket: <n>` when the plan has either, Contract 6) and **wait**. Don't ask "does
+   this look right?".
 4. **On `[approved]`** (the sous's own, naming the rule, or the head chef's yes relayed):
    copy it into the journal, then start **`/bk:implement`** yourself. That sign-off authorises every commit you'll make
    under this plan. It runs straight through, `check` after every phase, with no "go on to

@@ -36,7 +36,7 @@ Do this before anything else. No sign-off → change nothing and stop.
 - **In a station (a cook):** the ticket's journal must hold the sous's `[approved]` line for
   this ticket, with the head chef's words or the sous's rule (`sous, per
   gates.plan_approval.<kind>`). For a `HYG` ticket the `[approved]` line in the
-  `[brief]` counts. Missing → send `[plan] <ID> ready: <path>` again (a `HYG` ticket has no
+  `[brief]` counts. Missing → send `[plan] <ID> ready: <path>` again, with its protected paths and its changes-the-ticket count as Contract 6 says (a `HYG` ticket has no
   plan: send `[gate] <ID> no [approved] on record`) and wait. A
   `[heard]`, a `[go]`, or an approval for another ticket is not a sign-off. The human typing
   `/bk:implement` in this terminal themselves is the one other sign-off (Contract 5):

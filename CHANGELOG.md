@@ -12,7 +12,7 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
-## [0.29.0] - 2026-11-03
+## [0.30.0] - 2026-11-03
 
 **The plan, journal and checklist indexes now write themselves, so two cooks stop
 conflicting on them.** Every ticket used to add a row to `docs/plans/INDEX.md`,
@@ -30,6 +30,23 @@ already has hand-written index files there, nothing changes until you ask: `kitc
 leaves them alone and says so, and `kitchen.sh index --adopt` takes them over (it lists any
 row whose file is gone). The indexes of specs, backlog, brainstorms, research, decisions,
 conventions, knowledge and questions stay hand-kept.
+
+## [0.29.0] - 2026-11-03
+
+**The sous signs a plan's how; only a change to the ticket comes to you.** On the first
+shift the sous sent two chore plans up for a yes with nine "decisions" between them: a
+command's name, a table's columns, their order, which function reads a value. Those are
+how, and a bug, chore, precedent or hygiene plan's how is the sous's to sign; you approved
+them unread, which is the risk. Contract 5 now says what makes a decision yours: it
+**changes the ticket** (its scope against the Done when, behaviour a user sees, a contract
+rule, a schema, a name people already type, a cost) or contradicts the record; what a new
+command or column is called is how. A plan's
+`## Decisions` has two parts, **Changes the ticket** (usually "None") and **How**, and the
+sous shows you only the first, the ticket's words beside the plan's, never the list of
+names. The head chef's `[approved]` now ends with `why: <feature | migration | … | changes
+the ticket>`, and a new debrief rule, `over-ask`, counts a head chef `[approved]` with no
+why against the sous. Nothing to do: restart your sessions to load the new skills; expect
+fewer plan questions, and shorter ones.
 
 ## [0.28.0] - 2026-10-25
 

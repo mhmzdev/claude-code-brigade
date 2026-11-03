@@ -119,6 +119,12 @@ for (const [id, min, text] of [['r4', 44.5, 'FAIL'], ['r5', 46.5, 'fail'], ['r6'
   { type: 'user', isSidechain: true, agentId: id, timestamp: at(min), message: { role: 'user', content: 'run the check' } },
   asst(min + 0.2, 'claude-haiku-5-5', { in: 0, out: 1000, read: 0 }, [{ type: 'text', text }]),
 ]);
+// A fifth cook conversation on BKLG-004: the head chef signed its plan with no why (the over-ask rule).
+write(path.join(cookDir, 'cook5.jsonl'), [
+  peer(60, 'app-sous', '[brief] BKLG-004 A fourth thing, a chore.'),
+  asst(61, 'claude-sonnet-5-5', { in: 0, out: 1000, read: 1000 }, [send('sous', '[plan] BKLG-004 ready: /x/docs/plans/BKLG-004.md')]),
+  peer(62, 'app-sous', '[approved] BKLG-004: /x/docs/plans/BKLG-004.md · head chef: "Approve"'),
+]);
 // The runner, a Haiku sub-agent of the first cook conversation.
 write(path.join(cookDir, 'cook1', 'subagents', 'agent-r1.jsonl'), [
   { type: 'user', isSidechain: true, agentId: 'r1', timestamp: at(5.1), message: { role: 'user', content: 'run the check' } },
@@ -135,7 +141,7 @@ const red = agent('runner', 'the check'), green = agent('runner', 'the check aga
 write(path.join(cookDir, 'cook3.jsonl'), [
   peer(20, 'app-sous', '[brief] BKLG-002 Another thing.'),
   asst(21, 'claude-haiku-5-5', { in: 0, out: 1000000, read: 0 }, [send('sous', '[plan] BKLG-002 ready: /x/docs/plans/BKLG-002.md')]),
-  peer(22, 'app-sous', '[approved] BKLG-002: /x/docs/plans/BKLG-002.md · sous'),
+  peer(22, 'app-sous', '[approved] BKLG-002: /x/docs/plans/BKLG-002.md · head chef: "yes" · why: migration'),
   asst(22.2, 'claude-haiku-5-5', { in: 0, out: 0, read: 0 }, [send('sous', '[gate] BKLG-002 Q1: which helper? commis: fact only')]),
   asst(22.4, 'claude-haiku-5-5', { in: 0, out: 0, read: 0 }, [send('sous', '[gate] BKLG-002 Q2: rounding? commis: nothing recorded in decisions')]),
   peer(22.6, 'app-sous', '[heard] Q2: round half up, settled in docs/decisions/003-rounding.md (2026-09-01)'),
@@ -190,7 +196,7 @@ ok "a session carries its model's price table, for the Window's cost rows" [ "$(
 ok "an unpriced model counts its tokens and costs nothing" [ "$(field "$J" 'b.sessions.find(s=>s.id==="sous1").priced')" = false ]
 ok "the sous conversation's priced turns still add up" [ "$(field "$J" 'b.sessions.find(s=>s.id==="sous1").cost')" = 0.04 ]
 ok "the shift sums every session and helper" [ "$(field "$J" 'b.shift.cost')" = "$(field "$J" 'Math.round(b.sessions.reduce((a,s)=>a+s.allCost,0)*10000)/10000')" ]
-ok "per actor: station-1 today spans four conversations" [ "$(field "$J" 'b.actors["station-1"].sessions')" = 4 ]
+ok "per actor: station-1 today spans five conversations" [ "$(field "$J" 'b.actors["station-1"].sessions')" = 5 ]
 ok "the unknown model is reported" [ "$(field "$J" 'b.unknownModels.join()')" = claude-mystery-9 ]
 
 section "the ticket"
@@ -252,7 +258,10 @@ ok "a ticket still red after three checks is rework-heavy too" has "$OUT" "^repo
 ok "a ticket with one red and light rework trips nothing" bash -c '! printf "%s" "$1" | grep -q "BKLG-002: .*red"' _ "$OUT"
 ok "nothing tripped on a quiet ticket" bash -c '! printf "%s" "$1" | grep -q "BKLG-001"' _ "$OUT"
 J="$("$K" debrief --json)"
-ok "--json carries the same findings" [ "$(field "$J" 'b.map(f=>f.key+":"+f.status).join()')" = "check-red-repeat:watch,rework-heavy:watch,record-missed:DUE,context-bloat:watch" ]
+ok "a head chef [approved] with no why is an over-ask, per ticket" has "$OUT" "^plugin +over-ask +1 +watch +the head chef signed a plan with no reason.*
+ +BKLG-004: a head chef \[approved\] with no why:"
+ok "a head chef [approved] that names its why is not" fails has "$OUT" "BKLG-002: a head chef"
+ok "--json carries the same findings" [ "$(field "$J" 'b.map(f=>f.key+":"+f.status).join()')" = "check-red-repeat:watch,rework-heavy:watch,record-missed:DUE,over-ask:watch,context-bloat:watch" ]
 mkdir -p "$APP/docs"; printf '| key | scope | ticket |\n|---|---|---|\n| `record-missed` | repo | BKLG-010 |\n' > "$APP/docs/lessons.md"
 ok "a key the register lists is promoted, not due" has "$("$K" debrief)" "^repo +record-missed +2 +promoted"
 rm "$APP/docs/lessons.md"
