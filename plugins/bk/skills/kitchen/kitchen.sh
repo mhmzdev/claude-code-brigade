@@ -62,6 +62,13 @@
 #                                         main checkout or any station (exits 1 if none
 #                                         is recorded). --set, from the main checkout:
 #                                         record it in .claude/sous (kept out of git)
+#   kitchen.sh clear <station-N|sous>     clear that session, the sous's job (Contract 5):
+#                                         types /clear into its tmux pane, then the role skill
+#                                         (/bk:line-cook, or /bk:sous-chef: the sous's own call
+#                                         waits for its turn to end), once it is idle, its handoff is newer
+#                                         than its last turn and nothing it sent still waits
+#                                         for an answer. Refuses otherwise, saying why.
+#                                         Needs node (reads the session's transcript)
 #   kitchen.sh lessons                    count lesson(...) lines across ticket journals
 #   kitchen.sh decisions                  every "(head chef)" answer in a journal that no doc
 #                                         under the docs map cites and the register doesn't
@@ -234,6 +241,7 @@ CI=false          # --ci, for budget
 JSON=false        # --json, for budget
 JOURNAL_LINE=false # --journal-line, for budget
 SESSION_NAME=""   # --session, for budget --journal-line
+CLEAR_WHO=""      # station-N | sous, for clear
 CHECK_INDEX=false # --check, for index
 ADOPT=false       # --adopt, for index
 ARGV=()   # set by native_argv
@@ -263,6 +271,7 @@ while [[ $# -gt 0 ]]; do
     --json) JSON=true; shift ;;
     --journal-line) JOURNAL_LINE=true; shift ;;
     --session) SESSION_NAME="$2"; shift 2 ;;
+    sous|station-*) CLEAR_WHO="$1"; shift ;;
     --check) CHECK_INDEX=true; shift ;;
     --adopt) ADOPT=true; shift ;;
     -m|--model) shift
@@ -953,6 +962,7 @@ cmd_board() {
     echo ""; echo "The rail:"; cmd_rail
     echo ""; echo "Open questions:"; cmd_questions
     echo ""; echo "Decisions to file: $(cmd_decisions | grep -c ' DUE ' || true) · Inbox: $(inbox_count) unfiled · Asks open: $(asks_count open) · Gaps to fix: $(cmd_gaps | grep -c '^  ' || true)"
+    context_warning
     echo '```')"
   printf '%s\n' "$text"
   here_real="$(cd "$HERE" && pwd -P)"
@@ -1545,6 +1555,136 @@ cmd_sessions() {
 }
 
 # ---------------------------------------------------------------------------
+# clear — the sous clears a session (Contract 5). Clearing is deterministic, so it needs
+# no human judgement: `clear <station-N|sous>` refuses unless the session is idle (the
+# registry's word, <config>/sessions/<pid>.json), its handoff is newer than its last turn
+# (a cook: the newest journal in the station with a "## Handoff" section; the sous:
+# .claude/sous-handoff.md) and nothing it sent still waits for an answer (a cook: a
+# [gate], [plan], [handoff] or [walk-in] with no reply since; the sous: an open ask).
+# Then it types /clear into the session's tmux pane (the pane the registry names, the
+# way bk stop types /bk:handoff), waits for the session to say idle, and for a cook types
+# /bk:line-cook so it checks in fresh. Nothing is ever typed into a busy pane. The
+# transcript is read by window/server/live/session-state.js, so this needs node.
+# ---------------------------------------------------------------------------
+json_str() { sed -n "s/.*\"$2\":\"\\([^\"]*\\)\".*/\\1/p" "$1" | head -1; }      # a string field of a flat JSON file
+json_num() { sed -n "s/.*\"$2\":\\([0-9][0-9]*\\).*/\\1/p" "$1" | head -1; }     # a number field
+mtime_ms() { local s; s="$(stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null)"; printf '%s000' "${s:-0}"; }   # GNU first: BSD stat -c fails, GNU stat -f %m is the mount point
+# registry_of <checkout> [name] → the registry file of the live session running there: the one
+# named <name> when given, else the most recently active. Nothing when none is running.
+registry_of() {
+  local real dir f cwd pid t best="" best_t=0
+  real="$(cd "$1" && pwd -P)"; dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sessions"
+  for f in "$dir"/*.json; do
+    [[ -f "$f" ]] || continue
+    cwd="$(json_str "$f" cwd)"; [[ -n "$cwd" && -d "$cwd" ]] || continue
+    [[ "$(cd "$cwd" && pwd -P)" == "$real" ]] || continue
+    pid="$(json_num "$f" pid)"; [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null || continue
+    if [[ -n "${2:-}" ]]; then [[ "$(json_str "$f" name)" == "$2" ]] && { echo "$f"; return 0; }; continue; fi
+    t="$(json_num "$f" updatedAt)"; t="${t:-0}"
+    (( t >= best_t )) && { best="$f"; best_t=$t; }
+  done
+  [[ -n "$best" ]] && echo "$best"
+  return 0
+}
+transcript_of() {  # transcript_of <registry file> → that session's transcript (as typed or resolved), or exit 1
+  local cwd sid base d slug
+  cwd="$(json_str "$1" cwd)"; sid="$(json_str "$1" sessionId)"; base="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
+  [[ -n "$cwd" && -n "$sid" ]] || return 1
+  for d in "$cwd" "$(cd "$cwd" 2>/dev/null && pwd -P)"; do
+    slug="$(printf '%s' "$d" | sed 's/[^A-Za-z0-9]/-/g')"
+    [[ -f "$base/$slug/$sid.jsonl" ]] && { echo "$base/$slug/$sid.jsonl"; return 0; }
+  done
+  return 1
+}
+session_state() {  # session_state <transcript> → key=value lines from session-state.js, or exit 1
+  local dir; dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../window" 2>/dev/null && pwd -P)"
+  [[ -f "$dir/server/live/session-state.js" ]] || return 1
+  command -v node >/dev/null 2>&1 || return 1
+  node "$dir/server/live/session-state.js" "$1"
+}
+state_field() { printf '%s\n' "$1" | sed -n "s/^$2=//p" | head -1; }
+newest_handoff() {  # newest_handoff <station> → the station journal with a "## Handoff" section modified last
+  local f best="" best_t=0 t
+  for f in "$1/$(cfg_docs journal docs/journal)"/*.md; do
+    [[ -f "$f" ]] && grep -q '^## Handoff' "$f" || continue
+    t="$(mtime_ms "$f")"; (( t >= best_t )) && { best="$f"; best_t=$t; }
+  done
+  [[ -n "$best" ]] && echo "$best"
+  return 0
+}
+# context_warning: one line for the board when the sous's own session carries too much
+# (its last ten turns over the budget's context line). Silent without node or a sous.
+context_warning() {
+  local reg tr state read over line
+  reg="$(registry_of "$ROOT" "$(head -1 "$ROOT/.claude/sous" 2>/dev/null)")"; [[ -n "$reg" ]] || return 0
+  tr="$(transcript_of "$reg")" || return 0
+  state="$(session_state "$tr" 2>/dev/null)" || return 0
+  read="$(state_field "$state" lastRead)"; over="$(state_field "$state" over)"; line="$(state_field "$state" line)"
+  [[ -n "$read" && -n "$line" ]] || return 0
+  (( read > line )) || return 0
+  echo ""
+  echo "Context: the sous is at $(( read / 1000 ))k cache-read tokens a turn over its last 10 turns ($over turns over the $(( line / 1000 ))k line): run /bk:handoff, then kitchen.sh clear sous (Contract 5)."
+}
+cmd_clear() {
+  local who="$CLEAR_WHO" dir reg name pane handoff tr state open last_turn hmtime n i defer
+  case "$who" in
+    sous) dir="$ROOT" ;;
+    station-*) dir="$KITCHEN/$who"; [[ -e "$dir/.git" ]] || { echo "No such station: $who" >&2; return 1; } ;;
+    *) echo "Usage: kitchen.sh clear <station-N|sous>" >&2; return 1 ;;
+  esac
+  command -v node >/dev/null 2>&1 || { echo "clear needs node 20 or newer on your PATH: it reads the session's transcript." >&2; return 1; }
+  if [[ "$who" == sous ]]; then reg="$(registry_of "$dir" "$(head -1 "$ROOT/.claude/sous" 2>/dev/null)")"; else reg="$(registry_of "$dir")"; fi
+  [[ -n "$reg" ]] || { echo "Not cleared: no live session in $who (none registered under ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sessions with that cwd)." >&2; return 1; }
+  name="$(json_str "$reg" name)"; pane="$(json_str "$reg" tmux)"
+  [[ -n "$pane" ]] || { echo "Not cleared: $who ($name) isn't in a tmux pane; clear it by hand." >&2; return 1; }
+  # 1. idle: never type into a pane mid-turn. The sous clearing itself is the one case where
+  # the caller is the busy session (its own tool call is the turn): the typing is deferred
+  # to a waiter that fires when the registry says idle. A busy cook is refused.
+  defer=false
+  if [[ "$(json_str "$reg" status)" != idle ]]; then
+    if [[ "$who" == sous ]]; then defer=true
+    else echo "Not cleared: $who ($name) is busy. Wait for its turn to end." >&2; return 1; fi
+  fi
+  # 2. a handoff newer than its last turn
+  tr="$(transcript_of "$reg")" || { echo "Not cleared: no transcript found for $who ($name)." >&2; return 1; }
+  state="$(session_state "$tr")" || { echo "Not cleared: couldn't read $tr." >&2; return 1; }
+  last_turn="$(state_field "$state" lastTurnStart)"; last_turn="${last_turn:-0}"
+  if [[ "$who" == sous ]]; then handoff="$ROOT/.claude/sous-handoff.md"; else handoff="$(newest_handoff "$dir")"; fi
+  [[ -n "$handoff" && -f "$handoff" ]] || { echo "Not cleared: $who ($name) has no handoff on disk. Ask it for /bk:handoff first." >&2; return 1; }
+  hmtime="$(mtime_ms "$handoff")"
+  (( hmtime >= last_turn )) || { echo "Not cleared: $who's handoff ($handoff) is older than its last turn. Ask it for /bk:handoff first." >&2; return 1; }
+  # 3. nothing open
+  if [[ "$who" == sous ]]; then
+    n="$(asks_count open)"; (( n == 0 )) || { echo "Not cleared: the sous has $n open ask(s) to the head chef (kitchen.sh asks). Answer them first." >&2; return 1; }
+  else
+    open="$(state_field "$state" open)"
+    [[ -z "$open" || "$open" == none ]] || { echo "Not cleared: $who ($name) is waiting on an answer to its [$open]. Answer it, or let it finish." >&2; return 1; }
+  fi
+  # act: /clear, wait for the session to say idle, then the role skill (/bk:line-cook for a
+  # cook, /bk:sous-chef for the sous) so the pane is a cook or a sous again, not a solo session
+  local role="/bk:line-cook"; [[ "$who" == sous ]] && role="/bk:sous-chef"
+  if $defer; then
+    # the sous asked to clear itself mid-turn: a detached waiter types once the turn has ended
+    nohup bash -c '
+      reg=$1; pane=$2; role=$3; i=0
+      st() { sed -n "s/.*\"status\":\"\([^\"]*\)\".*/\1/p" "$reg" | head -1; }
+      while [ "$i" -lt 180 ] && [ "$(st)" != idle ]; do sleep 1; i=$((i+1)); done
+      [ "$(st)" = idle ] || exit 0
+      sleep 1; tmux send-keys -t "$pane" -l "/clear" && tmux send-keys -t "$pane" Enter || exit 0
+      sleep 3; tmux send-keys -t "$pane" -l "$role" && tmux send-keys -t "$pane" Enter
+    ' _ "$reg" "$pane" "$role" >/dev/null 2>&1 &
+    echo "Clearing the sous ($name) when this turn ends: /clear, then $role, will be typed into $pane (it waits up to three minutes for the turn to end). End your turn now; the fresh sous reads .claude/sous-handoff.md first."
+    return 0
+  fi
+  { tmux send-keys -t "$pane" -l "/clear" && tmux send-keys -t "$pane" Enter; } || { echo "Not cleared: tmux refused pane $pane." >&2; return 1; }
+  sleep 2
+  for i in 1 2 3 4 5 6 7 8 9 10; do [[ "$(json_str "$reg" status)" == idle ]] && break; sleep 1; done
+  { tmux send-keys -t "$pane" -l "$role" && tmux send-keys -t "$pane" Enter; } || { echo "Cleared $who ($name), but tmux refused $role; type it there." >&2; return 1; }
+  if [[ "$who" == sous ]]; then echo "Cleared the sous ($name): /clear, then /bk:sous-chef typed into $pane. It reads .claude/sous-handoff.md first."
+  else echo "Cleared $who ($name): /clear, then /bk:line-cook typed into $pane. It checks in fresh."; fi
+}
+
+# ---------------------------------------------------------------------------
 # budget — what the kitchen spends. The reading lives in the Window's server
 # (window/server/live/budget.js) so the terminal and the Window sum the same way; this
 # only finds node and runs it from the main checkout.
@@ -1665,5 +1805,5 @@ case "$CMD" in
   files) cmd_files ;; rail) cmd_rail ;; board) cmd_board ;; leaks) cmd_leaks ;; remove) cmd_remove ;;
   role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   decisions) cmd_decisions ;; inbox) cmd_inbox ;; asks) cmd_asks ;; gaps) cmd_gaps ;; doctor) cmd_doctor ;; index) cmd_index ;;
-  sessions) cmd_sessions ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; *) usage ;;
+  sessions) cmd_sessions ;; clear) cmd_clear ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; *) usage ;;
 esac

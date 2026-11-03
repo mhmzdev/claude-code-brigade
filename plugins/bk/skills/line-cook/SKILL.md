@@ -179,12 +179,13 @@ lines short; the journal is read by people later, not just by the next session.
    2. **`/bk:handoff`**: the closing section of your journal, including lessons.
    3. **`/bk:open-pr`**. It pulls trunk into your branch and re-runs `check` first. Send
       `[served] <ID> <PR url>`.
-10. Done. Tell the sous your shift is over. The head chef clears this session; don't take a
+10. Done. Tell the sous your shift is over. The sous clears this session (`kitchen.sh clear
+    <station>`, once you are idle with your handoff written and nothing open); don't take a
     second ticket on this context.
 
-**Being cleared mid-ticket** (e.g. while waiting for `[approved]`) is normal. When the
-head chef says so, run `/bk:handoff` first. The next session in this station reads the
-journal and carries on from its last handoff.
+**Being cleared mid-ticket** (e.g. while waiting for `[approved]`) is normal; that one is the head chef's, by hand, since `kitchen.sh clear` refuses an unanswered `[plan]`. When the
+sous or the head chef says so, run `/bk:handoff` first. The next session in this station
+reads the journal and carries on from its last handoff.
 
 **Run noisy commands through the `runner` sub-agent** (`subagent_type: "bk:runner"`) when their
 output is long: the check, a full test run, a counter. You get pass/fail and the failing lines;

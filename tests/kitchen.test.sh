@@ -720,6 +720,83 @@ ok "sessions --dir lists a station's sessions" has "$(CLAUDE_CONFIG_DIR="$CFG" "
 ok "sessions from inside a station lists that station's" has "$(cd "$S1" && CLAUDE_CONFIG_DIR="$CFG" "$K" sessions)" "cook-session\.jsonl"
 ok "sessions says when there are none" has "$(CLAUDE_CONFIG_DIR="$TMP/empty" "$K" sessions)" "No saved sessions"
 
+section "clear: the sous clears a session"
+# A fake registry under ~/.claude/sessions (sleepers stand in for claude), handmade transcripts
+# under ~/.claude/projects, and the tmux stub that logs what gets typed into which pane.
+if command -v node >/dev/null 2>&1; then
+  REG="$HOME/.claude/sessions"; mkdir -p "$REG"
+  reg() {  # reg <cwd> <sid> <status> <pane> <name> → pid (a sleeper standing in for claude; killed from the registry at the end)
+    sleep 300 >/dev/null 2>&1 & local p=$!
+    printf '{"pid":%s,"sessionId":"%s","cwd":"%s","status":"%s","tmux":"%s","name":"%s","updatedAt":1}\n' "$p" "$2" "$1" "$3" "$4" "$5" > "$REG/$p.json"; printf '%s' "$p"
+  }
+  # One cook transcript: a turn at 10:00 (the brief), [plan] sent, [approved] back at 10:02; the last turn starts at 10:02.
+  tline() { printf '{"type":"%s","timestamp":"%s","message":{"role":"%s","id":"%s","model":"claude-sonnet-5-5","usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":%s},"content":[%s]}}\n' "$1" "$2" "$3" "$4" "$5" "$6"; }
+  txt() { printf '{"type":"text","text":"%s"}' "$1"; }
+  snd() { printf '{"type":"tool_use","id":"%s","name":"SendMessage","input":{"to":"sous","message":"%s"}}' "$1" "$2"; }
+  PJ="$HOME/.claude/projects/$(slug "$S1")"; mkdir -p "$PJ"
+  { tline user 2026-01-01T10:00:00Z user u1 0 "$(txt '[brief] BKLG-001 go')"
+    tline assistant 2026-01-01T10:01:00Z assistant m1 1000 "$(snd t1 '[plan] BKLG-001 ready: /x')"
+    tline user 2026-01-01T10:02:00Z user u2 0 "$(txt 'Another Claude session sent a message:\n<cross-session-message from-name=\"app-sous\">\n[approved] BKLG-001: /x · sous')"
+  } > "$PJ/sid-c1.jsonl"
+  mkdir -p "$S1/docs/journal"
+  : > "$TB/tmux.log"
+  p1=$(reg "$S1" sid-c1 busy %7 app-cook-1)
+  out=$(PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
+  ok "clear refuses a busy cook" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "is busy"' _ "$rc" "$out"
+  sed -i.bak 's/"busy"/"idle"/' "$REG/$p1.json"
+  out=$(PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
+  ok "clear refuses a cook with no handoff on disk" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "no handoff"' _ "$rc" "$out"
+  printf '# journal\n\n## Handoff — 2026-01-01 09:00 · app-cook-1\n- Stage: served\n' > "$S1/docs/journal/BKLG-001-open.md"
+  touch -t 202512310000 "$S1/docs/journal/BKLG-001-open.md"   # older than the last turn (2026-01-01 10:02)
+  out=$(PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
+  ok "clear refuses a handoff older than the cook's last turn" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "older than its last turn"' _ "$rc" "$out"
+  touch "$S1/docs/journal/BKLG-001-open.md"   # now: newer than the last turn
+  { tline assistant 2026-01-01T10:03:00Z assistant m2 1000 "$(snd t2 '[gate] BKLG-001 Q1, see journal. commis: nothing')"; } >> "$PJ/sid-c1.jsonl"
+  out=$(PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
+  ok "clear refuses a cook still waiting on an answer" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "waiting on an answer to its \[gate\]"' _ "$rc" "$out"
+  ok "…and typed nothing into tmux" test ! -s "$TB/tmux.log"
+  { tline user 2026-01-01T10:04:00Z user u3 0 "$(txt '<cross-session-message from-name=\"app-sous\">\n[heard] Q1: three')"; } >> "$PJ/sid-c1.jsonl"
+  touch "$S1/docs/journal/BKLG-001-open.md"
+  out=$(PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
+  ok "clear clears an idle, handed-off, answered cook" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "^Cleared station-1 (app-cook-1)"' _ "$rc" "$out"
+  ok "…typing /clear into its pane, then /bk:line-cook" bash -c 'grep -q "send-keys -t %7 -l /clear" "$1" && grep -q "send-keys -t %7 -l /bk:line-cook" "$1" && [ "$(grep -c "send-keys -t %7 Enter" "$1")" = 2 ]' _ "$TB/tmux.log"
+  # The sous: named in .claude/sous, its handoff is .claude/sous-handoff.md, its "open" is an open ask.
+  PS="$HOME/.claude/projects/$(slug "$C")"; mkdir -p "$PS"
+  { tline user 2026-01-01T11:00:00Z user s1 0 "$(txt 'run the kitchen')"
+    tline assistant 2026-01-01T11:01:00Z assistant sm1 400000 "$(txt 'the board')"
+  } > "$PS/sid-s1.jsonl"
+  pS=$(reg "$C" sid-s1 idle %0 app-7d); "$K" sous --set app-7d >/dev/null
+  mv "$C/.claude/asks.md" "$C/.claude/asks.md.keep" 2>/dev/null   # earlier sections' asks stay out of this one
+  : > "$TB/tmux.log"
+  out=$(PATH="$TB:$PATH" "$K" clear sous 2>&1); rc=$?
+  ok "clear refuses the sous with no handoff note" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "no handoff"' _ "$rc" "$out"
+  printf '# Sous handoff\n' > "$C/.claude/sous-handoff.md"
+  aid=$("$K" asks --add "which queue?" --gap ruling)
+  out=$(PATH="$TB:$PATH" "$K" clear sous 2>&1); rc=$?
+  ok "clear refuses the sous while an ask to the head chef is open" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "open ask"' _ "$rc" "$out"
+  "$K" asks --answer "$aid" "the fare queue" >/dev/null
+  ok "board warns when the sous's turns are over the context line" has "$("$K" board)" "Context: the sous is at 400k cache-read tokens a turn .* kitchen.sh clear sous"
+  out=$(PATH="$TB:$PATH" "$K" clear sous 2>&1); rc=$?
+  ok "clear clears an idle sous once its note is written and nothing is open" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "^Cleared the sous (app-7d)"' _ "$rc" "$out"
+  ok "…typing /clear, then /bk:sous-chef, into its pane" bash -c 'grep -q "send-keys -t %0 -l /clear" "$1" && grep -q "send-keys -t %0 -l /bk:sous-chef" "$1" && ! grep -q "line-cook" "$1"' _ "$TB/tmux.log"
+  # The sous clearing itself: its own tool call is the busy turn, so the typing waits for idle.
+  sed -i.bak 's/"idle"/"busy"/' "$REG/$pS.json"; : > "$TB/tmux.log"
+  out=$(PATH="$TB:$PATH" "$K" clear sous 2>&1); rc=$?
+  ok "a busy sous clearing itself is deferred, not refused" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "^Clearing the sous (app-7d) when this turn ends"' _ "$rc" "$out"
+  ok "…and nothing is typed while it is busy" test ! -s "$TB/tmux.log"
+  sleep 2; sed -i.bak 's/"busy"/"idle"/' "$REG/$pS.json"
+  ok "…then /clear and /bk:sous-chef are typed once it is idle" bash -c 'for i in $(seq 1 30); do grep -q "send-keys -t %0 -l /bk:sous-chef" "$1" 2>/dev/null && grep -q "send-keys -t %0 -l /clear" "$1" && exit 0; sleep 1; done; exit 1' _ "$TB/tmux.log"
+  sed -i.bak 's/400000/1000/' "$PS/sid-s1.jsonl"
+  ok "…and the board is quiet when the sous is under the line" bash -c '! printf "%s" "$("$1" board)" | grep -q "^Context:"' _ "$K"
+  ok "clear without a tmux pane refuses" bash -c 'sed -i.bak "s/\"tmux\":\"%0\"/\"tmux\":\"\"/" "$1"; ! "$2" clear sous >/dev/null 2>&1' _ "$REG/$pS.json" "$K"
+  ok "clear of an unknown station refuses" bash -c '! "$1" clear station-9 >/dev/null 2>&1' _ "$K"
+  for f in "$REG"/*.json; do kill "$(sed -n 's/.*"pid":\([0-9]*\).*/\1/p' "$f")" 2>/dev/null; done
+  rm -rf "$REG" "$C/.claude/sous-handoff.md" "$C/.claude/asks.md"; rm -f "$S1/docs/journal/BKLG-001-open.md"
+  mv "$C/.claude/asks.md.keep" "$C/.claude/asks.md" 2>/dev/null
+else
+  echo "# node not installed: skipping the clear tests"
+fi
+
 section "remove (clone)"
 out=$(echo nope | "$K" remove 2>&1)
 ok "remove aborts without 'delete'" test -d "$C/stations/station-1"

@@ -12,6 +12,23 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
+## [0.31.0] - 2026-11-03
+
+**The sous clears sessions.** Clearing a session was yours, so cooks sat spent after their
+PR until you got to their terminal, and the sous ran hundreds of turns past the context line
+because it could only suggest its own clearing. The three conditions for a safe clear need
+no judgement: the session is idle, its handoff is newer than its last turn, and nothing it
+sent still waits for an answer. So the job moves to the sous. `kitchen.sh clear
+<station-N|sous>` checks those three against the live session registry and the transcript,
+refuses otherwise and says why, and when they hold types `/clear` into the session's tmux
+pane, then the role skill (`/bk:line-cook` for a cook, `/bk:sous-chef` for the sous; the sous's own call waits for its turn to end). The sous runs it on a cook
+after its `[served]` and handoff, and on itself after about three passes or when the board's
+new `Context:` line says its last ten turns are over the budget's context line, handoff
+first. Contract 5, the sous-chef, line-cook and handoff skills, the PLAYBOOK and the README
+say so. Nothing to install (`clear` needs node, like the budget); you can still clear any
+session by hand. What you must do: nothing. Expect the cooks to be fresh when you look, and
+the sous to restart itself now and then with a one-line note.
+
 ## [0.30.0] - 2026-11-03
 
 **The plan, journal and checklist indexes now write themselves, so two cooks stop

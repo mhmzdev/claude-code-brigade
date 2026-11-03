@@ -194,8 +194,10 @@ where it is, saves every session's id, exits them and closes tmux and the Window
 commits nothing. The next `bk open` resumes the same sessions, context and all.
 `bk open --fresh` starts new sessions instead.
 
-A single session that has grown too long is cleared, not paused: say "handoff", then
-`/clear`, then `/bk:sous-chef` or `/bk:line-cook`. Everything a fresh session needs is on
+A single session that has grown too long is cleared, not paused, and the sous does it:
+a cook after its PR is up, itself after a few passes (`kitchen.sh clear`, which refuses
+until the handoff is written and nothing is waiting). You can still do it by hand: say
+"handoff", then `/clear`, then `/bk:sous-chef` or `/bk:line-cook`. Everything a fresh session needs is on
 disk: tickets on the rail, plans and checklists, each ticket's journal, the record of
 decisions, and the sous's own note.
 

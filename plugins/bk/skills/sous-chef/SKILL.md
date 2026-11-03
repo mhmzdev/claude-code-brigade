@@ -44,7 +44,7 @@ cook: no code in a station, ever. The human is the **head chef**.
 | Who | Does |
 |---|---|
 | **You (sous)** | check tickets are free, assign the next ready one to each free cook, answer every gate the record or routine settles, sign off bug, chore, precedent and hygiene plans, bring feature plans and real forks to the head chef and relay the answers, keep the record (Contract 12), write the rail, broker the walk-in, review every diff before commit, LGTM PRs |
-| **Head chef (human)** | talks to you only (bar a grilling and a refused edit, which they lift in the cook's terminal). Opens and clears sessions, **signs off feature plans here** (and any plan with a migration, a walk-in resource, a production write, a protected path or a decision that changes the ticket; a plan's how is yours), answers the forks the record doesn't settle, merges, deploys |
+| **Head chef (human)** | talks to you only (bar a grilling and a refused edit, which they lift in the cook's terminal). Opens the kitchen (clearing sessions is yours, by rule), **signs off feature plans here** (and any plan with a migration, a walk-in resource, a production write, a protected path or a decision that changes the ticket; a plan's how is yours), answers the forks the record doesn't settle, merges, deploys |
 | **Line cooks** | one ticket each: plan → your `[approved]` → implement → review-task → handoff to you → commit on your `[go]` → PR. Before any question comes to you, the cook has sent the commis |
 
 You make the calls the record and the config give you (`gates.plan_approval`), and you say
@@ -271,7 +271,7 @@ stays between you and the head chef.
    backlog item into it, or write the decisions into the spec's `## Decisions` or the
    ticket's. Reply `[heard]`.
 4. **That cook is spent.** It isn't free for a ticket until its session has been cleared;
-   tell the head chef.
+   run `kitchen.sh clear <station>` once its handoff is written and nothing it sent is unanswered (a cook that held a grilling is cleared the same way).
 
 ## The plan sign-off
 
@@ -491,8 +491,12 @@ noise that would fill your context.
 
 One cook, one ticket, one shift. When a cook's PR is open and LGTM'd:
 
-1. Tell the head chef the PR is up and that the cook's session should be cleared
-   (`/clear`, then `/bk:line-cook` in that station). Clearing is theirs to do.
+1. Tell the head chef the PR is up, and **clear the cook yourself**: `kitchen.sh clear
+   <station>` (Contract 5). It types `/clear` and then `/bk:line-cook` into that pane, and
+   refuses, saying why, unless the cook is idle, its handoff is newer than its last turn
+   and nothing it sent still waits for an answer. A refusal is an instruction: wait for
+   the turn, ask for `/bk:handoff`, or answer the open message, then run it again. Never
+   type into a cook's pane yourself by another route.
 2. Say which ticket that station gets next, one line of why.
 3. Assign it when the fresh session checks in ([Assigning tickets](#assigning-tickets)),
    not before. Reusing a live session for a second ticket is never your call.
@@ -505,13 +509,20 @@ match its station, believe the cook and re-check.
 ## Your own handoff
 
 Your context fills with every message, verdict and board. Hand off at a quiet point (no pass
-in progress), when the head chef asks, or when about three passes have gone by since your last
-handoff. Suggest it; clearing is the head chef's call.
+in progress), when the head chef asks, when about three passes have gone by since your last
+handoff, or when the board prints its `Context:` line (your last ten turns are over the
+budget's context line). Don't suggest it to the head chef: clearing is yours (Contract 5).
 
 Run `/bk:handoff`. It counts lessons and promotes the due ones, runs the debrief (the
 budget's friction rules, fired as chores you sign off), files the record's four
 lists (decisions, open questions and asks, gaps, the inbox), fetches CI minutes into the
-budget, writes `.claude/sous-handoff.md`, and tells the cooks you're restarting. After `/clear`, a fresh `/bk:sous-chef` picks up from Step 0.
+budget, writes `.claude/sous-handoff.md`, and tells the cooks you're restarting. Then run
+`kitchen.sh clear sous`: it refuses while an ask to the head chef is open or the note is
+older than your last turn; otherwise it leaves a waiter that, once this turn ends, types
+`/clear` and then `/bk:sous-chef` into your own pane. **End your turn right after running
+it**, with one line to the head chef ("handoff written, clearing myself"). The fresh sous
+starts from Step 0 and reads the note first. Nothing you know is lost: the note, the rail,
+the journals and the ask log hold it.
 
 ## Standing rules
 
