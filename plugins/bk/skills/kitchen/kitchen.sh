@@ -74,13 +74,21 @@
 #                                         hashes this checkout's working state (tracked,
 #                                         deleted and untracked files, minus what git
 #                                         ignores) and looks in .claude/check.log for a
-#                                         green run of the same command on that tree: found,
-#                                         it says so and runs nothing; else it runs the
-#                                         command, appends one line to the log and prints
-#                                         green or red (the last 40 lines on red; the full
-#                                         output is in .claude/check.out). --force runs it
-#                                         anyway. Exits with the check's own code. Both
+#                                         green receipt of the same command on that tree:
+#                                         found, it says so and runs nothing; else it runs the
+#                                         command, appends a receipt to the log (the tree, start
+#                                         and end, the command, exit, sha256 of the output, the
+#                                         station) and prints green or red (the last 40 lines on
+#                                         red; the full output is in .claude/check.out). --force
+#                                         runs it anyway. Exits with the check's own code. Both
 #                                         files are kept out of git
+#   kitchen.sh check --receipt [TREE]     print the newest receipt for this checkout's tree (or
+#                                         TREE, a full 40-hex id; anything else exits 64). Exit
+#                                         0: it is green and the config's check: line is the
+#                                         one it ran; 1: there is none ("no receipt for this
+#                                         tree"); 2: there is one that cannot be relied on,
+#                                         red or stale (the reason on stderr). A run that
+#                                         moved its own tree is not a receipt
 #   kitchen.sh remove                     delete every station (asks first)
 #   kitchen.sh role                       "cook <station> <main checkout>" when run inside
 #                                         a station, else "main <main checkout>"
@@ -325,6 +333,7 @@ CI=false          # --ci, for budget
 JSON=false        # --json, for budget
 JOURNAL_LINE=false # --journal-line, for budget
 FORCE=false       # --force, for check
+RECEIPT=false; RECEIPT_TREE=""   # --receipt [<tree>], for check
 POS=()            # the words after rail brief|claim|move
 HERE_SESSION=""   # --fresh | --spent, for here
 HERE_WAITING=""   # --waiting, for here
@@ -366,6 +375,11 @@ while [[ $# -gt 0 ]]; do
     --json) JSON=true; shift ;;
     --journal-line) JOURNAL_LINE=true; shift ;;
     --force) FORCE=true; shift ;;
+    --receipt) RECEIPT=true; shift
+      if [[ $# -gt 0 && "$1" != -* ]]; then
+        [[ "$1" =~ ^[0-9a-f]{40}$ ]] || { echo "--receipt takes a full 40-hex tree id." >&2; exit 64; }
+        RECEIPT_TREE="$1"; shift
+      fi ;;
     --fresh) HERE_SESSION=fresh; shift ;;
     --spent) HERE_SESSION=spent; shift ;;
     --waiting) HERE_WAITING="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
@@ -2674,10 +2688,14 @@ cmd_debrief() {
 # ---------------------------------------------------------------------------
 # check — the config's check command, run once per tree (#66). A pass runs the check three
 # or four times on a tree that has not changed; this records each real run in
-# <checkout>/.claude/check.log, one line: <time> tree=<hash> rc=<n> secs=<n> cmd=<id>, plus
-# " moved" when the run changed the tree it ran on. A green line for the same tree and the
-# same command is trusted and nothing runs; a red or a "moved" line never is. A skipped call
-# writes nothing, so the log counts real runs (the budget and the Window read it).
+# <checkout>/.claude/check.log, one receipt per line (#90):
+#   <ended> tree=<hash> rc=<n> secs=<n> cmd=<id> start=<started> out=<sha256 of the output>
+#   station=<folder, % as %25 and spaces as %20>[ moved] check=<the config's check: line, to the end of the line>
+# " moved" marks a run that changed the tree it ran on: it is never a receipt for the tree it
+# names. The newest receipt for a tree, green and made by the config's check: line as it is
+# now, is trusted and nothing runs; a red, stale or moved one never is. A skipped call writes
+# nothing, so the log counts real runs (the budget and the Window read it, older lines too,
+# but a line from before receipts is not one).
 # ---------------------------------------------------------------------------
 
 # tree_hash <dir> → a tree object id of <dir>'s working state, built in a throwaway index so
@@ -2688,33 +2706,73 @@ tree_hash() {
   tmp="$(mktemp -d "${TMPDIR:-/tmp}/brigade-tree.XXXXXX")" || return 1
   idx="$tmp/index"
   real="$(git -C "$dir" rev-parse --path-format=absolute --git-path index)"
-  if [[ -f "$real" ]]; then cp "$real" "$idx"; else GIT_INDEX_FILE="$idx" git -C "$dir" read-tree HEAD 2>/dev/null || true; fi
+  # the copy keeps the real index's mtime: git trusts a file's stat only when it is older than
+  # the index, so a fresh mtime would let a same-size edit made in the same second hash as the old tree
+  if [[ -f "$real" ]]; then cp "$real" "$idx"; touch -r "$real" "$idx"; else GIT_INDEX_FILE="$idx" git -C "$dir" read-tree HEAD 2>/dev/null || true; fi
   GIT_INDEX_FILE="$idx" git -C "$dir" add -A >/dev/null 2>&1 && GIT_INDEX_FILE="$idx" git -C "$dir" write-tree
   rc=$?; rm -rf "$tmp"; return $rc
 }
 
+# sha256_of <file> → the file's sha256, hex
+sha256_of() {
+  if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | cut -d' ' -f1
+  elif command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1
+  else return 1; fi
+}
+
+# receipt_line <log> <tree> → the newest receipt for <tree>: a full receipt line that is not
+# " moved" (a moved run never saw the tree it names). Older lines are not receipts.
+receipt_line() {
+  grep -E "^[^ ]+ tree=$2 rc=[0-9]+ secs=[0-9]+ cmd=[0-9a-f]{12} start=[^ ]+ out=[0-9a-f]{64} station=[^ ]+ check=" "$1" 2>/dev/null \
+    | grep -v -E ' station=[^ ]+ moved check=' | tail -1
+}
+
+# receipt_field <line> <key> → the value of rc, secs, start, out or station; read only from the
+# part before check=, so the config line cannot be mistaken for a field
+receipt_field() { local head="${1%% check=*}"; printf '%s\n' "$head" | sed -E "s/^.* $2=([^ ]*).*$/\\1/"; }
+
+# receipt_check <line> → the config's check: line the run used (everything after the first check=)
+receipt_check() { printf '%s\n' "${1#* check=}"; }
+
+# kitchen.sh check --receipt [<tree>]: print the newest receipt; 0 green and current, 1 none,
+# 2 there is one that cannot be relied on (stale or red), the reason on stderr
+cmd_receipt() {
+  local dir="$HERE" tree="$RECEIPT_TREE" line cmd rc
+  [[ -n "$tree" ]] || tree="$(tree_hash "$dir")" || { echo "check: couldn't hash the tree in $dir." >&2; return 1; }
+  line="$(receipt_line "$dir/.claude/check.log" "$tree")"
+  [[ -n "$line" ]] || { echo "no receipt for this tree" >&2; return 1; }
+  printf '%s\n' "$line"
+  cmd="$(cfg check)"
+  [[ "$(receipt_check "$line")" == "$cmd" ]] || { echo "receipt is stale: the check changed under this tree" >&2; return 2; }
+  rc="$(receipt_field "$line" rc)"
+  (( rc == 0 )) || { echo "receipt is red: the check failed on this tree (rc $rc)" >&2; return 2; }
+}
+
 cmd_check() {
-  local dir="$HERE" cmd cmdid log out before after start secs rc line rec
+  local dir="$HERE" cmd cmdid log out before after start startiso secs rc line rec outsha station
+  $RECEIPT && { cmd_receipt; return; }
   cmd="$(cfg check)"
   [[ -n "$cmd" ]] || { echo "No check: command in $CONFIG." >&2; return 1; }
+  sha256_of /dev/null >/dev/null || { echo "check: needs shasum or sha256sum on PATH." >&2; return 1; }
   mkdir -p "$dir/.claude"; log="$dir/.claude/check.log"; out="$dir/.claude/check.out"
   exclude_locally .claude/check.log "$dir"; exclude_locally .claude/check.out "$dir"
   cmdid="$(printf '%s' "$cmd" | git hash-object --stdin | cut -c1-12)"
   before="$(tree_hash "$dir")" || { echo "check: couldn't hash the tree in $dir." >&2; return 1; }
   if ! $FORCE; then
-    rec="$(grep -E " tree=$before rc=0 secs=[0-9]+ cmd=$cmdid\$" "$log" 2>/dev/null | tail -1)"
-    if [[ -n "$rec" ]]; then
-      echo "check: green on this tree, not re-run (recorded ${rec%% *}, $(printf '%s' "$rec" | sed -E 's/.* secs=([0-9]+) .*/\1/')s)"
+    rec="$(receipt_line "$log" "$before")"
+    if [[ -n "$rec" && "$(receipt_field "$rec" rc)" == 0 && "$(receipt_check "$rec")" == "$cmd" ]]; then
+      echo "check: green on this tree, not re-run (recorded ${rec%% *}, $(receipt_field "$rec" secs)s)"
       return 0
     fi
   fi
-  start="$(date +%s)"
+  start="$(date +%s)"; startiso="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   (cd "$dir" && bash -c "$cmd") > "$out" 2>&1; rc=$?
   secs=$(( $(date +%s) - start ))
   after="$(tree_hash "$dir")" || after="unhashable"
-  line="$(date -u +%Y-%m-%dT%H:%M:%SZ) tree=$after rc=$rc secs=$secs cmd=$cmdid"
+  outsha="$(sha256_of "$out")"; station="$(basename "$(cd "$dir" && pwd -P)")"; station="${station//%/%25}"; station="${station// /%20}"
+  line="$(date -u +%Y-%m-%dT%H:%M:%SZ) tree=$after rc=$rc secs=$secs cmd=$cmdid start=$startiso out=$outsha station=$station"
   [[ "$after" == "$before" ]] || line="$line moved"
-  echo "$line" >> "$log"
+  echo "$line check=$cmd" >> "$log"
   if (( rc == 0 )); then
     echo "check: green (ran, ${secs}s)"
     [[ "$after" == "$before" ]] || echo "check: the run changed files in the tree, so this green is not trusted; the next call runs once more."

@@ -337,7 +337,7 @@ export function createBudget({ root, stations = () => [], adapter = 'markdown', 
       steps.push({ t: turns[0].t, stage: k, who: sp.cook, model: s.model, kind: 'own', note: `${turns.length} turns`, cost: s.cost, total: s.total, secs, ok: null });
     }
     for (const r of sp._runs) steps.push({ t: r.t, stage: stageAt(r.t), who: r.kind, model: r.model, kind: r.kind, note: r.note || '', cost: r.cost, total: r.total, secs: r.secs, ok: r.ok });
-    // The check's results: the station's check.log (kitchen.sh check writes a line per real run, never for a
+    // The check's results: the station's check.log (kitchen.sh check writes a receipt per real run, never for a
     // skipped one) where it has lines in this ticket's span; else the runners' replies, as before the log.
     const dir = stationDirs.find((d) => path.basename(d) === sp.cook);
     const log = dir ? readCheckLog(dir).filter((r) => r.at >= sp.startedAt && (!sp.servedAt || r.at <= sp.servedAt + 60000)) : [];

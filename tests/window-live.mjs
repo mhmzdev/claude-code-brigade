@@ -98,7 +98,7 @@ ok('on attach, a /model after the last assistant line wins', model === 'opus');
 t.close();
 
 console.log('# the check machine reads the check log');
-const { parseCheckLog } = await import(path.join(here, '..', 'plugins', 'bk', 'window', 'server', 'live', 'checklog.js'));
+const { parseCheckLog, readCheckLog } = await import(path.join(here, '..', 'plugins', 'bk', 'window', 'server', 'live', 'checklog.js'));
 const { createState } = await import(path.join(here, '..', 'plugins', 'bk', 'window', 'server', 'state.js'));
 const { watchChecks } = await import(path.join(here, '..', 'plugins', 'bk', 'window', 'server', 'live', 'index.js'));
 const tree = 'a'.repeat(40);
@@ -120,6 +120,22 @@ ok('from then on a runner’s reply no longer counts', sv.state.check.runs === 2
 fs.appendFileSync(path.join(station, '.claude', 'check.log'), L(today, 1, ' moved'));
 tick(); tick();
 ok('a new log line counts once, however often the log is read', sv.state.check.runs === 3 && sv.state.check.failed === 2 && sv.state.check.last.ok === false);
+
+console.log('# a receipt is a run with its proof; a copied one is not counted');
+const sha = 'b'.repeat(64);
+const R = (at, rc, st, extra = '') => `${at} tree=${tree} rc=${rc} secs=3 cmd=0123456789ab start=${at} out=${sha} station=${st}${extra} check=scripts/check.sh --all\n`;
+const rp = parseCheckLog(R('2026-11-03T12:00:00Z', 0, 'station-1') + R('2026-11-03T12:05:00Z', 1, 'station-1', ' moved'));
+ok('a receipt carries its station, output digest and the config line, and is marked a receipt', rp.length === 2 && rp[0].receipt === true && rp[0].station === 'station-1' && rp[0].out === sha && rp[0].check === 'scripts/check.sh --all' && rp[0].ok === true && rp[0].secs === 3 && rp[0].start === Date.parse('2026-11-03T12:00:00Z'));
+ok('a moved receipt is still a moved run', rp[1].moved === true && rp[1].ok === false && rp[1].receipt === true);
+ok('a line from before receipts is a run and no receipt', parsed[0].receipt === undefined && parsed[0].secs === 41);
+const station5 = path.join(dir, 'station-5'); fs.mkdirSync(path.join(station5, '.claude'), { recursive: true });
+fs.writeFileSync(path.join(station5, '.claude', 'check.log'), R(today, 0, 'station-5') + R(today, 0, 'station-9') + L(today, 1));
+const mine = readCheckLog(station5);
+ok('a receipt naming another station is dropped, a receipt for this one and an older line stay', mine.length === 2 && mine[0].station === 'station-5' && mine[1].receipt === undefined && mine[1].ok === false);
+const spaced = path.join(dir, 'station 7%'); fs.mkdirSync(path.join(spaced, '.claude'), { recursive: true });
+fs.writeFileSync(path.join(spaced, '.claude', 'check.log'), R(today, 0, 'station%207%25') + R(today, 0, 'station-9'));
+const sp = readCheckLog(spaced);
+ok('a station folder with a space and a percent sign reads its own receipts by the encoded name', sp.length === 1 && sp[0].station === 'station 7%');
 
 console.log('# the kitchen folder: worktrees next to the repo, no mode');
 const { readConfig } = await import(path.join(here, '..', 'plugins', 'bk', 'window', 'server', 'live', 'config.js'));

@@ -43,7 +43,7 @@ trap 'exit 143' TERM HUP; trap 'exit 130' INT
 # A sealed PATH: every tool kitchen.sh uses, and nothing it must not find on this machine
 # (tmux, brew, Warp, node), so the terminal it picks depends on the test, not the laptop.
 NB="$TMP/sealedbin"; mkdir -p "$NB"; export BRIGADE_TMUX_DIRS=""
-for t in git bash sh awk sed grep head tail cat mkdir rm cp mv ls ps lsof readlink chmod nohup sleep printf kill uname dirname basename sort uniq wc tr find date mktemp cut env touch tar xargs diff paste seq rev tee stat id gh curl python3 open; do p=$(command -v "$t" 2>/dev/null) && ln -sf "$p" "$NB/$t"; done
+for t in git bash sh awk sed grep head tail cat mkdir rm cp mv ls ps lsof readlink chmod nohup sleep printf kill uname dirname basename sort uniq wc tr find date mktemp cut env touch tar xargs diff paste seq rev tee stat id gh curl python3 open shasum sha256sum; do p=$(command -v "$t" 2>/dev/null) && ln -sf "$p" "$NB/$t"; done
 
 PASS=0; FAIL=0; N=0
 ok() {  # ok <description> <command…>: passes when the command exits 0
@@ -1193,7 +1193,7 @@ loglines() { wc -l < "$1/.claude/check.log" | tr -d ' '; }
 out=$(cd "$CK" && "$K" check); rc=$?
 ok "the first call runs the command, green" bash -c 'test "$1" = 0 && test "$2" = 1' _ "$rc" "$(runs)"
 ok "…says it ran" has "$out" "^check: green \\(ran, [0-9]+s\\)"
-ok "…and logs the tree, the exit code and the command" has "$(cat "$CK/.claude/check.log")" "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z tree=[0-9a-f]{40} rc=0 secs=[0-9]+ cmd=[0-9a-f]{12}$"
+ok "…and logs a receipt: the tree, the exit code, the command, the digest, the station and the config line" has "$(cat "$CK/.claude/check.log")" "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z tree=[0-9a-f]{40} rc=0 secs=[0-9]+ cmd=[0-9a-f]{12} start=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z out=[0-9a-f]{64} station=ck check=echo ran >> "
 ok "…keeping the log and the output out of git" test -z "$(git -C "$CK" status --porcelain | grep 'check\.')"
 out=$(cd "$CK" && "$K" check); rc=$?
 ok "a second call on the unchanged tree runs nothing" bash -c 'test "$1" = 0 && test "$2" = 1' _ "$rc" "$(runs)"
@@ -1214,7 +1214,7 @@ ok "a deleted tracked file runs it again" test "$(runs)" = 5
 echo two > "$CK/a.txt"
 # a green line for another command is not this command's green
 cp "$CK/.claude/check.log" "$TMP/ck-log.keep"
-sed -i.bak 's/ cmd=[0-9a-f]*/ cmd=000000000000/' "$CK/.claude/check.log"; rm -f "$CK/.claude/check.log.bak"
+sed -i.bak 's/ check=echo ran/ check=echo other/' "$CK/.claude/check.log"; rm -f "$CK/.claude/check.log.bak"
 (cd "$CK" && "$K" check) >/dev/null
 ok "a green recorded for another command is not trusted" test "$(runs)" = 6
 cp "$TMP/ck-log.keep" "$CK/.claude/check.log"
@@ -1230,7 +1230,7 @@ rm "$REDFILE"
 # a check that rewrites a tracked file is not trusted
 touch "$MUT"
 out=$(cd "$CK" && "$K" check)
-ok "a run that moves the tree is logged as moved" has "$(tail -1 "$CK/.claude/check.log")" " moved$"
+ok "a run that moves the tree is logged as moved" has "$(tail -1 "$CK/.claude/check.log")" " station=ck moved check="
 ok "…and says its green is not trusted" has "$out" "not trusted"
 (cd "$CK" && "$K" check) >/dev/null
 ok "…so the next call runs it again" test "$(runs)" = 10
@@ -1242,11 +1242,87 @@ ok "a station run reads the main checkout's config and runs" has "$out" "^check:
 ok "…writes its log in the station" test "$(loglines "$TMP/ck-st1")" = 1
 ok "…leaving the station's git status clean" test -z "$(git -C "$TMP/ck-st1" status --porcelain)"
 ok "…and its own log is not the main checkout's" test "$(loglines "$CK")" != 1
+ok "…and its receipt names the station" has "$(tail -1 "$TMP/ck-st1/.claude/check.log")" " station=ck-st1 check="
 # no check: command
 new_repo "$TMP/ck2" "trunk: main"
 out=$(cd "$TMP/ck2" && "$K" check 2>&1); rc=$?
 ok "no check: in the config is an error" test "$rc" != 0
 ok "…that says so" has "$out" "No check: command"
+
+# =============================================================================
+section "check --receipt: every run leaves a receipt the pass can read (#90)"
+CR="$TMP/cr"; RED2="$TMP/cr-fail"
+new_repo "$CR" "trunk: main
+check: \"echo built; test ! -f $RED2\""
+echo one > "$CR/a.txt"; push_all "$CR" init
+sha() { { shasum -a 256 "$1" 2>/dev/null || sha256sum "$1"; } | cut -d' ' -f1; }
+field() { printf '%s' "$1" | sed -E "s/^.* $2=([^ ]*).*$/\\1/"; }
+out=$(cd "$CR" && "$K" check --receipt 2>&1); rc=$?
+ok "a tree with no receipt exits 1" test "$rc" = 1
+ok "…and says so" has "$out" "^no receipt for this tree$"
+(cd "$CR" && "$K" check) >/dev/null
+r1=$(tail -1 "$CR/.claude/check.log"); T1=$(field "$r1" tree)
+ok "a run writes a receipt with every field" has "$r1" "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z tree=[0-9a-f]{40} rc=0 secs=[0-9]+ cmd=[0-9a-f]{12} start=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z out=[0-9a-f]{64} station=cr check=echo built; test ! -f $RED2\$"
+ok "…its out= is the sha256 of the output it captured" test "$(field "$r1" out)" = "$(sha "$CR/.claude/check.out")"
+out=$(cd "$CR" && "$K" check --receipt); rc=$?
+ok "--receipt prints the newest receipt for this tree and exits 0" bash -c 'test "$1" = 0 && test "$2" = "$3"' _ "$rc" "$out" "$r1"
+echo two > "$CR/a.txt"; (cd "$CR" && "$K" check) >/dev/null
+r2=$(tail -1 "$CR/.claude/check.log")
+ok "…a changed tree has its own receipt, not the old one" bash -c 'test "$1" != "$2"' _ "$(field "$r2" tree)" "$T1"
+out=$(cd "$CR" && "$K" check --receipt "$T1"); rc=$?
+ok "…and a tree given to --receipt finds that tree's receipt" bash -c 'test "$1" = 0 && test "$2" = "$3"' _ "$rc" "$out" "$r1"
+TD=$(printf '1%.0s' $(seq 40))
+printf '%s\n' "$(printf '%s' "$r1" | sed -E "s/ tree=[0-9a-f]{40} / tree=$TD /")" >> "$CR/.claude/check.log"
+out=$(cd "$CR" && "$K" check --receipt "$TD" 2>&1); rc=$?
+ok "a tree hash that starts with a digit is read by --receipt, not taken for a PR number" bash -c 'test "$1" = 0 && printf "%s" "$2" | grep -q " tree=$3 "' _ "$rc" "$out" "$TD"
+# a green for a command the config no longer has is stale, and not trusted by check either
+n0=$(loglines "$CR"); cp "$CR/.claude/check.log" "$TMP/cr-log.keep"
+sed -i.bak 's/ check=echo built/ check=echo other/' "$CR/.claude/check.log"; rm -f "$CR/.claude/check.log.bak"
+out=$(cd "$CR" && "$K" check --receipt 2>&1); rc=$?
+ok "a receipt from another check: line is stale: exit 2" test "$rc" = 2
+ok "…and says the check changed under this tree" has "$out" "the check changed under this tree"
+(cd "$CR" && "$K" check) >/dev/null
+ok "…and check runs again instead of trusting it" test "$(loglines "$CR")" = "$((n0+1))"
+cp "$TMP/cr-log.keep" "$CR/.claude/check.log"
+# red
+touch "$RED2"; echo three > "$CR/a.txt"; (cd "$CR" && "$K" check) >/dev/null
+out=$(cd "$CR" && "$K" check --receipt 2>&1); rc=$?
+ok "a red receipt exits 2" test "$rc" = 2
+ok "…prints it" has "$out" " rc=1 .* check=echo built"
+ok "…and says it is red with its rc" has "$out" "receipt is red: the check failed on this tree \\(rc 1\\)"
+rm "$RED2"
+# a moved run is not a receipt for the tree it names
+TM=$(printf '2%.0s' $(seq 40))
+printf '%s\n' "$(printf '%s' "$r1" | sed -E "s/ tree=[0-9a-f]{40} / tree=$TM /; s/ station=cr / station=cr moved /")" >> "$CR/.claude/check.log"
+out=$(cd "$CR" && "$K" check --receipt "$TM" 2>&1); rc=$?
+ok "a moved line is not a receipt" bash -c 'test "$1" = 1 && printf "%s" "$2" | grep -q "no receipt for this tree"' _ "$rc" "$out"
+# a line from before receipts is readable but is not one
+echo four > "$CR/a.txt"; (cd "$CR" && "$K" check) >/dev/null
+sed -i.bak -E 's/ start=.*//' "$CR/.claude/check.log"; rm -f "$CR/.claude/check.log.bak"
+out=$(cd "$CR" && "$K" check --receipt 2>&1); rc=$?
+ok "a pre-receipt log line is not a receipt: exit 1" test "$rc" = 1
+n0=$(loglines "$CR"); (cd "$CR" && "$K" check) >/dev/null
+ok "…and check runs again over it" test "$(loglines "$CR")" = "$((n0+1))"
+# a same-size edit right after another is a different tree: the index copy keeps the real index's
+# mtime, or git trusts a stale stat and hashes the old content
+n0=$(loglines "$CR"); echo v00 > "$CR/a.txt"
+for v in $(seq 10 33); do git -C "$CR" add -A; echo "v$v" > "$CR/a.txt"; (cd "$CR" && "$K" check) >/dev/null; done
+ok "24 same-size edits made right after the index was written are 24 trees, each checked" test "$(loglines "$CR")" = "$((n0+24))"
+# a tree id must be a full 40-hex id: anything else is an error, never an answer for the current tree
+out=$(cd "$CR" && "$K" check --receipt "${T1:0:7}" 2>&1); rc=$?
+ok "--receipt with a short tree id is refused (exit 64), not answered for the current tree" test "$rc" = 64
+ok "…and says it takes a full 40-hex tree id" has "$out" "^--receipt takes a full 40-hex tree id"
+out=$(cd "$CR" && "$K" check --receipt not-a-tree 2>&1); rc=$?
+ok "--receipt with a word that is not a tree id is refused too" test "$rc" = 64
+# a folder with a space in its name: the receipt is still found, by --receipt and in the log's station field
+CS="$TMP/ck space"
+new_repo "$CS" "trunk: main
+check: \"echo built\""
+echo one > "$CS/a.txt"; push_all "$CS" init
+(cd "$CS" && "$K" check) >/dev/null
+out=$(cd "$CS" && "$K" check --receipt 2>&1); rc=$?
+ok "a checkout folder with a space in its name still has a findable receipt" test "$rc" = 0
+ok "…its station field is encoded, one word" has "$(tail -1 "$CS/.claude/check.log")" " station=ck%20space check="
 
 # =============================================================================
 section "rail brief | claim | move, and here: the routine kinds go to script"

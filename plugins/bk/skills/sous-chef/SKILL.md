@@ -480,7 +480,7 @@ what fills a sous's context fastest, so **the taster does the reading**:
    Agent(subagent_type: "bk:taster", description: "taste <ID> in <station>",
          prompt: "Station: <abs path>. Trunk: origin/<trunk>. Ticket: <path>.
                   Plan: <station>/<docs.plans>/<ID>-*.md (or none for HYG).
-                  Check: <abs path of kitchen.sh> check. Journal: <station>/<docs.journal>/<ID>-*.md.
+                  Check: <abs path of kitchen.sh> check --receipt. Journal: <station>/<docs.journal>/<ID>-*.md.
                   Rules: <what-not-to-add file, or none>.
                   Leak check: <abs path of kitchen.sh> leaks --dir <station>.")
    ```
@@ -490,7 +490,9 @@ what fills a sous's context fastest, so **the taster does the reading**:
 3. Require the cook's clean `/bk:clean check` report too; if none is attached, send it back.
 4. Look across stations yourself for what the taster can't see: migration collisions
    (`kitchen.sh files`) and another cook's overlapping work.
-5. Findings go back as `[findings]`: numbered, each with file and why. When clean, send
+5. Findings go back as `[findings]`: numbered, each with file and why. A `blocked` verdict for
+   no or a stale receipt goes back the same way: the cook runs `kitchen.sh check` as its last act and
+   hands off again; you do not run it for the cook. When clean, send
    `[go]`. That is the commit approval.
 
 **After the PR opens** (the cook's `[served]` message): the branch includes current trunk (`git -C <station> log --oneline
