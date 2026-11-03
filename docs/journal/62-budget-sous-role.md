@@ -55,4 +55,4 @@ It reaches trunk with the PR, next to the plan and checklist.
 - **Follow-ups:** none (clean around found nothing).
 - (no lessons)
 - 2026-11-03 · claude-code-brigade-cook-1 · cost line: not written. `kitchen.sh budget --ticket '#62' --journal-line` answers "No spend recorded for #62": the budget only recognises ticket ids shaped `S###-##`, `BKLG-###` or `HYG-###` (`budget.js` TICKET regex), so on this repo's github rail (`#N`) no cook session names a ticket and no span exists. Went on without it, as the skill allows.
-- lesson(plugin): budget-github-ids | the budget's ticket pattern knows only S###-##, BKLG-### and HYG-### ids, so on a github or jira rail `budget --ticket` finds no spend, the Ledger shows no dishes and open-pr writes no cost line | #62
+- lesson(plugin): budget-github-ids | the budget's ticket pattern knows only S###-##, BKLG-### and HYG-### ids, so on a github or jira rail `budget --ticket` finds no spend, the Ledger shows no dishes and open-pr writes no cost line (filed: #59) | #62
