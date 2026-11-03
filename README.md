@@ -120,7 +120,9 @@ The sous picks the next ready ticket for each free cook, briefs it, answers its 
 from the record, reviews its diff before anything is committed, and tells you what it
 assigned. You talk to the sous only, bar a grilling and an edit auto mode refuses (you
 lift that in the cook's terminal). It comes to you for a yes on a feature plan (or any plan
-that edits `.claude/`), and the merge.
+with a migration, a shared resource, a production write, a protected path such as
+`.claude/`, or a change to what its ticket asked for), and the merge. A bug or chore
+plan's how is the sous's: it never asks you to approve names and orderings.
 
 | You want to | Type |
 |---|---|

@@ -216,7 +216,8 @@ needs goes to the sous as a message:
 | a real design fork the record doesn't settle | `[gate]`, with what the commis searched | you, in the sous's terminal; the sous adds a recommendation and relays your answer marked `(head chef)`, and it's written down |
 | a bug, chore or precedent plan approved | `[plan]` | the sous, which tells you in one line (a precedent plan has to follow its precedent) |
 | a hygiene ticket approved | nothing: it has no plan; the sous's `[approved]` rides in the `[brief]` | the sous, which tells you in one line |
-| a feature plan approved, or any plan with a migration, a shared resource, a production write, a protected path (`.claude/`, `CLAUDE.md`) or an unrecorded decision | `[plan]` | you, in the sous's terminal; the sous relays `[approved]` with your words |
+| a feature plan approved, or any plan with a migration, a shared resource, a production write, a protected path (`.claude/`, `CLAUDE.md`) or a decision that changes the ticket (its scope, a user-visible behaviour, a rule, a schema, a name people already type, a cost, or a contradiction of the record) | `[plan]` | you, in the sous's terminal, shown only the lines that change the ticket; the sous relays `[approved]` with your words and the reason it was yours |
+| a bug, chore or precedent plan's how (what a new thing is called, a column, an order, which function) | nothing: it's written in the plan's `## Decisions → How` | the sous. It never asks you to approve a plan's how list |
 | a ticket changed | `[rail]` | the sous (the only writer of tickets) |
 | a destructive command on a shared resource | `[walk-in]` | the sous |
 | a login for testing | `[gate] … need a test account` | the sous, with an account name |
@@ -238,10 +239,11 @@ If you do type in a cook's terminal, the cook does as told and tells the sous in
    the ticket (`todo`).
 3. `/bk:create-plan` writes the plan. The cook sends `[plan]` and waits.
 4. The sous reads the plan and checks it against the other stations. A bug, chore or
-   precedent plan it signs itself and tells you in one line. A feature plan (or one with a migration, a shared
-   resource, a production write, a protected path or a decision the record doesn't hold) it shows you in a
+   precedent plan it signs itself, its how choices included, and tells you in one line. A feature plan (or one with a migration, a shared
+   resource, a production write, a protected path or a decision that changes the ticket) it shows you in a
    short summary with a recommendation: you approve, change something, or ask to grill it
-   first.
+   first. When a change to the ticket is the reason, you see only that line, the ticket's
+   words beside the plan's, never the plan's list of names and orderings.
 5. On `[approved]`, the cook starts `/bk:implement` itself. It runs every phase, running
    the check after each, without "continue?" questions.
 6. `/bk:clean check` (the inspector reads the diff), then `/bk:review-task` (the acceptance
@@ -397,12 +399,13 @@ reaches you.
 - **The debrief.** What no cook noticed, the budget did: at the sous's handoff
   `kitchen.sh debrief` runs a fixed set of rules over the week (the check red three times
   on a ticket, rework over a third of its spend, ten CI minutes or more on one PR, a gate
-  the record had after the commis said nothing, a session carrying too much context). A
+  the record had after the commis said nothing, a session carrying too much context, a plan
+  you were asked to approve that the sous should have signed). A
   rule tripped by two tickets (or two sessions) is due: for the repo's own friction the
   sous fires a chore with the rule's fix (a pre-commit hook, a narrower check, a folder
-  added to the docs map), signs it off itself, and tells you in one line; for the one rule
-  about the Brigade itself (a session kept too long) it drafts a plugin issue you say yes
-  to. You see the chore's PR, nothing else.
+  added to the docs map), signs it off itself, and tells you in one line; for the two rules
+  about the Brigade itself (a session kept too long, a plan over-asked) it drafts a plugin
+  issue you say yes to. You see the chore's PR, nothing else.
 - **Every question that reaches you is a gap.** If the kitchen had to ask, it lacked
   something: the record didn't hold it (`context`), no rule covered it (`ruling`), a tool,
   hook or skill was missing (`harness`), or a credential or CLI was (`access`). Your answer

@@ -467,23 +467,43 @@ every commit made under it (after the sous's pass). No separate "approve?" quest
 | a `HYG` ticket (lane C) | sous | the counter is the whole intent; the ticket is the plan |
 
 Whatever the kind, a plan goes to the **head chef** when it carries a migration, touches a
-`walk_in:` resource, needs a production write, edits a protected path (below), or makes a
-decision the record doesn't hold
-(the sous asks the commis before signing off: a bug plan that settles something unrecorded
-was a feature in disguise). The head chef can also say "show me every plan" for a while, and
-the sous does.
+`walk_in:` resource, needs a production write, edits a protected path (below), or **changes
+the ticket**. The head chef can also say "show me every plan" for a while, and the sous does.
+
+**What changes the ticket, and what is only how.** A plan makes choices. A choice **changes
+the ticket** when it alters what the ticket delivers: its scope against the `Done when`
+boxes, behaviour a user sees, a rule in this contract, a schema, a name people already type
+(renamed or removed), a cost; or when it contradicts the record. That is the head chef's: a
+decision nobody has made, or one that overturns a decision they did make. Every other
+choice is **how**: what a new command or column is called, a sort order, which function
+reads a value, which file a rule lives in. How is the sous's to sign for a bug, chore or
+precedent plan (a hygiene ticket has no plan), and the plan's `## Decisions → How` is where
+it is written down, which makes it the record. The sous asks the commis about the "Changes
+the ticket" lines only (a bug plan that changes its ticket was a feature in disguise). A
+plan that reaches the head chef **because it changes the ticket** is shown as those lines
+alone, the ticket's words beside the plan's, with the sous's recommendation; a plan that
+reaches them for another reason (a feature, a migration, a protected path) is shown as the
+short summary below. Either way, never the How list: a head chef asked to approve six names
+and an ordering approves without reading, and that is worse than no gate. *Example from
+this plugin's own kitchen: a chore to generate three index tables made six how choices (a
+new command rather than a flag, which folders, the columns and their order, how a
+hand-written table is adopted, how a conflict is fixed) and one change to the ticket (the
+tables would still conflict on adjacent rows, so "the merge never conflicts" was only half
+met). Six were the sous's; one line was the head chef's.*
 
 - **A precedent plan must follow its precedent.** The sous checks the plan against the
   instances named in `precedent:`; a plan that departs from them in a way the record doesn't
   settle has found a fork, and that fork goes to the head chef like any other.
 - **Solo:** the human types `/bk:implement`, or says in plain words to build the plan.
   A solo session never chains into `implement` from `create-plan` by itself.
-- **In a kitchen:** the cook sends `[plan] <ID> ready: <path>`. The sous reads the plan and
-  checks it against the other stations. A plain defect goes back as `[findings]` first.
-  Then, by the table: the sous sends `[approved] <ID>: <path> · sous, per
+- **In a kitchen:** the cook sends `[plan] <ID> ready: <path>` (the full form, with its
+  protected paths and its changes-the-ticket count, is in Contract 6). The sous reads the
+  plan and checks it against the other stations. A plain defect goes back as `[findings]`
+  first. Then, by the table: the sous sends `[approved] <ID>: <path> · sous, per
   gates.plan_approval.<kind>` and tells the head chef in one line; or it shows the head chef
-  a short summary with its recommendation and on their yes sends `[approved]`, quoting
-  them. The cook records it in the journal and starts `/bk:implement` itself. `implement`
+  a short summary with its recommendation (the ticket, the phases in a line each, the files,
+  anything risky) and on their yes sends `[approved]`, quoting them, with the `why:` that
+  made it theirs (Contract 6). The cook records it in the journal and starts `/bk:implement` itself. `implement`
   refuses to start in a station without that record (the one other way in: the head chef
   typing `/bk:implement` in that station themselves).
 - **A feature plan is never approved by the sous.** It needs the head chef's own yes, in the
@@ -517,7 +537,7 @@ other skill is model-invocable, or cooks would stall waiting for a human to type
 
 | Gate | Solo session | Line cook |
 |---|---|---|
-| Plan approval (the **sign-off**) | human types `/bk:implement`, or says to build the plan | by `gates.plan_approval`: **the sous** for a bug, chore, precedent or hygiene plan (it tells the head chef); **the head chef, in the sous's terminal**, for a feature or any plan with a migration, a walk-in resource, a production write, a protected path or an unrecorded decision. Either way the sous relays `[approved]` and the cook starts `/bk:implement`. That authorises every commit made under the plan |
+| Plan approval (the **sign-off**) | human types `/bk:implement`, or says to build the plan | by `gates.plan_approval`: **the sous** for a bug, chore, precedent or hygiene plan (it tells the head chef); **the head chef, in the sous's terminal**, for a feature or any plan with a migration, a walk-in resource, a production write, a protected path or a decision that changes the ticket (its `## Decisions → Changes the ticket`; a how choice is the sous's). Either way the sous relays `[approved]` and the cook starts `/bk:implement`. That authorises every commit made under the plan |
 | Which ticket a free cook takes next | human | the sous (`gates.assign`), from the ready tickets in Contract 3's order |
 | A question about how things work, one the record already answers, or one a precedent in the code settles | the session looks it up (the commis) | the cook sends the **commis** first; settled with a source, or a precedent with its instances → answered, no gate |
 | Design fork, contradiction between ticket and code, nothing recorded | human | cook sends `[gate]` with the commis result; the sous sends the commis wider if useful, answers from the record (and tells the head chef), or takes it to the human with a recommendation and relays the answer |
@@ -562,8 +582,8 @@ Keep messages short and typed. The first line is the kind, in brackets:
 | `[status]` | anyone | a state change that needs no answer: "the head chef told me directly to …", "implement started (signed off)", a lane-C counter before/after |
 | `[handoff]` | cook → sous | "ready for the pass": branch, files, check result, inspector result, absolute checklist path |
 | `[findings]` | sous → cook | numbered items, each with file and why |
-| `[plan]` | cook → sous | the plan is ready for the sign-off: its absolute path, and its protected paths, if any. The cook waits for `[approved]` or `[findings]` |
-| `[approved]` | sous → cook | the sign-off: start `/bk:implement`. Either the sous's own, naming its rule (`[approved] <ID>: <path> · sous, per gates.plan_approval.<kind>`), or the head chef's yes in their words (`[approved] <ID>: <path> · head chef: "<words>"`). A feature plan only ever gets the second |
+| `[plan]` | cook → sous | the plan is ready for the sign-off: its absolute path, its protected paths, if any, and `changes the ticket: <n>` when its `## Decisions → Changes the ticket` is not "None". The cook waits for `[approved]` or `[findings]` |
+| `[approved]` | sous → cook | the sign-off: start `/bk:implement`. Either the sous's own, naming its rule (`[approved] <ID>: <path> · sous, per gates.plan_approval.<kind>`), or the head chef's yes in their words with the reason it was theirs (`[approved] <ID>: <path> · head chef: "<words>" · why: <feature | migration | walk-in | production write | protected path | changes the ticket | precedent fork | config | every plan>` (`precedent fork`: a precedent plan departing from its precedent; `config`: `gates.plan_approval` sends that kind to the head chef; `every plan`: they asked to see them all); the debrief's `over-ask` rule counts a head chef `[approved]` with no `why:` against the sous). A feature plan only ever gets the second |
 | `[go]` | sous → cook | commit approval after the pass |
 | `[served]` | cook → sous | the PR is open: its URL |
 | `[heard]` | anyone | acknowledgement, one line; also the sous's **answer** to a `[gate]`: its own (`[heard] Q3: <answer>, because …`, copied in as `A3 (sous)`), from the record (`[heard] Q3: <answer>, settled in <path> (<date>)`, copied in as `A3 (sous)` with the source), or relayed (`[heard] Q3: <answer> (head chef), because …`, copied in as `A3 (head chef)`, the tag the record is built from) |
@@ -786,12 +806,13 @@ week's tickets and sessions, each with a key like a lesson's and the fix it take
 check red three times or more on one ticket; rework over a third of a ticket's spend; ten
 CI minutes or more on one PR; a gate the commis reported `nothing` on that the sous then
 answered from the record (the record holds it where the commis doesn't look); a session
-whose last ten turns average more than 150k cache-read tokens (it should have been cleared).
-The thresholds are the rules: no judgement, no tuning in this version. A key is **due at two
+whose last ten turns average more than 150k cache-read tokens (it should have been cleared);
+a head chef `[approved]` with no `why:` (the sous asked for a yes it should have given
+itself, Contract 5). The thresholds are the rules: no judgement, no tuning in this version. A key is **due at two
 tickets** (or two sessions), like a `repo` lesson, and `promoted` once the register lists
 it. **Action for a due `repo` row:** fire a `BKLG` chore with the rule's fix and its
 evidence (ticket ids, numbers), sign it off yourself, add `` | `<key>` | repo | <ticket> | ``
-to the register. **A due `plugin` row** (only `context-bloat` today) goes the `lesson(plugin)`
+to the register. **A due `plugin` row** (`context-bloat`, `over-ask`) goes the `lesson(plugin)`
 way: `/bk:feedback`, on the head chef's yes. A `watch` row is left alone; the number is
 on the board of the next handoff.
 

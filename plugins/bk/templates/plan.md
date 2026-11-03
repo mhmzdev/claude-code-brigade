@@ -17,6 +17,7 @@ created: YYYY-MM-DD
 - [Goal](#goal)
 - [Current state](#current-state)
 - [Approach](#approach)
+- [Decisions](#decisions)
 - [Protected paths](#protected-paths)
 - [Phases](#phases)
 - [Success criteria](#success-criteria)
@@ -33,6 +34,20 @@ created: YYYY-MM-DD
 ## Approach
 
 <The chosen design, and the alternative it beat.>
+
+## Decisions
+
+### Changes the ticket
+
+<!-- A choice that alters what the ticket delivers (scope against its Done when, user-visible behaviour, a contract rule, a schema, a name people already type, a cost) or contradicts the record. The head chef's, whatever the kind (Contract 5). "None" is the usual answer. One line each: the ticket says … · the plan does … · because …. -->
+
+None.
+
+### How
+
+<!-- Every other choice: what a new thing is called, columns, order, which function, which file. The sous's to sign for a bug, chore or precedent plan; written here, it becomes the record. A decision the commis found settled cites its source. -->
+
+- <choice> — <why>, or `settled in <path>`
 
 ## Protected paths
 
