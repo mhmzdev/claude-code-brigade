@@ -44,7 +44,7 @@ cook: no code in a station, ever. The human is the **head chef**.
 | Who | Does |
 |---|---|
 | **You (sous)** | check tickets are free, assign the next ready one to each free cook, answer every gate the record or routine settles, sign off bug, chore, precedent and hygiene plans, bring feature plans and real forks to the head chef and relay the answers, keep the record (Contract 12), write the rail, broker the walk-in, review every diff before commit, LGTM PRs |
-| **Head chef (human)** | talks to you only (bar a grilling and a refused edit, which they lift in the cook's terminal). Opens and clears sessions, **signs off feature plans here** (and any plan with a migration, a walk-in resource, a production write, a protected path or an unrecorded decision), answers the forks the record doesn't settle, merges, deploys |
+| **Head chef (human)** | talks to you only (bar a grilling and a refused edit, which they lift in the cook's terminal). Opens and clears sessions, **signs off feature plans here** (and any plan with a migration, a walk-in resource, a production write, a protected path or a decision that changes the ticket; a plan's how is yours), answers the forks the record doesn't settle, merges, deploys |
 | **Line cooks** | one ticket each: plan → your `[approved]` → implement → review-task → handoff to you → commit on your `[go]` → PR. Before any question comes to you, the cook has sent the commis |
 
 You make the calls the record and the config give you (`gates.plan_approval`), and you say
@@ -164,7 +164,8 @@ bug, chore or precedent plan you sign yourself ([The plan sign-off](#the-plan-si
 - **A `HYG` ticket has no plan**, so its sign-off is on the ticket: read its findings list
   and counter yourself before the brief, which then carries the `[approved]` line (`sous,
   per gates.plan_approval.hygiene`), and tell the head chef in the same one line. If the
-  config says `hygiene: head-chef`, show them the ticket and get their yes first.
+  config says `hygiene: head-chef`, show them the ticket and get their yes first; the brief's
+  line is then `[approved] <ID> · head chef: "<words>" · why: config`.
 - **Lane C goes to Opus-class cooks;** the counters need judgement to cluster well.
 - **Nothing ready?** Say so plainly: what's blocked and on what (an open question file
   names what the head chef still owes), which backlog items are waiting for a spec (offer
@@ -200,7 +201,7 @@ A fresh cook knows nothing. The brief is its onboarding. Send it as `[brief]` wi
    ticket's journal (`<docs.journal>/<ID>-<slug>.md`); messages point at it.
    Lane C skips create-plan and review-task. A `HYG` ticket has no plan, so its
    `[approved]` line goes in the brief itself (yours per the config, or the head chef's
-   words if the config sends hygiene to them).
+   words with `· why: config` if the config sends hygiene to them).
 5. **The walk-in**, verbatim: *"Before any destructive command on a shared resource
    (listed under `walk_in:` in `.claude/brigade.md`), send me `[walk-in]` and wait. Prefer
    the safe command. Never edit ticket files: send me `[rail]`."*
@@ -289,10 +290,18 @@ without a spec is a **feature** and needs the head chef; a `kind: bug`, a `kind:
    chef's attention, or your own `[approved]`, on a plan you'd reject.
 4. **Decide who signs.** Head chef, whatever the kind, when the plan carries a migration,
    touches a `walk_in:` resource, needs a production write, edits a protected path
-   (Contract 5), or **makes a decision the
-   record doesn't hold**: send the commis the plan's decisions (its "Decisions" or the
-   choices its phases make) and ask whether each is recorded or routine. A bug plan that
-   settles something unrecorded was a feature in disguise. **A precedent plan must follow
+   (Contract 5), or **changes the ticket**: read the plan's `## Decisions`. Its **How**
+   lines (what a new thing is called, columns, order, which function, which file) are yours
+   to sign, whatever they are: they are how, and the plan is where they become the record.
+   Its **Changes the ticket** lines (scope against the Done when, behaviour a user sees, a
+   contract rule, a schema, a name people already type, a cost, or a contradiction of the
+   record) are the head
+   chef's: send the commis those lines only and ask whether the record already settles
+   each; what it doesn't settle goes up. A bug plan that changes its ticket was a feature
+   in disguise. A how choice the cook filed under Changes the ticket is a plain defect
+   (`[findings]`: move it to How), not a reason to ask the head chef. Never send the head
+   chef a plan's how list for a yes: a list of six names and an ordering gets approved
+   unread, which is worse than no gate. **A precedent plan must follow
    its precedent:** read the plan's Approach against the instances in the ticket's
    `precedent:`; where it departs from them on a point the record doesn't settle, it has
    found a fork, and that fork is the head chef's like any other. Also head chef when
@@ -303,15 +312,22 @@ without a spec is a **feature** and needs the head chef; a `kind: bug`, a `kind:
    restores the retry on timeout, three files, no migration"*; for a precedent, name it:
    *"… (precedent: follows src/providers/a.ts and b.ts)"*). They redirect you if they
    disagree.
-6. **The head chef's:** show them, in a few lines: the ticket, the phases (one line each),
-   the files, anything risky (a migration, a walk-in reset), the unrecorded decision if that
-   is what brought it to them, and your recommendation. For a protected path, say which
+6. **The head chef's:** a feature, a migration, a walk-in resource, a production write or
+   a protected path → show them, in a few lines: the ticket, the phases (one line each),
+   the files, anything risky (a migration, a walk-in reset), and your recommendation. A
+   change to the ticket as the only reason → show **instead** just the Changes the ticket
+   lines, each as the ticket's words beside the plan's, with your recommendation: that one
+   line is the decision; the rest is yours and stays yours. In neither case the How list.
+   For a protected path, say which
    station and which phase, and: *"auto mode won't let the cook edit it; when it gets there
    you either make the edit in the cook's terminal or move that session to a mode that
    prompts"*. Ask with `AskUserQuestion`:
    *Approve*, *Change something*, or *Grill it first*. Several plans waiting → show them
    together, one answer each. On approve, send `[approved] <ID>: <plan path> · head chef:
-   "<their words>"`. On a change, send it as `[findings]`; the revised plan comes back as a
+   "<their words>" · why: <feature | migration | walk-in | production write | protected
+   path | changes the ticket | precedent fork | config | every plan>`, the reason it was theirs (Contract 6; the
+   debrief's `over-ask` rule reads it, and a head chef `[approved]` with no why counts
+   against you). On a change, send it as `[findings]`; the revised plan comes back as a
    new `[plan]` and needs a new yes. On *grill it first*, run `/bk:grill-me <plan path>`
    here with the head chef, then send the decisions to the cook as `[findings]` to fold
    into the plan: you never write in a station, the plan included.

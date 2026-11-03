@@ -64,7 +64,7 @@ Present what you found in a few lines (current state with refs, design options w
 
 - **Read the code before asking.** A fact is looked up, never asked.
 - One question at a time, multiple choice, your recommendation first with one line of why.
-- **Look it up before you ask** (Contract 5): spawn `bk:commis` (model: the config's `commis_model`, if set) with the question, the ticket, the main checkout, the stations folder and the `docs:` map. `settled` with a decision as its source → take the answer, cite the source in the plan's Decisions, don't ask. `fact` → read it; a fact answers "how is it" but never "how should it be". `nothing` or `conflict` → ask, with the commis line.
+- **Look it up before you ask** (Contract 5): spawn `bk:commis` (model: the config's `commis_model`, if set) with the question, the ticket, the main checkout, the stations folder and the `docs:` map. `settled` with a decision as its source → take the answer and don't ask; cite the source in the plan's `## Decisions`, under How if it's a how choice, under Changes the ticket (with the source) if it alters what the ticket delivers. `fact` → read it; a fact answers "how is it" but never "how should it be". `nothing` or `conflict` → ask, with the commis line.
 - **Who you ask** (Contract 5): solo, the human (`AskUserQuestion`). In a station, always the sous by `[gate]` with the commis line, never the human: say when it's a genuine design fork or a contradiction between ticket and code, and the sous answers from the record or takes that one to the head chef and relays the answer.
 - A user correction isn't accepted on faith. Verify it against the code.
 
@@ -111,6 +111,9 @@ Body, every section filled with specifics:
 ## Desired end state       — and how to verify it
 ## Not doing               — explicit out of scope
 ## Approach                — chosen strategy, which existing pattern it reuses
+## Decisions               — two parts, always both (Contract 5):
+### Changes the ticket     — "None.", or one line per choice that alters what the ticket delivers (scope against its Done when, user-visible behaviour, a contract rule, a schema, a name people already type, a cost) or contradicts the record: the ticket says … · the plan does … · because …. These lines are the head chef's, whatever the kind
+### How                    — every other choice (what a new thing is called, columns, order, which function, which file) with its why, or `settled in <path>` from the commis. The sous's to sign for a bug, chore or precedent plan; written here it becomes the record
 ## Protected paths          — only when `files:` lists one (Contract 5): each path, the phase that edits it (last when the order allows), and "auto mode will refuse this edit; the head chef lifts it at the station"
 
 ## Phase 1: <name>
@@ -145,12 +148,15 @@ Body, every section filled with specifics:
      change something, just say what; to stress-test it first, `/bk:grill-me <plan>`."*
      Don't start `implement` yourself.
    - **Cook:** send the sous `[plan] <ID> ready: <absolute path>` (add `· protected paths:
-     <list>` when there are any) and wait. The sous
-     signs off itself (a bug, chore or precedent plan, per `gates.plan_approval`) or gets the head
-     chef's sign-off (a feature, or any plan with a migration, a walk-in resource, a
-     production write, a protected path or an unrecorded decision) and replies `[approved]`; copy it into
+     <list>` when there are any, and `· changes the ticket: <n>` when `## Decisions →
+     Changes the ticket` is not "None") and wait. The sous
+     signs off itself (a bug, chore, precedent or hygiene plan, per `gates.plan_approval`;
+     its How choices are the sous's) or gets the head chef's sign-off (a feature, or any
+     plan with a migration, a walk-in resource, a production write, a protected path or a
+     line under Changes the ticket) and replies `[approved]`; copy it into
      the journal and start `/bk:implement`. `[findings]` instead → revise, and send
-     `[plan]` again.
+     `[plan]` again. Don't put a how choice under Changes the ticket to be safe: that
+     sends the head chef a list to rubber-stamp, which Contract 5 forbids.
 5. Leave `status: draft`: `/bk:implement` flips it once the sign-off is there.
 
 ## The no-open-questions rule
