@@ -112,6 +112,19 @@
 #                                         than its last turn and nothing it sent still waits
 #                                         for an answer. Refuses otherwise, saying why.
 #                                         Needs node (reads the session's transcript)
+#   kitchen.sh grant <station-N> <commit|push|open-pr>...
+#                                         the sous lets a cook commit, push and open a PR
+#                                         (Contract 5): writes .claude/grants/<station-N> in
+#                                         the main checkout, out of git, replacing what was
+#                                         there. The guard refuses the cook's git commit, git
+#                                         push, gh pr create (and the commands that make a
+#                                         commit) without it; merge is never an action: the
+#                                         sous ships. Refused from a station
+#   kitchen.sh grant <station-N> --none   take every grant away (the sous does it at [served];
+#                                         done and clear do it too)
+#   kitchen.sh grant --show [station-N]   what a station holds: "station-N: commit push open-pr"
+#                                         or "station-N: none". A cook sees its own; the main
+#                                         checkout sees every station
 #   kitchen.sh ship <PR number>           merge that PR, the sous's job when gates.merge is
 #                                         sous-chef (the default): open, not a draft, against
 #                                         trunk, mergeable, up to date, every check green
@@ -348,6 +361,7 @@ HERE_SESSION=""   # --fresh | --spent, for here
 HERE_WAITING=""   # --waiting, for here
 HERE_NOTE=""      # --note, for here
 PROCS_ARGS=()     # everything after `procs`: it reads its own arguments (--add takes a pid and a text there)
+GRANT_ARGS=()     # everything after `grant`: a station, actions, --none, --show
 SESSION_NAME=""   # --session, for budget --journal-line
 CLEAR_WHO=""      # station-N | sous, for clear
 SHIP_PR=""        # a PR number, for ship
@@ -362,6 +376,8 @@ CMD="${1:-}"; shift || true
 if [[ "$CMD" == rail && "${1:-}" =~ ^(brief|claim|move)$ ]]; then POS=("$@"); set --; fi
 # procs reads its own arguments: its --add takes a pid and a text, unlike inbox's and asks'
 if [[ "$CMD" == procs ]]; then PROCS_ARGS=("$@"); set --; fi
+# grant reads its own words too: actions (commit, push, open-pr) and --none, --show are not flags of another command
+if [[ "$CMD" == grant ]]; then GRANT_ARGS=("$@"); set --; fi
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -n) N="$2"; N_GIVEN=true; shift 2 ;;
@@ -2386,6 +2402,61 @@ context_warning() {
   echo ""
   echo "Context: the sous is at $(( read / 1000 ))k cache-read tokens a turn over its last 10 turns ($over turns over the $(( line / 1000 ))k line): run /bk:handoff, then kitchen.sh clear sous (Contract 5)."
 }
+# ---------------------------------------------------------------------------
+# grant — positive authorization (Contract 5). A cook may commit, push or open a PR only when
+# the sous has written that action for its station: .claude/grants/<station> in the main
+# checkout, one action per line, kept out of git. hooks/guard.sh reads it. Written only from
+# the main checkout; a station reads its own with --show. merge is never an action.
+# ---------------------------------------------------------------------------
+GRANT_ACTIONS="commit push open-pr"
+grant_file() { printf '%s/.claude/grants/%s' "$ROOT" "$1"; }
+grant_line() {  # grant_line <station> → "station-N: commit push open-pr" or "station-N: none"
+  local f; f="$(grant_file "$1")"
+  if [[ -s "$f" ]]; then printf '%s: %s\n' "$1" "$(tr '\n' ' ' < "$f" | sed 's/ $//')"; else printf '%s: none\n' "$1"; fi
+}
+cmd_grant() {
+  local act=set st="" a me want="" d acts=""
+  set -- "${GRANT_ARGS[@]+"${GRANT_ARGS[@]}"}"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --show) act=show ;;
+      --none) act=none ;;
+      station-*) st="$1" ;;
+      commit|push|open-pr) acts="$acts $1" ;;
+      merge) echo "merge is never granted to a cook: the sous merges (kitchen.sh ship), or the head chef with gates.merge: head-chef." >&2; return 1 ;;
+      -h|--help) usage ;;
+      *) echo "Unknown grant action: $1 (commit, push, open-pr)" >&2; return 1 ;;
+    esac
+    shift
+  done
+  me="$(rail_actor)"
+  if [[ "$act" == show ]]; then
+    if [[ -n "$me" ]]; then
+      [[ -z "$st" || "$st" == "$me" ]] || { echo "A cook reads its own grants ($me); $st is the sous's to read." >&2; return 1; }
+      grant_line "$me"; return 0
+    fi
+    if [[ -n "$st" ]]; then
+      [[ -e "$KITCHEN/$st/.git" ]] || { echo "No such station: $st" >&2; return 1; }
+      grant_line "$st"; return 0
+    fi
+    while IFS= read -r d; do grant_line "$(basename "$d")"; done < <(stations)
+    return 0
+  fi
+  if [[ -n "$me" ]]; then
+    echo "Only the sous grants, from the main checkout ($ROOT_REAL): a cook finishes its handoff and waits for [go]." >&2; return 1
+  fi
+  [[ -n "$st" ]] || { echo "Usage: kitchen.sh grant <station-N> <commit|push|open-pr>... | <station-N> --none | --show [station-N]" >&2; return 1; }
+  [[ -e "$KITCHEN/$st/.git" ]] || { echo "No such station: $st" >&2; return 1; }
+  if [[ "$act" == none ]]; then
+    [[ -z "$acts" ]] || { echo "grant --none takes no actions." >&2; return 1; }
+    rm -f "$(grant_file "$st")"; echo "$st: none"; return 0
+  fi
+  [[ -n "$acts" ]] || { echo "Usage: kitchen.sh grant $st <commit|push|open-pr>... (or --none)" >&2; return 1; }
+  mkdir -p "$ROOT/.claude/grants"; exclude_locally .claude/grants
+  for a in $GRANT_ACTIONS; do case " $acts " in *" $a "*) want="$want$a"$'\n' ;; esac; done
+  printf '%s' "$want" > "$(grant_file "$st").tmp" && mv "$(grant_file "$st").tmp" "$(grant_file "$st")"
+  grant_line "$st"
+}
 cmd_clear() {
   local who="$CLEAR_WHO" dir reg name pane handoff tr state open last_turn hmtime n i defer
   case "$who" in
@@ -2421,6 +2492,8 @@ cmd_clear() {
     open="$(state_field "$state" open)"
     [[ -z "$open" || "$open" == none ]] || { echo "Not cleared: $who ($name) is waiting on an answer to its [$open]. Answer it, or let it finish." >&2; return 1; }
   fi
+  # a cleared cook holds no grant: the next ticket's [go] writes its own (Contract 5)
+  [[ "$who" == sous ]] || rm -f "$(grant_file "$who")"
   # act: /clear, wait for the session to say idle, then the role skill (/bk:line-cook for a
   # cook, /bk:sous-chef for the sous) so the pane is a cook or a sous again, not a solo session
   local role="/bk:line-cook"; [[ "$who" == sous ]] && role="/bk:sous-chef"
@@ -2542,6 +2615,7 @@ cmd_done() {
     fi
   fi
   for f in go check.log check.out grilling; do rm -f "$dir/.claude/$f"; done
+  rm -f "$(grant_file "$who")"   # the ticket is over: so is its grant (Contract 5)
   echo "$who: PR #$pr merged. Detached at origin/$TRUNK ($(git -C "$dir" rev-parse --short HEAD)); local branch $branch: $lstate; origin branch: $rstate; per-ticket files cleared."
   return $rc
 }
@@ -3115,6 +3189,6 @@ case "$CMD" in
   role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   decisions) cmd_decisions ;; inbox) cmd_inbox ;; asks) cmd_asks ;; gaps) cmd_gaps ;; doctor) cmd_doctor ;; index) cmd_index ;;
   record-pr) cmd_record_pr ;;
-  procs) cmd_procs ;; scope) cmd_scope ;;
+  procs) cmd_procs ;; scope) cmd_scope ;; grant) cmd_grant ;;
   sessions) cmd_sessions ;; clear) cmd_clear ;; ship) cmd_ship ;; done) cmd_done ;; check) cmd_check ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; *) usage ;;
 esac

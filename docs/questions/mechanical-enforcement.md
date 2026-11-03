@@ -1,7 +1,7 @@
 # Open question: what should be mechanical instead of judgement?
 
 **Status:** partly built; see [Taken on](#taken-on). The rest still waits on a choice.
-**Asked:** 2026-10-11. **Updated:** 2026-10-15.
+**Asked:** 2026-10-11. **Updated:** 2026-11-03.
 **Scope read:** all 17 skills, the sub-agents (three then, four now), the contract,
 `kitchen.sh`, and the current Claude Code docs on hooks (re-verified 2026-10-15).
 
@@ -18,8 +18,9 @@ remembers what the head chef decided and stops asking twice.
 | 6 (part) | The record's writes are counted and listed by script: `kitchen.sh decisions` (head-chef answers nothing cites), `questions` (journals and open question files), `inbox --add` / `inbox`. The sous still files by hand; the lists are what make the handoff mechanical. Rail writes (`claim`, `fire`, `close`, `link`) are still hand edits | `kitchen.sh` |
 | 6 (claim, move) | A cook claims and moves the ticket it was briefed on with `kitchen.sh rail claim` / `move`; the sous records the brief with `kitchen.sh rail brief <ID> station-N`. A markdown rail is written as a commit built on `origin/<trunk>` (the main checkout is never touched), a github rail through `gh project item-edit`. Also `kitchen.sh here`, a cook's state in a file the board reads, in place of `[check-in]` and `[status]` messages (#65) | `kitchen.sh`, Contracts 3 and 6 |
 | new 14 | Who signs off a plan is read from the ticket's kind (`gates.plan_approval`), not judged: features to the head chef, bug / chore / hygiene to the sous, with hard overrides (migration, walk-in, production write, unrecorded decision) | contract, Contract 5 |
+| 4 (the Bash part), 3 (receipts) | Positive authorization instead of a blocklist (#91): a cook's `git commit`, `git push` and `gh pr create` (and the commands that make a commit) are refused unless the sous has granted that action (`kitchen.sh grant`, `.claude/grants/<station>`, written with `[go]`, removed at `[served]`); a push to trunk, a force push, `gh pr merge`, `reset --hard` and `clean -x` are refused whatever is granted; a cook's Edit or Write on `.claude/check.log`, `.claude/procs`, `.claude/served` and the grants is refused. What stays open from rows 3 and 4: a cook editing outside its station, and shell routes the patterns do not see (`gh api`, a script that pushes) | `hooks/guard.sh`, `hooks/hooks.json`, `kitchen.sh grant`, `tests/guard.test.sh`, Contract 5 |
 
-Still open from the table below: rows 1, 3, 4, 5 (now narrower: a human-only approve
+Still open from the table below: rows 1, 3 (edits outside the station), 4 (other routes), 5 (now narrower: a human-only approve
 record for **feature** plans only), 6 (`fire`, `close`, `link`), 7, 8, 9, 10, 12.
 
 Next up, as its own PR: the idle prep pass (no ready ticket → the sous drafts tickets from

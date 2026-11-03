@@ -920,8 +920,10 @@ if command -v node >/dev/null 2>&1; then
   mkdir -p "$S1/docs/journal"
   : > "$TB/tmux.log"
   p1=$(reg "$S1" sid-c1 busy %7 app-cook-1)
+  "$K" grant station-1 commit push open-pr >/dev/null 2>&1
   out=$(PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
   ok "clear refuses a busy cook" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "is busy"' _ "$rc" "$out"
+  ok "…and a refused clear leaves the cook's grant" test -s "$C/.claude/grants/station-1"
   sed -i.bak 's/"busy"/"idle"/' "$REG/$p1.json"
   out=$(PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
   ok "clear refuses a cook with no handoff on disk" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "no handoff"' _ "$rc" "$out"
@@ -938,6 +940,7 @@ if command -v node >/dev/null 2>&1; then
   touch "$S1/docs/journal/BKLG-001-open.md"
   out=$(PATH="$TB:$PATH" "$K" clear station-1 2>&1); rc=$?
   ok "clear clears an idle, handed-off, answered cook" bash -c '[ "$1" -eq 0 ] && printf "%s" "$2" | grep -q "^Cleared station-1 (app-cook-1)"' _ "$rc" "$out"
+  ok "clear takes the cleared cook's grant away" test ! -e "$C/.claude/grants/station-1"
   ok "…typing /clear into its pane, then /bk:line-cook" bash -c 'grep -q "send-keys -t %7 -l /clear" "$1" && grep -q "send-keys -t %7 -l /bk:line-cook" "$1" && [ "$(grep -c "send-keys -t %7 Enter" "$1")" = 2 ]' _ "$TB/tmux.log"
   # The sous: named in .claude/sous, its handoff is .claude/sous-handoff.md, its "open" is an open ask.
   PS="$HOME/.claude/projects/$(slug "$C")"; mkdir -p "$PS"
@@ -1014,6 +1017,56 @@ ok "open with the default gate seeds the sous's gh permissions in the main check
 ok "…kept out of git" test "$(git -C "$C" status --porcelain | grep -c settings.local)" = 0
 rm -f "$C/.claude/settings.local.json"
 
+section "grant: the sous lets a cook commit, push and open a PR"
+GT="$TMP/grant/app"; mkdir -p "$TMP/grant"
+new_repo "$GT" 'trunk: main
+install: "true"
+stations: 2'
+push_all "$GT" "brigade setup"
+(cd "$GT" && "$K" setup >/dev/null 2>&1)
+GS1="$TMP/grant/app-stations/station-1"
+gk() { (cd "$GT" && "$K" "$@" 2>&1); }    # as the sous, from the main checkout
+gc() { (cd "$GS1" && "$K" "$@" 2>&1); }   # as the cook in station-1
+ok "no grant file at the start: --show says none" test "$(gc grant --show)" = "station-1: none"
+out=$(gk grant station-1 push commit open-pr); rc=$?
+ok "the sous grants, and the line names the actions in the contract's order" bash -c '[ "$1" -eq 0 ] && [ "$2" = "station-1: commit push open-pr" ]' _ "$rc" "$out"
+ok "…as one action per line in .claude/grants/station-1 of the main checkout" test "$(cat "$GT/.claude/grants/station-1")" = "$(printf 'commit\npush\nopen-pr')"
+ok "…out of git" git -C "$GT" check-ignore -q .claude/grants/station-1
+ok "the cook reads its own grants with --show" test "$(gc grant --show)" = "station-1: commit push open-pr"
+ok "…the main checkout reads every station's" test "$(gk grant --show)" = "$(printf 'station-1: commit push open-pr\nstation-2: none')"
+ok "…and one station's by name" test "$(gk grant --show station-2)" = "station-2: none"
+out=$(gk grant station-1 commit)
+ok "a second grant replaces the set, it does not add to it" test "$out" = "station-1: commit"
+ok "…and the file holds only that" test "$(cat "$GT/.claude/grants/station-1")" = commit
+out=$(gk grant station-1 --none)
+ok "--none takes every grant away" bash -c '[ "$1" = "station-1: none" ] && [ ! -e "$2/.claude/grants/station-1" ]' _ "$out" "$GT"
+ok "--none with nothing granted is not an error" gk grant station-1 --none
+out=$(gk grant station-1 merge); rc=$?
+ok "merge is never granted, and the refusal says who merges" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "never granted to a cook" && printf "%s" "$2" | grep -q "the sous merges"' _ "$rc" "$out"
+out=$(gk grant station-1 force-push); rc=$?
+ok "an unknown action is refused, naming the three" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "commit, push, open-pr"' _ "$rc" "$out"
+ok "…and a refused grant wrote nothing" test ! -e "$GT/.claude/grants/station-1"
+out=$(gk grant station-9 commit); rc=$?
+ok "an unknown station is refused" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "No such station: station-9"' _ "$rc" "$out"
+out=$(gk grant station-1); rc=$?
+ok "a station with no action and no --none is a usage error" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "Usage"' _ "$rc" "$out"
+out=$(gk grant station-1 --none commit); rc=$?
+ok "--none with an action is refused" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "takes no actions"' _ "$rc" "$out"
+out=$(gk grant); rc=$?
+ok "grant with nothing says how it is used" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "Usage"' _ "$rc" "$out"
+# a cook can write nothing
+out=$(gc grant station-1 commit push open-pr); rc=$?
+ok "a cook cannot grant itself" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "Only the sous grants"' _ "$rc" "$out"
+ok "…and nothing was written" test ! -e "$GT/.claude/grants/station-1"
+out=$(gc grant station-2 push); rc=$?
+ok "…nor another station" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "Only the sous grants"' _ "$rc" "$out"
+gk grant station-1 commit >/dev/null
+out=$(gc grant station-1 --none); rc=$?
+ok "a cook cannot take a grant away either" bash -c '[ "$1" -ne 0 ] && [ -s "$2/.claude/grants/station-1" ]' _ "$rc" "$GT"
+out=$(gc grant --show station-2); rc=$?
+ok "a cook cannot read another station's grants" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "reads its own"' _ "$rc" "$out"
+gk grant station-1 --none >/dev/null
+
 section "done: a merged ticket's station goes back to trunk"
 # A repo of its own with a bare origin, two worktree stations, and a stub gh: `pr list` answers
 # with $GH_LIST, the lines the real command's --jq prints ("<number> <state> <head sha> <base branch>").
@@ -1062,12 +1115,14 @@ echo dirty > "$D1/untracked"
 out=$(done_ "7 MERGED $tip main" station-1); rc=$?
 ok "done refuses a station with uncommitted work" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "has uncommitted work"' _ "$rc" "$out"
 rm -f "$D1/untracked"
+(cd "$D" && "$K" grant station-1 commit push open-pr >/dev/null 2>&1)
 # a busy cook in the station (a sleeper stands in for claude, registered where Claude Code keeps sessions)
 DREG="$HOME/.claude/sessions"; mkdir -p "$DREG"
 sleep 300 >/dev/null 2>&1 & dp=$!
 printf '{"pid":%s,"sessionId":"sid-d1","cwd":"%s","status":"busy","tmux":"%%9","name":"app-cook-1","updatedAt":1}\n' "$dp" "$D1" > "$DREG/$dp.json"
 out=$(done_ "7 MERGED $tip main" station-1); rc=$?
 ok "done refuses a station whose cook is busy" bash -c '[ "$1" -ne 0 ] && printf "%s" "$2" | grep -q "is busy"' _ "$rc" "$out"
+ok "…and a refused done leaves the cook's grant" test -s "$D/.claude/grants/station-1"
 sed -i.bak 's/"busy"/"idle"/' "$DREG/$dp.json"
 out=$(done_ "7 OPEN $tip main
 8 MERGED $tip main" station-1); rc=$?
@@ -1078,6 +1133,7 @@ ok "the local branch is gone" bash -c '! git -C "$1" rev-parse --verify -q refs/
 ok "the origin branch is gone" bash -c '! git --git-dir "$1" rev-parse --verify -q refs/heads/issue-1-merged' _ "$DG"
 ok "the station is detached at origin/main" bash -c 'test -z "$(git -C "$1" branch --show-current)" && test "$(git -C "$1" rev-parse HEAD)" = "$(git -C "$1" rev-parse origin/main)"' _ "$D1"
 ok "the station is clean" test -z "$(git -C "$D1" status --porcelain)"
+ok "done takes the ticket's grant away with the per-ticket files" test ! -e "$D/.claude/grants/station-1"
 ok "check.log, check.out, grilling and go are gone" bash -c 'for f in check.log check.out grilling go; do test ! -e "$1/.claude/$f" || exit 1; done' _ "$D1"
 ok "the cook's launcher and its permissions stay" test -e "$D1/.claude/cook" -a -e "$D1/.claude/settings.local.json"
 out=$(done_ "" station-1); rc=$?
