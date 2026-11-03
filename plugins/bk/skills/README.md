@@ -949,7 +949,11 @@ the one it supersedes (`supersedes:` in its frontmatter); the commis reports the
 
 **Who writes what.** The sous writes the record in the main checkout, as it writes the
 rail (a solo session writes it directly). The commis writes nothing. A cook writes only its
-own journal and station files. A repo whose schema names a human as the writer of ADRs
+own journal and station files. The sous files the record with `kitchen.sh record-pr`: it
+goes to trunk when `rail.commit` is `direct` and trunk takes the push, and into a
+`record/<date>` PR when trunk is protected (or the config says `daily-pr`); until that PR
+merges, the commands that list what is due (`lessons`, `decisions`, `questions`, `gaps`,
+`debrief`) read the open record branch as well as trunk. A repo whose schema names a human as the writer of ADRs
 treats the sous recording the head chef's quoted words as that human's writing; the
 config's notes say so if the repo wants it otherwise.
 

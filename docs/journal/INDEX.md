@@ -8,3 +8,4 @@
 | [19-claude-dir-edits.md](19-claude-dir-edits.md) | create-plan / sous-chef: plans that edit .claude/ stall cooks running in auto mode | #19 |
 | [62-budget-sous-role.md](62-budget-sous-role.md) | budget: every session in the main checkout is counted as the sous (role by directory, not by the recorded sous name) | #62 |
 | [63-generated-index.md](63-generated-index.md) | record: generate the INDEX.md tables from frontmatter, so concurrent tickets stop conflicting | #63 |
+| [64-record-protected-trunk.md](64-record-protected-trunk.md) | handoff / release: the record can't reach a protected trunk, and every docs-only change needs a release | #64 |

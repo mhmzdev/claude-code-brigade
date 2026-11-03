@@ -34,7 +34,7 @@ trap cleanup EXIT
 # A sealed PATH: every tool kitchen.sh uses, and nothing it must not find on this machine
 # (tmux, brew, Warp, node), so the terminal it picks depends on the test, not the laptop.
 NB="$TMP/sealedbin"; mkdir -p "$NB"; export BRIGADE_TMUX_DIRS=""
-for t in git bash sh awk sed grep head tail cat mkdir rm cp mv ls ps lsof readlink chmod nohup sleep printf kill uname dirname basename sort uniq wc tr find date mktemp cut env touch xargs diff paste seq rev tee stat id gh curl python3 open; do p=$(command -v "$t" 2>/dev/null) && ln -sf "$p" "$NB/$t"; done
+for t in git bash sh awk sed grep head tail cat mkdir rm cp mv ls ps lsof readlink chmod nohup sleep printf kill uname dirname basename sort uniq wc tr find date mktemp cut env touch tar xargs diff paste seq rev tee stat id gh curl python3 open; do p=$(command -v "$t" 2>/dev/null) && ln -sf "$p" "$NB/$t"; done
 
 PASS=0; FAIL=0; N=0
 ok() {  # ok <description> <command…>: passes when the command exits 0
@@ -587,6 +587,171 @@ ok "…and the gaps list" bash -c '! "$1" gaps | grep -q "A1"' _ "$K"
 ok ".claude/asks.md stays out of git without touching a tracked file" test "$before" = "$(git -C "$C" status --porcelain)"
 ok "…with one exclude line" test "$(grep -c '^\.claude/asks\.md$' "$C/.git/info/exclude")" = 1
 rm "$C/.claude/asks.md" "$C/docs/questions/2026-10-02-cache.md"
+
+section "record-pr: the record on a protected trunk"
+R="$TMP/rec/app"; mkdir -p "$TMP/rec"
+new_repo "$R" 'trunk: main
+rail:
+  adapter: markdown
+  commit: direct
+docs:
+  journal: docs/journal
+  lessons: docs/lessons.md
+  decisions: docs/decisions
+  questions: docs/questions'
+mkdir -p "$R/docs/journal"
+printf -- '- lesson(plugin): record-key | the record stays unfiled | BKLG-001\n' > "$R/docs/journal/BKLG-001-open.md"
+push_all "$R" "init"
+GHSTUB="$TMP/rec/stub"; mkdir -p "$GHSTUB"
+cat > "$GHSTUB/gh" <<EOF3
+#!/usr/bin/env bash
+echo "\$*" >> "$TMP/rec/gh.log"
+[[ "\$GH_FAIL" == 1 ]] && exit 1
+[[ "\$1 \$2" == "pr create" ]] && echo "https://example.test/pull/7"
+exit 0
+EOF3
+chmod +x "$GHSTUB/gh"
+file_record() {  # a decision, the register row and an unrelated rail edit, all uncommitted
+  mkdir -p "$R/docs/decisions"
+  printf -- '---\ntype: adr\ntitle: Kept\nstatus: accepted\nsource: BKLG-001 A1\n---\n' > "$R/docs/decisions/001-kept.md"
+  printf '| Key | Scope | Outcome |\n|---|---|---|\n| `record-key` | plugin | filed #99 |\n' > "$R/docs/lessons.md"
+  printf 'edited\n' >> "$R/docs/backlog/BKLG-001-open.md"
+}
+rec() { (cd "$R" && PATH="$GHSTUB:$PATH" "$K" record-pr 2>&1); }
+ok "nothing dirty: nothing to file" has "$(rec)" "Nothing to file"
+file_record
+ok "uncommitted in the working tree, the register already counts" has "$(cd "$R" && "$K" lessons)" "plugin +record-key +1 +promoted"
+# protect main on origin
+cat > "$R.git/hooks/pre-receive" <<'EOF3'
+#!/bin/sh
+while read old new ref; do [ "$ref" = refs/heads/main ] && { echo "protected branch" >&2; exit 1; }; done
+exit 0
+EOF3
+chmod +x "$R.git/hooks/pre-receive"
+: > "$TMP/rec/gh.log"
+out=$(rec); today=$(date +%Y-%m-%d)
+ok "a protected trunk: the record goes to a PR" has "$out" "Record PR: https://example.test/pull/7"
+ok "…from a record/<date> branch on origin" test -n "$(git -C "$R" ls-remote --heads origin "record/$today")"
+ok "…opened against main" grep -q "pr create --base main --head record/$today" "$TMP/rec/gh.log"
+ok "…and the PR body says the push was refused" grep -q "because main refused a direct push" "$TMP/rec/gh.log"
+ok "…the main checkout is back on main" test "$(git -C "$R" branch --show-current)" = main
+ok "…and its record paths are clean" test -z "$(git -C "$R" status --porcelain -- docs/decisions docs/lessons.md)"
+ok "…the commit holds the decision and the register" bash -c "git -C '$R' show --name-only --format= origin/record/$today | sort | tr '\n' ' ' | grep -q '^docs/decisions/001-kept.md docs/lessons.md \$'"
+ok "…and not the unrelated rail edit, which stays dirty" test "$(git -C "$R" status --porcelain)" = " M docs/backlog/BKLG-001-open.md"
+ok "…main on origin has none of it" test -z "$(git -C "$R.git" ls-tree -r --name-only main | grep -E 'decisions|lessons')"
+git -C "$R" checkout -q -- docs/backlog
+drop_branches() { git -C "$R" push -q origin --delete "$@" 2>/dev/null; git -C "$R" branch -q -D "$@" 2>/dev/null; git -C "$R" update-ref -d "refs/remotes/origin/$1" 2>/dev/null; true; }
+newdec() { mkdir -p "$R/docs/decisions"; printf -- '---\ntype: adr\ntitle: %s\nstatus: accepted\nsource: BKLG-001 %s\n---\n' "$1" "$1" > "$R/docs/decisions/$1.md"; }
+newdec 002-second
+out=$(rec)
+ok "a second run the same day: its own branch, record/<date>-2" test -n "$(git -C "$R" ls-remote --heads origin "record/$today-2")"
+drop_branches "record/$today" "record/$today-2"
+newdec 003-third
+out=$(cd "$R" && GH_FAIL=1 PATH="$GHSTUB:$PATH" "$K" record-pr 2>&1); rc=$?
+ok "gh failing: the branch is pushed and the exit is 1" test "$rc" = 1 -a -n "$(git -C "$R" ls-remote --heads origin "record/$today")"
+ok "…and the message carries the gh pr create line" has "$out" "gh pr create --base main --head record/$today"
+ok "…the checkout is still on a clean main" test "$(git -C "$R" branch --show-current)" = main -a -z "$(git -C "$R" status --porcelain -- docs/decisions)"
+drop_branches "record/$today"
+# an unprotected trunk
+rm "$R.git/hooks/pre-receive"
+newdec 004-direct
+: > "$TMP/rec/gh.log"
+out=$(rec)
+ok "an unprotected trunk with rail.commit direct: filed on main" has "$out" "Filed on main"
+ok "…it is on origin/main" bash -c "git -C '$R.git' show main:docs/decisions/004-direct.md"
+ok "…no record branch is left, and gh was not called" test -z "$(git -C "$R" branch --list 'record/*')" -a ! -s "$TMP/rec/gh.log"
+sed -i.bak 's/commit: direct/commit: daily-pr/' "$R/.claude/brigade.md"; rm "$R/.claude/brigade.md.bak"
+newdec 005-viapr
+out=$(rec)
+ok "rail.commit daily-pr: a PR even though trunk would take the push" has "$out" "Record PR:"
+ok "…and the PR body gives daily-pr as the reason, not a refusal" bash -c 'grep -q "because rail.commit is daily-pr" "$1" && ! grep -q "refused a direct push" "$1"' _ "$TMP/rec/gh.log"
+ok "…and main on origin did not move" bash -c "! git -C '$R.git' show main:docs/decisions/005-viapr.md"
+drop_branches "record/$today"
+printf '#!/bin/sh\nexit 1\n' > "$R/.git/hooks/pre-commit"; chmod +x "$R/.git/hooks/pre-commit"
+newdec 006-hook
+out=$(rec); rc=$?
+rm "$R/.git/hooks/pre-commit"
+ok "a commit that fails: the message says so" has "$out" "Could not commit the record"
+ok "…it does not claim the record was filed" bash -c '! printf "%s" "$1" | grep -qE "Filed on|Record PR"' _ "$out"
+ok "…the checkout is on main, the file is still there, nothing is staged, no record branch is left" test "$(git -C "$R" branch --show-current)" = main -a -f "$R/docs/decisions/006-hook.md" -a -z "$(git -C "$R" diff --cached --name-only)" -a -z "$(git -C "$R" branch --list 'record/*')"
+rm "$R/docs/decisions/006-hook.md"
+out=$(cd "$S1" && "$K" record-pr 2>&1); rc=$?
+ok "from a station: refused" test "$rc" = 1
+ok "…saying the sous files the record" has "$out" "Only the sous files the record"
+
+section "the record on a branch: the readers see it"
+R2="$TMP/rec2/app"; mkdir -p "$TMP/rec2"
+new_repo "$R2" 'trunk: main
+rail:
+  adapter: markdown
+  commit: direct
+docs:
+  journal: docs/journal
+  lessons: docs/lessons.md
+  decisions: docs/decisions
+  questions: docs/questions'
+mkdir -p "$R2/docs/journal" "$R2/docs/questions"
+printf -- '- lesson(plugin): rec-key | one | BKLG-001\n- lesson(plugin): rec-key-2 | two | BKLG-001\n- 2026-11-03 10:00 · c · Q1: fork? — recommend: a\n- 2026-11-03 10:05 · c · A1 (head chef): yes\n- 2026-11-03 10:06 · c · A2 (head chef): ship it on Friday\n' > "$R2/docs/journal/BKLG-001-open.md"
+mkdir -p "$R2/docs/specs"
+printf -- '# Spec 001\n\nShipping day was decided in BKLG-001 A2.\n' > "$R2/docs/specs/001-ship.md"
+printf -- '---\ntitle: Old fork\nstatus: answered\ngap: context\nfix: null\n---\n' > "$R2/docs/questions/q1.md"
+push_all "$R2" "init"
+cat > "$R2.git/hooks/pre-receive" <<'EOF3'
+#!/bin/sh
+while read old new ref; do [ "$ref" = refs/heads/main ] && { echo "protected branch" >&2; exit 1; }; done
+exit 0
+EOF3
+chmod +x "$R2.git/hooks/pre-receive"
+NODESTUB="$TMP/rec2/nodestub"; mkdir -p "$NODESTUB"
+cat > "$NODESTUB/node" <<'EOF3'
+#!/usr/bin/env bash
+# node stub: print the file --register names, which is what the real reader would count
+while [[ $# -gt 0 ]]; do [[ "$1" == --register ]] && { echo "REGISTER=$2"; cat "$2"; exit 0; }; shift; done
+exit 0
+EOF3
+chmod +x "$NODESTUB/node"
+VIEWTMP="$TMP/rec2/viewtmp"; mkdir -p "$VIEWTMP"
+k2() { (cd "$R2" && TMPDIR="$VIEWTMP" PATH="$NODESTUB:$GHSTUB:$PATH" "$K" "$@" 2>&1); }
+ok "before any record: the lesson is DUE" has "$(k2 lessons)" "plugin +rec-key +1 +DUE"
+ok "…and the head-chef answer is DUE" has "$(k2 decisions)" "BKLG-001 A1 +DUE"
+ok "…and the answered question file has no fix: it is listed as a gap" has "$(k2 gaps)" "q1.md"
+mkdir -p "$R2/docs/decisions"
+printf '| Key | Scope | Outcome |\n|---|---|---|\n| `rec-key` | plugin | filed #1 |\n' > "$R2/docs/lessons.md"
+printf -- '---\ntype: adr\ntitle: Yes\nstatus: accepted\nsource: BKLG-001 A1\n---\n' > "$R2/docs/decisions/001-yes.md"
+printf -- '---\ntitle: Old fork\nstatus: answered\ngap: context\nfix: docs/decisions/001-yes.md\n---\n' > "$R2/docs/questions/q1.md"
+printf -- '---\ntitle: New fork\nstatus: open\nblocks: [BKLG-001]\n---\n' > "$R2/docs/questions/q2.md"
+out=$(k2 record-pr); today=$(date +%Y-%m-%d)
+ok "the record went to a PR" has "$out" "Record PR:"
+ok "…and is not in the working tree any more" test ! -e "$R2/docs/lessons.md"
+ok "lessons: the key the record branch lists is promoted" has "$(k2 lessons)" "plugin +rec-key +1 +promoted"
+ok "…while a key it does not list is still DUE" has "$(k2 lessons)" "plugin +rec-key-2 +1 +DUE"
+ok "decisions: an answer a decision file on the branch cites is filed" has "$(k2 decisions)" "BKLG-001 A1 +filed +docs/decisions/001-yes.md"
+ok "decisions: an answer only a spec cites is still filed while a record branch is open" has "$(k2 decisions)" "BKLG-001 A2 +filed +docs/specs/001-ship.md"
+ok "gaps: the branch's copy of the question file (fix: set) replaces trunk's" bash -c '! printf "%s" "$1" | grep -q q1.md' _ "$(k2 gaps)"
+ok "questions: an open question file only on the branch is listed" has "$(k2 questions)" "\(record\) +q2.md"
+ok "debrief reads the register with the branch's row" has "$(k2 debrief)" "rec-key"
+ok "the temp view is removed afterwards" test -z "$(ls -A "$VIEWTMP")"
+# a second record branch: the register is the union
+printf '| Key | Scope | Outcome |\n|---|---|---|\n| `rec-key-2` | plugin | filed #2 |\n' > "$R2/docs/lessons.md"
+out=$(k2 record-pr ; true)
+ok "a second record branch exists" test -n "$(git -C "$R2" ls-remote --heads origin "record/$today-2")"
+out=$(k2 lessons)
+ok "the register is the union of the open branches: both keys promoted" bash -c 'printf "%s" "$1" | grep -qE "rec-key +1 +promoted" && printf "%s" "$1" | grep -qE "rec-key-2 +1 +promoted"' _ "$out"
+# the branches are gone: the record is nowhere
+git -C "$R2" push -q origin --delete "record/$today" "record/$today-2" 2>/dev/null
+git -C "$R2" branch -q -D "record/$today" "record/$today-2" 2>/dev/null
+git -C "$R2" update-ref -d "refs/remotes/origin/record/$today"; git -C "$R2" update-ref -d "refs/remotes/origin/record/$today-2"
+ok "branches deleted: the lesson is DUE again (the branch was the only source)" has "$(k2 lessons)" "plugin +rec-key +1 +DUE"
+ok "…and the gap is listed again" has "$(k2 gaps)" "q1.md"
+ok "…and no temp view was made (nothing to lay over trunk)" test -z "$(ls -A "$VIEWTMP")"
+# a record branch that reached trunk is not read as a branch
+mkdir -p "$R2/docs/decisions"; printf '| Key | Scope | Outcome |\n|---|---|---|\n| `rec-key` | plugin | filed #1 |\n' > "$R2/docs/lessons.md"
+k2 record-pr >/dev/null
+rm "$R2.git/hooks/pre-receive"
+git -C "$R2" push -q origin "refs/remotes/origin/record/$today:refs/heads/main" 2>/dev/null
+git -C "$R2" fetch -q origin && git -C "$R2" merge -q --ff-only origin/main
+ok "a record branch merged into trunk: lesson promoted from trunk itself" has "$(k2 lessons)" "plugin +rec-key +1 +promoted"
+ok "…and the debrief reads the checkout's own register, not a temp view" bash -c '! printf "%s" "$1" | grep -q "REGISTER=.*brigade-record"' _ "$(k2 debrief)"
 
 section "doctor"
 rm -rf "$C/docs/questions" "$C/docs/decisions"

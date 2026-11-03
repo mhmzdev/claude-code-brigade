@@ -52,10 +52,15 @@ plugins/bk/                         the plugin (skills are invoked /bk:<skill>)
 │                                   taster (the pass), runner (noisy commands)
 └── templates/                      spec, ticket, plan, checklist, journal, decision, question,
                                     SCHEMA, brigade.local
-scripts/check.sh                    THE gate: manifests, shellcheck, frontmatter, hooks json, tests, version
+scripts/check.sh                    THE gate: manifests, shellcheck, frontmatter, hooks json, tests, release check
+scripts/release-check.sh            step 5 of the gate: version, CHANGELOG, formula, and the rule for
+                                    what a PR may change (docs only / fragment / release)
+scripts/release.sh                  opens the release PR: collects changelog.d/, bumps the version
+changelog.d/                        one fragment per change waiting for a release (a PR adds its own)
 .github/workflows/check.yml         runs the gate in CI on Linux and macOS
-.github/workflows/release.yml       tags each green merge to main v<version>, with a GitHub release,
-                                    then pushes the rendered formula to the tap (needs TAP_TOKEN)
+.github/workflows/release.yml       tags each green merge to main that moved the version v<version>,
+                                    with a GitHub release, then pushes the rendered formula to the
+                                    tap (needs TAP_TOKEN)
 CHANGELOG.md                        one entry per version, newest first
 tests/kitchen.test.sh               behaviour tests for kitchen.sh, both kitchen modes
 tests/guard.test.sh                 behaviour tests for hooks/guard.sh: clone and worktree stations
@@ -63,6 +68,8 @@ tests/bk.test.sh                    behaviour tests for bin/bk: stub tmux and cl
 tests/budget.test.sh                behaviour tests for the budget: handmade transcripts, a stub gh
 tests/window.test.sh                behaviour tests for the Window's live reader (tests/window-live.mjs):
                                     how a helper in flight is seen, from the sub-agent's meta file
+tests/release.test.sh               behaviour tests for scripts/release-check.sh and release.sh:
+                                    throwaway repos with a bare origin and a stub gh
 docs/the-names.md                   the Brigade names, plus Qafila as an alternate
 PLAYBOOK.md                         how each flow runs, as questions and answers; the contract wins over it
 assets/hero.jpeg                    README banner
@@ -140,10 +147,17 @@ It runs, in order:
    ticket spans and phases, the ledger, CI minutes and the journal line; and
    `tests/window.test.sh`: the Window's live reader against handmade transcripts and
    sub-agent meta files, covering a helper seen in flight, ended by its result or by
-   `finished`, and one already out when the Window attaches;
-5. a release check: `version` in `plugin.json` is `X.Y.Z`, it's the top entry of
-   `CHANGELOG.md` (`## [X.Y.Z] - YYYY-MM-DD`), `Formula/bk.rb` downloads that tag, and on a
-   branch it's higher than `origin/main`'s.
+   `finished`, and one already out when the Window attaches; and
+   `tests/release.test.sh`: the release check and `scripts/release.sh` in throwaway repos
+   (a bare origin, a stub `gh`), covering a docs-only branch, a fragment, a cook that bumps,
+   a release PR and the PR `release.sh` builds;
+5. a release check (`scripts/release-check.sh`, tested by `tests/release.test.sh`): `version`
+   in `plugin.json` is `X.Y.Z`, it's the top entry of `CHANGELOG.md` (`## [X.Y.Z] -
+   YYYY-MM-DD`) and `Formula/bk.rb` downloads that tag; and on a branch, by what it changes
+   against its merge base with `origin/main`: only `docs/` needs nothing, a release PR (only
+   those three files and the fragments it deletes) must raise the version and leave no
+   fragment, any other PR must add a `changelog.d/` fragment and leave the version alone
+   (see Releasing).
 
 The tests are sealed off from the machine: git runs with `GIT_CONFIG_GLOBAL=/dev/null`, `HOME`
 points into the temp dir, and `open` only runs with `--terminal print` or `--no-launch`, so
@@ -171,19 +185,32 @@ now disagrees.
   jobs are green and the branch is up to date with `main`. No approving review is required
   (a solo maintainer can't approve their own PR), so reading the diff before merging is on you.
   Run `scripts/check.sh` locally before opening the PR; CI skips manifest validation.
-- **Every merge to `main` is a release.** In every PR, bump `version` in
-  `plugins/bk/.claude-plugin/plugin.json` and add its entry at the top of `CHANGELOG.md`:
-  `## [X.Y.Z] - YYYY-MM-DD`, then a short paragraph for the busy human (what changed for
-  them, and what they must do). Minor for a change in how a kitchen runs, patch for fixes
-  and changes that don't touch the plugin's behaviour. `scripts/check.sh` fails the PR
-  without both. If another PR lands first, bring `main` in and bump again.
+- **A cook never bumps the version.** `main` is protected, so a version can only arrive in a
+  PR, and a bump in every PR meant each one re-bumped whenever `main` moved. Instead:
+  - a PR that changes **only `docs/`** is not a release and carries nothing;
+  - any other PR adds one file, `changelog.d/<id>-<slug>.md`: a first line `level: minor`
+    (a change in how a kitchen runs) or `level: patch` (a fix, or a change that doesn't
+    touch the plugin's behaviour), a blank line, then a short paragraph for the busy human
+    (what changed for them, and what they must do). It leaves `version`, the formula's `url`
+    and every `## [X.Y.Z]` heading alone. `scripts/check.sh` (`scripts/release-check.sh`)
+    fails the PR otherwise, and says what to do;
+  - the **release is its own PR**. When the head chef says ship, the sous runs
+    `scripts/release.sh` (`--dry-run` to look first): it takes every fragment on
+    `origin/main`, writes one `## [X.Y.Z] - YYYY-MM-DD` entry, bumps `plugin.json` and the
+    formula's `url` (a minor if any fragment says minor, else a patch), deletes the fragments
+    and opens the PR from `release/vX.Y.Z`. The head chef merges it; that merge is the
+    release. Changes merged since the last release wait for the next one (the marketplace
+    cache is keyed on the version, so users get them at the release, not before).
+  - A PR open when this rule landed carries an old bump: drop the bump in `plugin.json`,
+    `CHANGELOG.md` and `Formula/bk.rb` once and add a fragment instead.
 - **The tag and the GitHub release are automatic.** When `check` goes green on `main`,
   `.github/workflows/release.yml` tags the merge `v<version>` and publishes a release whose
-  notes are its `CHANGELOG.md` entry. Never tag by hand. The README doesn't carry a version.
+  notes are its `CHANGELOG.md` entry, if the merge moved the version; any other merge finds
+  the tag already there and leaves it. Never tag by hand. The README doesn't carry a version.
 - **So is the Homebrew tap.** The same workflow downloads the tag's tarball, writes its
   sha256 into `Formula/bk.rb` and pushes the result to `mhmzdev/homebrew-brigade`, which is
   what `brew install mhmzdev/brigade/bk` reads (always the full name: homebrew-core has an unrelated `bk`). The formula in this repo is the template:
-  bump its `url` with the version (the gate checks it) and never edit the tap's copy by hand.
+  `scripts/release.sh` bumps its `url` with the version (the gate checks it); never edit the tap's copy by hand.
   The push needs the `TAP_TOKEN` secret (a fine-grained token with contents: write on the tap).
 - **A renamed skill or plugin is breaking.** Say so in bold in its `CHANGELOG.md` entry and
   in the commit: installs are tied to the plugin name (`bk@claude-code-brigade`), and people

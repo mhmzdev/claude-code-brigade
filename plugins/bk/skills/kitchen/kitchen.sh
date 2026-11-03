@@ -87,6 +87,13 @@
 #                                         ask not yet filed, and every answered question
 #                                         file with no fix:, grouped by gap kind with the
 #                                         fix each kind takes
+#   kitchen.sh record-pr                  file the record: the dirty files under the docs map's
+#                                         decisions, conventions, knowledge and questions and
+#                                         the lessons register. With rail.commit direct it
+#                                         pushes them to trunk; if trunk refuses (protected),
+#                                         or with daily-pr, it pushes a record/<date> branch
+#                                         and opens a PR. Back on a clean trunk either way.
+#                                         The sous's, from the main checkout only
 #   kitchen.sh doctor                     check ticket files (fields, statuses, blockers,
 #                                         ids) and the docs map (folders exist, have an
 #                                         INDEX.md, nothing under docs/ is unmapped)
@@ -209,6 +216,7 @@ if [[ -d "$(dirname "$KITCHEN")" ]]; then
   KITCHEN="$(cd "$(dirname "$KITCHEN")" && pwd -P)/$(basename "$KITCHEN")"
 fi
 ROOT_REAL="$(cd "$ROOT" && pwd -P)"
+REC="$ROOT"   # where the record is read from: $ROOT, or the temp view that lays the open record branches over it (record_view)
 N="${BRIGADE_STATIONS:-$(cfg stations)}"; N="${N:-2}"
 N_GIVEN=false   # -n on the command line; without it, open takes every station there is
 INSTALL="$(cfg install)"
@@ -1066,7 +1074,7 @@ cmd_sous() {
 # ---------------------------------------------------------------------------
 cmd_lessons() {
   local lessons_file f files=()
-  lessons_file="$ROOT/$(cfg_docs lessons docs/lessons.md)"
+  lessons_file="$REC/$(cfg_docs lessons docs/lessons.md)"
   while IFS= read -r f; do files+=("$f"); done < <(journal_files)
   (( ${#files[@]} == 0 )) && { echo "No ticket journals yet."; return 0; }
   printf '%-7s %-28s %-8s %-9s %s\n' SCOPE KEY TICKETS STATUS "FIRST SEEN AS"
@@ -1112,8 +1120,8 @@ cmd_questions() {
   kitchen_real="$(cd "$KITCHEN" 2>/dev/null && pwd -P || printf '%s' "$KITCHEN")"
   {
     # open question files first: those are the head chef's, and the oldest debt
-    if [[ "$qdir" != none && -d "$ROOT/$qdir" ]]; then
-      for f in "$ROOT/$qdir"/*.md; do
+    if [[ "$qdir" != none && -d "$REC/$qdir" ]]; then
+      for f in "$REC/$qdir"/*.md; do
         [[ -f "$f" && "$(basename "$f")" != INDEX.md ]] || continue
         awk -v fn="$(basename "$f")" '
           NR==1 && $0=="---" { fm=1; next }
@@ -1181,14 +1189,82 @@ record_dirs() {
     [[ "$path" == none || -z "$path" ]] && continue
     path="${path%/}"
     [[ "$seen" == *" $path "* ]] && continue; seen="$seen$path "
-    [[ -e "$ROOT/$path" ]] && echo "$ROOT/$path"
+    [[ -e "$REC/$path" ]] && echo "$REC/$path"
   done < <(docs_keys)
   [[ -f "$ROOT/CLAUDE.md" ]] && echo "$ROOT/CLAUDE.md"
 }
 
+# rail_commit → rail.commit from the config (direct | daily-pr), else direct.
+rail_commit() {
+  local v=""
+  [[ -f "$CONFIG" ]] && v=$(awk '
+    NR==1 && $0=="---" { inside=1; next }
+    inside && $0=="---" { exit }
+    inside && /^rail:/ { inrail=1; next }
+    inrail && /^[^ ]/ { inrail=0 }
+    inrail && /^  commit:/ { sub(/^  commit:[ ]*/, ""); sub(/[ ]+#.*$/, ""); print; exit }' "$CONFIG")
+  printf '%s' "${v:-direct}"
+}
+# record_paths → the record's own paths, relative to the repo, as the config maps them: every docs
+# key but the rail's and the cooks' (journal, plans, checklists, backlog, specs, research,
+# brainstorm), the lessons register included. Whether they exist is the caller's question.
+record_paths() {
+  local key path seen=" "
+  while IFS= read -r key; do
+    case "$key" in journal|plans|checklists|backlog|specs|research|brainstorm) continue ;; esac
+    path="$(docs_path "$key")"; path="${path%/}"
+    [[ "$path" == none || -z "$path" ]] && continue
+    [[ "$seen" == *" $path "* ]] && continue; seen="$seen$path "
+    echo "$path"
+  done < <(docs_keys)
+}
+
+# record_branches → the record branches not yet on trunk, oldest first: local and remote-tracking
+# refs under record/, minus any already an ancestor of origin/<trunk>. As of the last fetch; no
+# network, no gh. A record PR closed unmerged counts until its branch is deleted.
+record_branches() {
+  local ref
+  git -C "$ROOT" rev-parse -q --verify "origin/$TRUNK" >/dev/null 2>&1 || return 0
+  git -C "$ROOT" for-each-ref --sort=committerdate --format='%(refname)' refs/heads/record refs/remotes/origin/record |
+    while IFS= read -r ref; do
+      git -C "$ROOT" merge-base --is-ancestor "$ref" "origin/$TRUNK" 2>/dev/null || echo "$ref"
+    done
+}
+# record_view → where the record is read from. With no record branch open: $ROOT itself. Else a
+# temp dir holding this checkout's record paths with every unmerged record branch laid over
+# them (a file takes the newest branch's version; the lessons register, which is only ever read
+# as "which keys are listed", is the union of all of them). The dispatcher removes it on exit.
+record_view() {
+  local view ref p reg files=() branches=() paths=()
+  while IFS= read -r ref; do branches+=("$ref"); done < <(record_branches)
+  (( ${#branches[@]} )) || { printf '%s' "$ROOT"; return 0; }
+  view="$(mktemp -d "${TMPDIR:-/tmp}/brigade-record.XXXXXX")"
+  reg="$(cfg_docs lessons docs/lessons.md)"
+  # what the view carries is what record_dirs searches: the record's paths and the specs
+  while IFS= read -r p; do paths+=("$p"); done < <(record_paths; echo "$(docs_path specs)")
+  for p in "${paths[@]}"; do
+    [[ -z "$p" || "$p" == none ]] && continue
+    [[ -e "$ROOT/$p" ]] && { mkdir -p "$view/$(dirname "$p")"; cp -R "$ROOT/$p" "$view/$p"; }
+  done
+  if [[ -f "$ROOT/$reg" ]]; then cp "$ROOT/$reg" "$view/.register"; else : > "$view/.register"; fi
+  for ref in "${branches[@]}"; do
+    files=()
+    while IFS= read -r p; do files+=("$p"); done < <(git -C "$ROOT" ls-tree -r --name-only "$ref" -- "${paths[@]}")
+    if (( ${#files[@]} )); then
+      if ! git -C "$ROOT" archive -o "$view/.record.tar" "$ref" -- "${files[@]}" || ! tar -x -C "$view" -f "$view/.record.tar"; then
+        echo "kitchen.sh: could not read the record branch ${ref#refs/}; its files are left out." >&2
+      fi
+      rm -f "$view/.record.tar"
+    fi
+    git -C "$ROOT" show "$ref:$reg" >> "$view/.register" 2>/dev/null || true
+  done
+  mkdir -p "$view/$(dirname "$reg")"; mv "$view/.register" "$view/$reg"
+  printf '%s' "$view"
+}
+
 cmd_decisions() {
   local register f files=() dirs=() d hits id n key status where any=false
-  register="$ROOT/$(cfg_docs lessons docs/lessons.md)"
+  register="$REC/$(cfg_docs lessons docs/lessons.md)"
   while IFS= read -r f; do files+=("$f"); done < <(journal_files)
   (( ${#files[@]} == 0 )) && { echo "No ticket journals yet."; return 0; }
   while IFS= read -r d; do dirs+=("$d"); done < <(record_dirs)
@@ -1203,7 +1279,7 @@ cmd_decisions() {
         if [[ -f "$register" ]] && grep -qF -- "\`$key\`" "$register"; then
           status=kept; where="register"
         elif (( ${#dirs[@]} > 0 )) && hits="$(grep -rlE -- "${key}([^0-9]|\$)" "${dirs[@]}" 2>/dev/null | grep -v -F -e "$f" -e "$register" | head -1)" && [[ -n "$hits" ]]; then
-          status=filed; where="${hits#"$ROOT"/}"
+          status=filed; where="${hits#"$REC"/}"; where="${where#"$ROOT"/}"
         fi
         printf '%-14s %-6s %-36s %s\n' "$key" "$status" "$where" "$(printf '%s' "$line" | sed -E 's/^- .* · A[0-9]+ \(head chef\):? *//')"
       done
@@ -1337,8 +1413,8 @@ cmd_gaps() {
   qdir="$(docs_path questions)"
   {
     asks_rows | awk -F'\t' '$5=="answered" { printf "%s\t%s\t%s\t%s\n", $4, $1, $3, $6 }'
-    if [[ "$qdir" != none && -d "$ROOT/$qdir" ]]; then
-      for f in "$ROOT/$qdir"/*.md; do
+    if [[ "$qdir" != none && -d "$REC/$qdir" ]]; then
+      for f in "$REC/$qdir"/*.md; do
         [[ -f "$f" && "$(basename "$f")" != INDEX.md ]] || continue
         awk -v fn="$(basename "$f")" '
           NR==1 && $0=="---" { fm=1; next }
@@ -1362,6 +1438,62 @@ cmd_gaps() {
     done
     $any || echo "No gaps to fix: every answered ask is filed, every answered question has its fix."
   }
+}
+
+# ---------------------------------------------------------------------------
+# record-pr — file the record (Contract 12) when trunk may not take a direct push. The sous's
+# handoff writes decisions, question files and the register into the main checkout's working
+# tree; this commits exactly those files on a branch, tries trunk first when rail.commit is
+# direct (a refusal, protected trunk or otherwise, is the signal: no probe), else pushes the
+# branch and opens the PR, and leaves the checkout on a clean trunk. lessons, decisions,
+# questions, gaps and debrief read an unmerged record/* branch like trunk (record_view).
+# ---------------------------------------------------------------------------
+cmd_record_pr() {
+  local paths=() files=() p f branch day n=1 msg url has_origin=false why="rail.commit is daily-pr"
+  if [[ "$(cd "$HERE" && pwd -P)" != "$ROOT_REAL" ]]; then
+    echo "Only the sous files the record, from the main checkout ($ROOT_REAL)." >&2; return 1
+  fi
+  while IFS= read -r p; do paths+=("$p"); done < <(record_paths)
+  while IFS= read -r f; do [[ -n "$f" ]] && files+=("$f"); done < <(git -C "$ROOT" status --porcelain -uall -- "${paths[@]}" | sed 's/^...//')
+  (( ${#files[@]} )) || { echo "Nothing to file: the record paths are clean."; return 0; }
+  if [[ "$(git -C "$ROOT" branch --show-current)" != "$TRUNK" ]]; then
+    echo "The main checkout is not on $TRUNK: switch to it first." >&2; return 1
+  fi
+  git -C "$ROOT" remote get-url origin >/dev/null 2>&1 && has_origin=true
+  if $has_origin; then
+    git -C "$ROOT" fetch origin "$TRUNK" --quiet 2>/dev/null || true
+    git -C "$ROOT" merge --ff-only "origin/$TRUNK" >/dev/null 2>&1 \
+      || { echo "Could not fast-forward $TRUNK to origin/$TRUNK with the record files dirty: bring it up to date by hand." >&2; return 1; }
+  fi
+  day="$(date +%Y-%m-%d)"; branch="record/$day"
+  while git -C "$ROOT" show-ref -q --verify "refs/heads/$branch" || git -C "$ROOT" show-ref -q --verify "refs/remotes/origin/$branch"; do
+    n=$((n+1)); branch="record/$day-$n"
+  done
+  msg="docs(record): the sous's record, $day (${#files[@]} file(s))"
+  git -C "$ROOT" switch -q -c "$branch" || { echo "Could not create $branch." >&2; return 1; }
+  if ! git -C "$ROOT" add -- "${files[@]}" || ! git -C "$ROOT" commit -q -m "$msg"; then
+    git -C "$ROOT" reset -q 2>/dev/null   # unstage; the files stay as they were
+    git -C "$ROOT" switch -q "$TRUNK" && git -C "$ROOT" branch -q -D "$branch"
+    echo "Could not commit the record (a hook? no git identity?): its files are still in the working tree." >&2; return 1
+  fi
+  if [[ "$(rail_commit)" == direct ]]; then why="$TRUNK refused a direct push"; fi
+  if ! $has_origin || { [[ "$(rail_commit)" == direct ]] && git -C "$ROOT" push -q origin "HEAD:refs/heads/$TRUNK" 2>/dev/null; }; then
+    if git -C "$ROOT" switch -q "$TRUNK" && git -C "$ROOT" merge -q --ff-only "$branch" && git -C "$ROOT" branch -q -d "$branch"; then
+      echo "Filed on $TRUNK: $msg"; return 0
+    fi
+    echo "Pushed to $TRUNK, but this checkout could not fast-forward to $branch: run git merge --ff-only $branch on $TRUNK." >&2; return 1
+  fi
+  if ! git -C "$ROOT" push -q -u origin "$branch" 2>/dev/null; then
+    git -C "$ROOT" switch -q "$TRUNK"
+    echo "Could not push $branch; the record commit is on it locally." >&2; return 1
+  fi
+  git -C "$ROOT" switch -q "$TRUNK"
+  if url="$(cd "$ROOT" && gh pr create --base "$TRUNK" --head "$branch" --title "$msg" \
+      --body "The sous's record (Contract 12), filed on a branch because $why. Files: ${files[*]}" 2>/dev/null)"; then
+    echo "Record PR: $(printf '%s\n' "$url" | tail -1)"; return 0
+  fi
+  echo "Pushed $branch, but the PR was not opened. Open it by hand: gh pr create --base $TRUNK --head $branch" >&2
+  return 1
 }
 
 # ---------------------------------------------------------------------------
@@ -1710,7 +1842,7 @@ cmd_debrief() {
   dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../window" 2>/dev/null && pwd -P)"
   [[ -f "$dir/server/live/budget.js" ]] || { echo "The budget reader isn't in this plugin install ($dir)." >&2; return 1; }
   command -v node >/dev/null 2>&1 || { echo "The debrief needs node 20 or newer on your PATH (brew install node, or nodejs.org)." >&2; return 1; }
-  args=(--root "$ROOT" --since 7d --debrief --register "$ROOT/$(cfg_docs lessons docs/lessons.md)")
+  args=(--root "$ROOT" --since 7d --debrief --register "$REC/$(cfg_docs lessons docs/lessons.md)")
   $JSON && args+=(--json)
   node "$dir/server/live/budget.js" "${args[@]}"
 }
@@ -1800,10 +1932,18 @@ cmd_remove() {
   fi
 }
 
+# the commands that list what is due read the record as trunk and the open record branches hold it
+case "$CMD" in
+  lessons|questions|decisions|gaps|debrief)
+    REC="$(record_view)"
+    [[ "$REC" == "$ROOT" ]] || trap 'rm -rf "$REC"' EXIT ;;
+esac
+
 case "$CMD" in
   setup) cmd_setup ;; open) cmd_open ;; sync) cmd_sync ;; status) cmd_status ;;
   files) cmd_files ;; rail) cmd_rail ;; board) cmd_board ;; leaks) cmd_leaks ;; remove) cmd_remove ;;
   role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   decisions) cmd_decisions ;; inbox) cmd_inbox ;; asks) cmd_asks ;; gaps) cmd_gaps ;; doctor) cmd_doctor ;; index) cmd_index ;;
+  record-pr) cmd_record_pr ;;
   sessions) cmd_sessions ;; clear) cmd_clear ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; *) usage ;;
 esac
