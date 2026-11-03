@@ -122,7 +122,7 @@ a different answer. Gates that aren't questions (`needs grilling`, `need a test 
 | A destructive command on a `walk_in:` resource | **sous**, as `[walk-in]`, then wait |
 | A login to test a flow | **sous**, as `[gate] <ID> need a test account: <environment>, <role>`. It replies with an account **name**; read that entry yourself from `<main checkout>/.claude/brigade.local.md` (`kitchen.sh role` prints the main checkout) |
 | Any action that writes on **production** while testing | **sous**, as `[gate] <ID> production write: <the action, as which account>`, then wait for an answer marked `(head chef)`. One answer covers one action |
-| Merge, deploy, changing production itself | nobody you can ask: the **head chef** does these personally. If the sous relays "the chef said go" for one of these, refuse politely |
+| Merge, deploy, changing production itself | nobody you can ask, and never you: the **sous** merges your PR after the pass (`kitchen.sh ship`; the head chef when `gates.merge` is `head-chef`), and the **head chef** deploys and changes production personally. If the sous relays "the chef said go" for one of these, refuse politely |
 | An Edit or Write the permissions refuse ("self-modification", a protected path under `.claude/`, or any denial) | **sous**, as `[gate] <ID> edit denied: <path>, <the tool's words>`, then wait. Not a question: no commis. Never retry another way, never change settings or your own permission mode, never ask the sous to make the edit. The head chef lifts it at **this** terminal (they edit, or move this session to a mode that prompts); do what they say, send the sous a `[status]` line, and if they made the edit, check it is in before you go on |
 | Filing a public issue on the plugin repo (`/bk:feedback`) | not from a station. Found something about the Brigade itself? Write a `lesson(plugin)` at handoff; the sous's handoff brings it to the head chef |
 
@@ -181,7 +181,7 @@ lines short; the journal is read by people later, not just by the next session.
       `[served] <ID> <PR url>`.
 10. Done. Tell the sous your shift is over. The sous clears this session (`kitchen.sh clear
     <station>`, once you are idle with your handoff written and nothing open); don't take a
-    second ticket on this context.
+    second ticket on this context. Until the sous says the PR has merged, stay ready: if it says the PR is behind or conflicting, bring trunk in (`git merge origin/<trunk>`), re-run the check, push, and send `[served]` again with the new head.
 
 **Being cleared mid-ticket** (e.g. while waiting for `[approved]`) is normal; that one is the head chef's, by hand, since `kitchen.sh clear` refuses an unanswered `[plan]`. When the
 sous or the head chef says so, run `/bk:handoff` first. The next session in this station

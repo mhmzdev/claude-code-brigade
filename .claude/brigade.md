@@ -29,7 +29,7 @@ gates:
     precedent: sous-chef
     hygiene: sous-chef
   pre_commit: sous-chef
-  merge: head-chef
+  merge: sous-chef
   deploy: head-chef
 clean:
   counters:
@@ -56,7 +56,8 @@ docs:
 ---
 This repo is the Brigade plugin itself, worked on by the Brigade (dogfooding). Read
 `CLAUDE.md` first: the contract in `plugins/bk/skills/README.md` is the source of truth,
-every PR bumps the version and adds a changelog entry, and `scripts/check.sh` is the gate.
+no PR bumps the version (a PR that changes more than `docs/` adds a `changelog.d/` fragment; the
+release PR from `scripts/release.sh` sets the version), and `scripts/check.sh` is the gate.
 
 The rail is the GitHub Project "Brigade: claude-code-brigade" (number 4) on the repo's
 issues. Status mapping: backlog → Backlog, todo → Todo, in-progress → In Progress,
