@@ -12,7 +12,7 @@ Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`:
 number moves for a change in how a kitchen runs, the patch number for fixes and changes
 that don't touch the plugin's behaviour. A **breaking** change is called out in bold.
 
-## [0.32.0] - 2026-11-03
+## [0.33.0] - 2026-11-03
 
 **The sous merges.** A PR that has passed the sous's pass, is green on CI, mergeable and
 up to date with trunk used to wait for you to click merge; meanwhile trunk moved and the
@@ -28,6 +28,22 @@ seeds the main checkout's `.claude/settings.local.json` with the `gh pr` allow l
 sous isn't prompted in a pane nobody watches. What you must do: nothing, unless you want to
 keep the merge: put `merge: head-chef` under `gates:` in `.claude/brigade.md`, and `ship`
 refuses. You can always hold one PR by telling the sous. Deploying stays yours.
+
+## [0.32.0] - 2026-11-03
+
+**The check runs once per tree.** A pass used to run your full check three or four times on
+a tree that had not changed (the cook after its last phase, again in review, the taster at
+the pass, again before the PR), and two of those overlapping across stations is what
+collided on a fixed port. Now there is `kitchen.sh check`: it hashes the checkout's working
+state, looks in `.claude/check.log` for a green run of the same command on that exact tree,
+and runs nothing if it finds one; otherwise it runs your `check:` command, logs the result
+and prints one line (the full output goes to `.claude/check.out`, the last 40 lines show on
+red). `--force` runs it anyway. A red run, or a run that changed its own tree, is never
+trusted. `implement`, `review-task`, `open-pr` and the taster call it, and the taster says
+whether it ran the check or trusted a record `kitchen.sh` wrote for the exact tree it reads.
+The budget and the Window's check machine read the same log, so a skipped run is never
+counted as a run; where a station has no log yet they read the runners' replies as before.
+Nothing to do: both files are new, machine-local and kept out of git. A minor: how a pass runs.
 
 ## [0.31.0] - 2026-11-03
 

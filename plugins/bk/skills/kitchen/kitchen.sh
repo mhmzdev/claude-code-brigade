@@ -55,6 +55,17 @@
 #                                         e.g. a PR body) for any test-account secret in
 #                                         .claude/brigade.local.md. Prints file:line only,
 #                                         never the value; exits 1 on a hit
+#   kitchen.sh check [--force]            the config's check command, run once per tree. It
+#                                         hashes this checkout's working state (tracked,
+#                                         deleted and untracked files, minus what git
+#                                         ignores) and looks in .claude/check.log for a
+#                                         green run of the same command on that tree: found,
+#                                         it says so and runs nothing; else it runs the
+#                                         command, appends one line to the log and prints
+#                                         green or red (the last 40 lines on red; the full
+#                                         output is in .claude/check.out). --force runs it
+#                                         anyway. Exits with the check's own code. Both
+#                                         files are kept out of git
 #   kitchen.sh remove                     delete every station (asks first)
 #   kitchen.sh role                       "cook <station> <main checkout>" when run inside
 #                                         a station, else "main <main checkout>"
@@ -259,6 +270,7 @@ SINCE="today"     # --since, for budget
 CI=false          # --ci, for budget
 JSON=false        # --json, for budget
 JOURNAL_LINE=false # --journal-line, for budget
+FORCE=false       # --force, for check
 SESSION_NAME=""   # --session, for budget --journal-line
 CLEAR_WHO=""      # station-N | sous, for clear
 SHIP_PR=""        # a PR number, for ship
@@ -290,6 +302,7 @@ while [[ $# -gt 0 ]]; do
     --ci) CI=true; shift ;;
     --json) JSON=true; shift ;;
     --journal-line) JOURNAL_LINE=true; shift ;;
+    --force) FORCE=true; shift ;;
     --session) SESSION_NAME="$2"; shift 2 ;;
     sous|station-*) CLEAR_WHO="$1"; shift ;;
     [0-9]*|'#'[0-9]*) SHIP_PR="${1#\#}"; shift ;;
@@ -529,12 +542,13 @@ busy() {
   return 1
 }
 
-# exclude_locally <path in the main checkout>: keep a machine-local file out of git
-# through .git/info/exclude, so no tracked file (like .gitignore) changes.
+# exclude_locally <path> [checkout]: keep a machine-local file out of git (in the main
+# checkout, or in the checkout given) through .git/info/exclude, so no tracked file (like
+# .gitignore) changes.
 exclude_locally() {
-  local exclude
-  git -C "$ROOT" check-ignore -q "$ROOT/$1" && return 0
-  exclude="$(git -C "$ROOT" rev-parse --path-format=absolute --git-path info/exclude)"
+  local exclude repo="${2:-$ROOT}"
+  git -C "$repo" check-ignore -q "$repo/$1" && return 0
+  exclude="$(git -C "$repo" rev-parse --path-format=absolute --git-path info/exclude)"
   mkdir -p "$(dirname "$exclude")"
   # a file that doesn't end in a newline would fuse our line onto its last one
   [[ -s "$exclude" && -n "$(tail -c1 "$exclude")" ]] && echo "" >> "$exclude"
@@ -1802,6 +1816,59 @@ cmd_debrief() {
 }
 
 # ---------------------------------------------------------------------------
+# check — the config's check command, run once per tree (#66). A pass runs the check three
+# or four times on a tree that has not changed; this records each real run in
+# <checkout>/.claude/check.log, one line: <time> tree=<hash> rc=<n> secs=<n> cmd=<id>, plus
+# " moved" when the run changed the tree it ran on. A green line for the same tree and the
+# same command is trusted and nothing runs; a red or a "moved" line never is. A skipped call
+# writes nothing, so the log counts real runs (the budget and the Window read it).
+# ---------------------------------------------------------------------------
+
+# tree_hash <dir> → a tree object id of <dir>'s working state, built in a throwaway index so
+# nothing in <dir> is touched. Tracked, deleted and untracked files count; what git ignores
+# (including .claude/check.log) does not.
+tree_hash() {
+  local dir="$1" tmp idx real rc
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/brigade-tree.XXXXXX")" || return 1
+  idx="$tmp/index"
+  real="$(git -C "$dir" rev-parse --path-format=absolute --git-path index)"
+  if [[ -f "$real" ]]; then cp "$real" "$idx"; else GIT_INDEX_FILE="$idx" git -C "$dir" read-tree HEAD 2>/dev/null || true; fi
+  GIT_INDEX_FILE="$idx" git -C "$dir" add -A >/dev/null 2>&1 && GIT_INDEX_FILE="$idx" git -C "$dir" write-tree
+  rc=$?; rm -rf "$tmp"; return $rc
+}
+
+cmd_check() {
+  local dir="$HERE" cmd cmdid log out before after start secs rc line rec
+  cmd="$(cfg check)"
+  [[ -n "$cmd" ]] || { echo "No check: command in $CONFIG." >&2; return 1; }
+  mkdir -p "$dir/.claude"; log="$dir/.claude/check.log"; out="$dir/.claude/check.out"
+  exclude_locally .claude/check.log "$dir"; exclude_locally .claude/check.out "$dir"
+  cmdid="$(printf '%s' "$cmd" | git hash-object --stdin | cut -c1-12)"
+  before="$(tree_hash "$dir")" || { echo "check: couldn't hash the tree in $dir." >&2; return 1; }
+  if ! $FORCE; then
+    rec="$(grep -E " tree=$before rc=0 secs=[0-9]+ cmd=$cmdid\$" "$log" 2>/dev/null | tail -1)"
+    if [[ -n "$rec" ]]; then
+      echo "check: green on this tree, not re-run (recorded ${rec%% *}, $(printf '%s' "$rec" | sed -E 's/.* secs=([0-9]+) .*/\1/')s)"
+      return 0
+    fi
+  fi
+  start="$(date +%s)"
+  (cd "$dir" && bash -c "$cmd") > "$out" 2>&1; rc=$?
+  secs=$(( $(date +%s) - start ))
+  after="$(tree_hash "$dir")" || after="unhashable"
+  line="$(date -u +%Y-%m-%dT%H:%M:%SZ) tree=$after rc=$rc secs=$secs cmd=$cmdid"
+  [[ "$after" == "$before" ]] || line="$line moved"
+  echo "$line" >> "$log"
+  if (( rc == 0 )); then
+    echo "check: green (ran, ${secs}s)"
+    [[ "$after" == "$before" ]] || echo "check: the run changed files in the tree, so this green is not trusted; the next call runs once more."
+  else
+    echo "check: RED (rc $rc, ${secs}s). Last lines of $out:"; tail -40 "$out"
+  fi
+  return $rc
+}
+
+# ---------------------------------------------------------------------------
 # live — the Window. One node process (plugins/bk/window/server) serving the kitchen on
 # localhost; pid and port in .claude/window.pid, output in .claude/window.log, both kept
 # out of git. `live` toggles, `live stop` closes, `live status` only looks.
@@ -1891,5 +1958,5 @@ case "$CMD" in
   files) cmd_files ;; rail) cmd_rail ;; board) cmd_board ;; leaks) cmd_leaks ;; remove) cmd_remove ;;
   role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   decisions) cmd_decisions ;; inbox) cmd_inbox ;; asks) cmd_asks ;; gaps) cmd_gaps ;; doctor) cmd_doctor ;; index) cmd_index ;;
-  sessions) cmd_sessions ;; clear) cmd_clear ;; ship) cmd_ship ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; *) usage ;;
+  sessions) cmd_sessions ;; clear) cmd_clear ;; ship) cmd_ship ;; check) cmd_check ;; live) cmd_live ;; budget) cmd_budget ;; debrief) cmd_debrief ;; *) usage ;;
 esac

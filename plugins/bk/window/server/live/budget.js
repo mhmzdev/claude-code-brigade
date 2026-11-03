@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { readCheckLog } from './checklog.js';
 
 // ---------- prices ----------
 // USD per million tokens, Anthropic list prices as of PRICES_AS_OF. `read` is a cache read;
@@ -211,6 +212,7 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
   const overrides = readPriceOverrides(root);
   const unknown = new Set();
   let sousId = null;          // the live sous's sessionId, read once per compute()
+  let stationDirs = [];       // the stations' folders, read once per compute()
 
   const sum = (turns) => {
     const u = zero(); let cost = 0, priced = true, model = null;
@@ -310,6 +312,11 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
       steps.push({ t: turns[0].t, stage: k, who: sp.cook, model: s.model, kind: 'own', note: `${turns.length} turns`, cost: s.cost, total: s.total, secs, ok: null });
     }
     for (const r of sp._runs) steps.push({ t: r.t, stage: stageAt(r.t), who: r.kind, model: r.model, kind: r.kind, note: r.note || '', cost: r.cost, total: r.total, secs: r.secs, ok: r.ok });
+    // The check's results: the station's check.log (kitchen.sh check writes a line per real run, never for a
+    // skipped one) where it has lines in this ticket's span; else the runners' replies, as before the log.
+    const dir = stationDirs.find((d) => path.basename(d) === sp.cook);
+    const log = dir ? readCheckLog(dir).filter((r) => r.at >= sp.startedAt && (!sp.servedAt || r.at <= sp.servedAt + 60000)) : [];
+    for (const r of log) steps.push({ t: r.at, stage: stageAt(r.at), who: 'check', model: null, kind: 'check', note: r.moved ? 'moved' : '', cost: 0, total: 0, secs: r.secs, ok: r.ok });
     steps.sort((a, b) => (a.t || 0) - (b.t || 0));
     for (const st of steps) { const g = stages[st.stage]; g.cost = round(g.cost + st.cost); g.total += st.total; g.secs += st.secs; g.steps++; }
     sp.stages = stages; sp.steps = steps;
@@ -321,13 +328,15 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
     const by = (k) => items.filter((a) => a.by === k).length;
     const gaps = {}; for (const a of logged) if (a.gap) gaps[a.gap] = (gaps[a.gap] || 0) + 1;
     sp.asks = { gates: items.length, answered: items.filter((a) => a.answeredAt).length, open: items.filter((a) => !a.answeredAt).length, sous: by('sous'), record: by('record'), headChef: Math.max(by('head chef'), logged.length), logged: logged.length, unanswered: logged.filter((a) => !a.answered).length, gaps, waitedSecs: items.reduce((s, a) => s + (a.secs || 0), 0), items };
-    const red = steps.find((s) => s.kind === 'runner' && s.ok === false);
+    const isRun = (s) => s.kind === (log.length ? 'check' : 'runner');
+    sp.checks = { source: log.length ? 'log' : 'runner', runs: steps.filter(isRun).length, reds: steps.filter((s) => isRun(s) && s.ok === false).length };
+    const red = steps.find((s) => isRun(s) && s.ok === false);
     if (red) {
-      const green = steps.find((s) => s.kind === 'runner' && s.ok === true && s.t > red.t);
+      const green = steps.find((s) => isRun(s) && s.ok === true && s.t > red.t);
       const after = (t) => t > red.t && (!green || t <= green.t);
       const turns = sp._turns.filter((t) => after(t.t)), runs = sp._runs.filter((r) => after(r.t));
       const s = sum(turns);
-      sp.rework = { reds: steps.filter((s) => s.kind === 'runner' && s.ok === false).length, cost: round(s.cost + runs.reduce((a, r) => a + r.cost, 0)), secs: activeSecs(turns) + runs.reduce((a, r) => a + r.secs, 0), settled: !!green };
+      sp.rework = { reds: sp.checks.reds, cost: round(s.cost + runs.reduce((a, r) => a + r.cost, 0)), secs: activeSecs(turns) + runs.reduce((a, r) => a + r.secs, 0), settled: !!green };
     } else sp.rework = null;
   };
 
@@ -344,8 +353,8 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
   // tickets to the ledger.
   let askLog = new Map();
   function compute({ since = startOfToday(), write = false } = {}) {
-    unknown.clear(); askLog = readAskLog(root); sousId = sousSessionId(root);
-    const all = kitchenTranscripts({ root, stations: stations() }).map(session);
+    unknown.clear(); askLog = readAskLog(root); sousId = sousSessionId(root); stationDirs = stations();
+    const all = kitchenTranscripts({ root, stations: stationDirs }).map(session);
     const ledger = readLedger();
     const sessions = all.filter((s) => s.lastAt && s.lastAt >= since).sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
     // Tickets: every span from every cook session (not just today's: a ticket may straddle days).
@@ -413,7 +422,7 @@ export const APPROVED_WHY = /\bwhy:\s*(feature|migration|walk-in|production writ
 export const DEBRIEF_RULES = [
   { key: 'check-red-repeat', scope: 'repo', unit: 'ticket', about: 'the check went red three times or more on one ticket',
     fix: 'a faster or narrower local check, or a pre-commit hook, so a cook sees the red before the full check runs',
-    test: (t) => { const reds = (t.steps || []).filter((s) => s.kind === 'runner' && s.ok === false).length; return reds >= 3 ? `${reds} red runs` : null; } },
+    test: (t) => { const reds = t.checks ? t.checks.reds : (t.steps || []).filter((s) => s.kind === 'runner' && s.ok === false).length; return reds >= 3 ? `${reds} red runs` : null; } },
   { key: 'rework-heavy', scope: 'repo', unit: 'ticket', about: 'more than a third of a ticket\'s spend was rework after a red check',
     fix: 'a check that runs per phase (the plan\'s "Check:" lines) or a lint the editor can run, so a mistake is caught before the full check',
     test: (t) => t.rework && t.allCost && t.rework.cost / t.allCost > 1 / 3 ? `rework ${fmtUsd(t.rework.cost)} of ${fmtUsd(t.allCost)}` : null },

@@ -32,8 +32,8 @@ skill has a bug.
 | **Line Cook** | one Claude Code session per **station** (started by `kitchen open`, or any session in a station) | works one ticket from plan to PR; sends the commis before it sends a question | edits ticket files, touches another station, empties the walk-in without asking, settles a design fork on its own |
 | **Commis** | the `commis` sub-agent, spawned by a cook or the sous before any question goes up | searches the record for a decision already made, the code for a precedent (the same kind of thing, done twice already), or a fact already written, and returns a short verdict with its sources (the junior who fetches for the line) | holds any tool that can write; decides anything |
 | **Inspector** | the `inspector` sub-agent | reads a diff and reports what shouldn't be there (the health inspector: looks, never cooks) | holds any tool that can write |
-| **Taster** | the `taster` sub-agent, spawned by the sous at the pass | reads a cook's diff, re-runs the check, walks "Done when", returns a verdict and numbered findings, so the sous doesn't read whole diffs | edits, commits, or messages anyone |
-| **Runner** | the `runner` sub-agent, anyone may spawn it | runs one noisy command (the check, a test suite, a scan) and returns only pass/fail plus the failing lines | decides anything, or edits |
+| **Taster** | the `taster` sub-agent, spawned by the sous at the pass | reads a cook's diff, runs the check (`kitchen.sh check`: once per tree, trusting a green it recorded for the exact tree it reads, and saying so), walks "Done when", returns a verdict and numbered findings, so the sous doesn't read whole diffs | edits, commits, or messages anyone |
+| **Runner** | the `runner` sub-agent, anyone may spawn it | runs one noisy command (a test suite, a scan) and returns only pass/fail plus the failing lines | decides anything, or edits |
 
 **A session inside a station is a line cook, whether or not `/bk:line-cook` was typed.**
 After a `/clear`, the next skill may run straight away: it must still
@@ -283,6 +283,7 @@ because only one session (the sous) hands them out. They are zero-padded and nev
 | The register: promoted lessons and handled decisions | `docs/lessons.md` (`docs.lessons`) | — (one row per promoted key or kept answer) |
 | Sous handoff | `.claude/sous-handoff.md`, **gitignored** | — (overwritten each handoff) |
 | Sous's session name | `.claude/sous`, kept out of git (`.git/info/exclude`) | — (written by `kitchen.sh sous --set` when the sous starts) |
+| Check log and output | `.claude/check.log`, `.claude/check.out` in each checkout, kept out of git (`.git/info/exclude`) | — (written only by `kitchen.sh check`: one log line per real run, `<time> tree=<hash> rc=<n> secs=<n> cmd=<id>`, plus ` moved` when the run changed its own tree; a green for the same tree and command is trusted, a red or a moved one never; the budget and the Window read it) |
 | Research | `docs/research/YYYY-MM-DD-<slug>.md` | — |
 | Brainstorm | `docs/brainstorm/YYYY-MM-DD-<slug>.md` | — |
 | Branch | `<lowercase id>-<slug>` e.g. `bklg-004-fix-login` | — |

@@ -8,6 +8,7 @@ import { watchStations } from './stations.js';
 import { watchRail } from './rail.js';
 import { watchRecord } from './record.js';
 import { createBudget } from './budget.js';
+import { readCheckLog } from './checklog.js';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -63,6 +64,7 @@ export function startLive(store, startDir, control = null) {
   });
   watchHandoff(cfg, store);
   watchBudget(cfg, store);
+  watchChecks(cfg, store);
   return cfg;
 }
 
@@ -77,6 +79,24 @@ function watchBudget(cfg, store, every = 10000, ciEvery = 10 * 60000) {
   const reader = fileURLToPath(new URL('./budget.js', import.meta.url));
   const ci = () => execFile('node', [reader, '--root', cfg.root, '--ci', '--json'], { encoding: 'utf8', timeout: 120000 }, () => tick());
   const c = setTimeout(() => { ci(); const i = setInterval(ci, ciEvery); i.unref?.(); }, 20000); c.unref?.();
+}
+
+// The check machine reads each station's .claude/check.log (kitchen.sh check writes a line per real
+// run). Today's lines are replayed when the Window opens, then new ones as they land; from the first
+// line the log is the machine's only source (state.check.source), so a skipped run never counts.
+export function watchChecks(cfg, store, every = 5000) {
+  const seen = new Map(); // station dir → lines already handed over
+  const since = new Date().setHours(0, 0, 0, 0);
+  const tick = () => {
+    for (const dir of cfg.stations()) {
+      const runs = readCheckLog(dir), from = seen.get(dir) ?? runs.findIndex((r) => r.at >= since);
+      const start = from < 0 ? runs.length : from;
+      for (const r of runs.slice(start)) store.checkResult({ ok: r.ok, secs: Math.max(1, r.secs), who: path.basename(dir), note: r.moved ? 'check (moved the tree)' : 'check', at: r.at }, { fromLog: true });
+      seen.set(dir, runs.length);
+    }
+  };
+  tick(); const t = setInterval(tick, every); t.unref?.();
+  return tick;
 }
 
 // When this conversation began: a /clear starts a new transcript file, so its first line's

@@ -172,7 +172,7 @@ lines short; the journal is read by people later, not just by the next session.
 6. **`/bk:review-task`**: the checklist, and `[rail] <ID> → rfr`.
 7. **`[handoff]`** to the sous: branch, files changed, `check` result, inspector result,
    checklist path. **Don't commit.** Wait.
-8. On `[findings]`: fix each numbered item, re-run `check`, hand off again.
+8. On `[findings]`: fix each numbered item, re-run `kitchen.sh check`, hand off again.
 9. On `[go]`, end of shift, in this order:
    1. **`/bk:clean around`**: old mess in the files you touched, drafted as `HYG` tickets for
       the sous (not fixed; your PR stays focused).
@@ -188,7 +188,7 @@ sous or the head chef says so, run `/bk:handoff` first. The next session in this
 reads the journal and carries on from its last handoff.
 
 **Run noisy commands through the `runner` sub-agent** (`subagent_type: "bk:runner"`) when their
-output is long: the check, a full test run, a counter. You get pass/fail and the failing lines;
+output is long: a full test run, a counter. (The check is `kitchen.sh check`: it runs once per tree and keeps its own output.) You get pass/fail and the failing lines;
 the rest stays out of your context.
 
 **Lane C (a `HYG-` ticket)** skips steps 3 and 6: the brief carries the `[approved]` line

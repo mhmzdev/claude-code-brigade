@@ -1,6 +1,6 @@
 ---
 name: open-pr
-description: Commit, bring trunk in, re-run the check, push and open (or update) the pull request for the current ticket — branch <lowercase id>-<slug>, title "[ID] summary", body Why / Change summary / Linked ticket / Test plan / Deploy prerequisites. Rescues work stranded on trunk onto a branch. Never force-pushes, never pushes to trunk. In a line-cook session it runs only after the sous chef's [go] and reports the PR URL back. Use when the user says "open a PR", "ship this", "put this up for review", "push this up", "/bk:open-pr".
+description: Commit, bring trunk in, run the check (once per tree), push and open (or update) the pull request for the current ticket — branch <lowercase id>-<slug>, title "[ID] summary", body Why / Change summary / Linked ticket / Test plan / Deploy prerequisites. Rescues work stranded on trunk onto a branch. Never force-pushes, never pushes to trunk. In a line-cook session it runs only after the sous chef's [go] and reports the PR URL back. Use when the user says "open a PR", "ship this", "put this up for review", "push this up", "/bk:open-pr".
 argument-hint: "[<ticket id> | title hint] [--base <branch>]"
 allowed-tools: Read, Grep, Glob, Bash, SendMessage, ListAgents, ToolSearch
 ---
@@ -78,8 +78,10 @@ Trunk moved while you cooked. Merge it now, so the PR is reviewed against today'
 ```bash
 git fetch origin
 git merge origin/<trunk>
-<check>
+"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" check
 ```
+
+The merge changes the tree whenever trunk moved, so the check runs; when trunk added nothing, the last green for this exact tree is reported instead.
 
 - A merge conflict in a generated `INDEX.md` (plans, journals, checklists; Contract 12) → run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" index`. It rewrites the whole table from the files now in the tree, so no row is lost and no marker is left; then `git add` the INDEX files and finish the merge (`git commit --no-edit`). Never pick a side by hand. After a clean merge, run it anyway and stage what it changed. A conflict in a hand-kept `INDEX.md` (any other folder, or one `index` calls hand-written) → keep **both** rows: `--ours`/`--theirs` deletes another station's entry.
 - Any other conflict → stop and ask (cook: `[gate]` to the sous).
