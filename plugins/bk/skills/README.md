@@ -28,7 +28,7 @@ skill has a bug.
 | Role | Who | Does | Never does |
 |---|---|---|---|
 | **Head Chef** | the human | talks to **one** session, the sous: makes the decisions nobody has made yet (new features and flows, real forks), deploys, opens the kitchen; merges only when the config keeps the merge (`gates.merge: head-chef`) | relays messages between sessions, watches the cooks' terminals, clears sessions or merges green PRs as a routine (the sous does both, by rule; `gates.merge: head-chef` keeps the merge), or answers what the record already answers |
-| **Sous Chef** | one Claude Code session in the **main checkout**, running `/bk:sous-chef` | assigns tickets, answers every gate the record or routine can settle, signs off bug, chore, precedent and hygiene plans, brings feature plans and real forks to the head chef with a recommendation and relays the answer, keeps the record (Contract 12), reviews every diff before commit, merges a PR that passed its pass and is green (`kitchen.sh ship`, Contract 5), **is the only writer of the rail** | writes code in a station, deploys, merges a PR that hasn't passed its pass or isn't green, decides a fork the record doesn't settle |
+| **Sous Chef** | one Claude Code session in the **main checkout**, running `/bk:sous-chef` | assigns tickets, answers every gate the record or routine can settle, signs off bug, chore, precedent and hygiene plans, brings feature plans and real forks to the head chef with a recommendation and relays the answer, keeps the record (Contract 12), reviews every diff before commit, merges a PR that passed its pass and is green (`kitchen.sh ship`, Contract 5), **is the only writer of the rail** (bar a cook's own claim and moves, Contract 3) | writes code in a station, deploys, merges a PR that hasn't passed its pass or isn't green, decides a fork the record doesn't settle |
 | **Line Cook** | one Claude Code session per **station** (started by `kitchen open`, or any session in a station) | works one ticket from plan to PR; sends the commis before it sends a question | edits ticket files, touches another station, empties the walk-in without asking, settles a design fork on its own |
 | **Commis** | the `commis` sub-agent, spawned by a cook or the sous before any question goes up | searches the record for a decision already made, the code for a precedent (the same kind of thing, done twice already), or a fact already written, and returns a short verdict with its sources (the junior who fetches for the line) | holds any tool that can write; decides anything |
 | **Inspector** | the `inspector` sub-agent | reads a diff and reports what shouldn't be there (the health inspector: looks, never cooks) | holds any tool that can write |
@@ -243,9 +243,23 @@ Among ready tickets the next one is picked in this order:
 
 **Two rules that keep any rail honest:**
 
-1. **Only the sous chef writes the rail.** That covers every edit to a ticket: status,
-   cook, links, *and* body edits such as a `## Decisions` section. Cooks ask by message. In
-   a solo session the human is the sous, so solo skills write the rail directly.
+1. **Only the sous chef writes the rail**, with one exception that is checked by script, not
+   trusted. That covers every edit to a ticket: status, cook, links, *and* body edits such
+   as a `## Decisions` section. Cooks ask by message. In a solo session the human is the
+   sous, so solo skills write the rail directly. The exception is the two routine writes of
+   a cook on the ticket it was briefed on: its **claim** and its **moves** (`todo` →
+   `in-progress` → `rfr`, and `rfr` → `in-progress` when the pass sends findings). Those a
+   cook makes itself with `kitchen.sh rail claim` and `kitchen.sh rail move`, because the
+   sous's `[brief]` already was the decision. The sous records the brief in the turn it
+   sends it (`kitchen.sh rail brief <ID> station-N`, kept in `.claude/briefs`, out of git); the
+   script refuses a claim or move for a ticket not briefed to that station, a claim on a
+   ticket that is not free (a claim is never overwritten), and any move a cook may not
+   make (`done`, `blocked`, `backlog`, `todo`). It writes a markdown rail as a commit built
+   on `origin/<trunk>`, never touching the main checkout, and a github rail through
+   `gh project item-edit` (the Status column, the logged-in account as assignee, a comment
+   naming the station); a jira rail, or `rail.commit: daily-pr`, stays a `[rail]` message.
+   A refusal exits 1, writes nothing and says to send the `[rail]` message. Everything else
+   (`fire`, `close`, `link`, body edits) stays the sous's.
 2. **No hand-kept summary page.** The board view is computed each time (`kitchen.sh rail`,
    or the tracker's own board). A hand-kept roll-up drifts. `kitchen.sh board` prints
    stations, files in flight, the rail, open questions and the record's counts in one go, and from the main
@@ -415,7 +429,7 @@ exceptions (the table below). One is a grilling the sous hands to a cook: the qu
 for the human, so the human answers them in that station. The other is an edit the cook's
 permissions refuse (see "a tool call the cook's permissions refuse" below): only the human
 can lift that, and only in that cook's terminal. If the human does type in a cook's terminal,
-the cook does as told and sends the sous one `[status]` line, so the sous's picture stays whole.
+the cook does as told and records it with `kitchen.sh here --note "…"` (Contract 6), so the sous's picture stays whole.
 
 **Three kinds of unknown, and only one is the head chef's.** Before any question goes up,
 whoever holds it works out which kind it is:
@@ -583,29 +597,43 @@ name; otherwise it waits for the `[hello]`.
 
 Keep messages short and typed. The first line is the kind, in brackets:
 
-| Kind | From → to | Carries |
-|---|---|---|
-| `[hello]` | sous → cook | "I'm the sous, check in": sent at start-up to cooks that were already waiting |
-| `[brief]` | sous → cook | the ticket's absolute path, why it matters, constraints from other stations, the loop. Or a **grilling brief**: the item to grill the head chef on, and where its decisions go |
-| `[check-in]` | cook → sous | station, model, branch, dirty or clean, ticket, whether the session is **fresh or spent** (spent: this conversation itself has served a ticket or held a grilling, so it needs clearing; a session just started or just cleared is fresh, whatever the station's journal or branch says), and **what it's waiting on** (a question id, the plan's sign-off, the pass, a walk-in clearance, a refused edit's lift, or nothing) |
-| `[gate]` | cook → sous | the question, the options, the cook's recommendation, and the commis's result (`commis: nothing recorded in <places>`, `commis: conflict between <a> and <b>`, `commis: blocked on <question file>`, or `commis: precedent in <paths>, but <why it doesn't settle this>`); or the refusal `edit denied: <path>, <the tool's words>` |
-| `[rail]` | cook → sous | a rail change request: `claim BKLG-004 todo`, `BKLG-004 → rfr`. Also a file for the sous to record in the main checkout, by absolute path: a spec draft, grilling decisions, a brainstorm doc |
-| `[walk-in]` | cook → sous | "about to run `<command>` on `<resource>`, OK?" |
-| `[status]` | anyone | a state change that needs no answer: "the head chef told me directly to …", "implement started (signed off)", a lane-C counter before/after |
-| `[handoff]` | cook → sous | "ready for the pass": branch, files, check result, inspector result, absolute checklist path |
-| `[findings]` | sous → cook | numbered items, each with file and why |
-| `[plan]` | cook → sous | the plan is ready for the sign-off: its absolute path, its protected paths, if any, and `changes the ticket: <n>` when its `## Decisions → Changes the ticket` is not "None". The cook waits for `[approved]` or `[findings]` |
-| `[approved]` | sous → cook | the sign-off: start `/bk:implement`. Either the sous's own, naming its rule (`[approved] <ID>: <path> · sous, per gates.plan_approval.<kind>`), or the head chef's yes in their words with the reason it was theirs (`[approved] <ID>: <path> · head chef: "<words>" · why: <feature | migration | walk-in | production write | protected path | changes the ticket | precedent fork | config | every plan>` (`precedent fork`: a precedent plan departing from its precedent; `config`: `gates.plan_approval` sends that kind to the head chef; `every plan`: they asked to see them all); the debrief's `over-ask` rule counts a head chef `[approved]` with no `why:` against the sous). A feature plan only ever gets the second |
-| `[go]` | sous → cook | commit approval after the pass |
-| `[served]` | cook → sous | the PR is open: its URL |
-| `[heard]` | anyone | acknowledgement, one line; also the sous's **answer** to a `[gate]`: its own (`[heard] Q3: <answer>, because …`, copied in as `A3 (sous)`), from the record (`[heard] Q3: <answer>, settled in <path> (<date>)`, copied in as `A3 (sous)` with the source), or relayed (`[heard] Q3: <answer> (head chef), because …`, copied in as `A3 (head chef)`, the tag the record is built from) |
+| Kind | From → to | Route | Carries |
+|---|---|---|---|
+| `[hello]` | sous → cook | cook | "I'm the sous, check in": sent at start-up to cooks that were already waiting |
+| `[brief]` | sous → cook | cook | the ticket's absolute path, why it matters, constraints from other stations, the loop. Or a **grilling brief**: the item to grill the head chef on, and where its decisions go |
+| `[check-in]` | cook → sous | **script** (`kitchen.sh here`); **sous** only when the cook is free | station, model, branch, dirty or clean, ticket, whether the session is **fresh or spent** (spent: this conversation itself has served a ticket or held a grilling, so it needs clearing; a session just started or just cleared is fresh, whatever the station's journal or branch says), and **what it's waiting on** (a question id, the plan's sign-off, the pass, a walk-in clearance, a refused edit's lift, or nothing). Mid-ticket, or after a restart, this is `kitchen.sh here`, not a message; the message is for a free cook |
+| `[gate]` | cook → sous | sous | the question, the options, the cook's recommendation, and the commis's result (`commis: nothing recorded in <places>`, `commis: conflict between <a> and <b>`, `commis: blocked on <question file>`, or `commis: precedent in <paths>, but <why it doesn't settle this>`); or the refusal `edit denied: <path>, <the tool's words>` |
+| `[rail]` | cook → sous | **script** for `claim` and `move` (`kitchen.sh rail`); **sous** for anything else | a rail change request the script cannot make: `fire`, `close`, `link`, `<ID> grilled: …` (a grilling is done), a move a cook may not make, or a `claim` / `move` the script refused (`claim BKLG-004 todo`, `BKLG-004 → rfr`; normally the cook runs `kitchen.sh rail claim` / `move` itself, Contract 3). Also a file for the sous to record in the main checkout, by absolute path: a spec draft, grilling decisions, a brainstorm doc |
+| `[walk-in]` | cook → sous | sous | "about to run `<command>` on `<resource>`, OK?" |
+| `[status]` | anyone | **script** (`kitchen.sh here --note`) | a state change that needs no answer: "the head chef told me directly to …", "implement started (signed off)", a lane-C counter before/after. A cook writes it with `kitchen.sh here --note "…"`; only the sous's own broadcast to the cooks (`[status] sous restarting`) is still a message |
+| `[handoff]` | cook → sous | sous | "ready for the pass": branch, files, check result, inspector result, absolute checklist path |
+| `[findings]` | sous → cook | cook | numbered items, each with file and why |
+| `[plan]` | cook → sous | sous | the plan is ready for the sign-off: its absolute path, its protected paths, if any, and `changes the ticket: <n>` when its `## Decisions → Changes the ticket` is not "None". The cook waits for `[approved]` or `[findings]` |
+| `[approved]` | sous → cook | cook | the sign-off: start `/bk:implement`. Either the sous's own, naming its rule (`[approved] <ID>: <path> · sous, per gates.plan_approval.<kind>`), or the head chef's yes in their words with the reason it was theirs (`[approved] <ID>: <path> · head chef: "<words>" · why: <feature | migration | walk-in | production write | protected path | changes the ticket | precedent fork | config | every plan>` (`precedent fork`: a precedent plan departing from its precedent; `config`: `gates.plan_approval` sends that kind to the head chef; `every plan`: they asked to see them all); the debrief's `over-ask` rule counts a head chef `[approved]` with no `why:` against the sous). A feature plan only ever gets the second |
+| `[go]` | sous → cook | cook | commit approval after the pass |
+| `[served]` | cook → sous | sous | the PR is open: its URL |
+| `[heard]` | anyone | cook (an answer); a cook sends none for a script kind | acknowledgement, one line; also the sous's **answer** to a `[gate]`: its own (`[heard] Q3: <answer>, because …`, copied in as `A3 (sous)`), from the record (`[heard] Q3: <answer>, settled in <path> (<date>)`, copied in as `A3 (sous)` with the source), or relayed (`[heard] Q3: <answer> (head chef), because …`, copied in as `A3 (head chef)`, the tag the record is built from) |
+
+**Route** says who is woken. A message to the sous costs the sous a whole turn, the kitchen's most
+expensive one, so a kind that needs no judgement does not go to it. The **sous** kinds are the
+ones that ask it to decide, answer or act: `[gate]`, `[plan]`, `[handoff]`, `[walk-in]`, `[served]`, a
+`[rail]` that is not a claim or move, and one `[check-in]`: a cook that is free (no ticket, a clean
+station, a fresh session) rings once, because a file cannot wake an idle sous and a free cook must
+never sit unbriefed. The **script** kinds are written to a file or the rail by `kitchen.sh` and read
+when the sous next looks: `kitchen.sh here [--fresh|--spent] [--waiting "…"] [--note "…"]` writes the
+cook's state to `<station>/.claude/here` (its branch, whether it is dirty, its ticket, fresh or spent,
+what it is waiting on, its model), and `kitchen.sh board` shows every station's line under "The
+cooks". A cook sends no `[heard]` back for a script kind, and the sous sends none to a claim or move
+it never saw. The **cook** kinds are the sous's sends to a cook. `kitchen.sh budget` counts the sous's
+turns by the kind that woke them, and the debrief's `relay-heavy` rule says when a ticket's turns
+were mostly relays, so a kind that should have been mechanical shows up.
 
 **The message is the doorbell; the journal is the letter.** Anything a cook would send that's
 longer than a line (a question with options, ticket drafts, a handoff) is written into the
 ticket's journal first, and the message points at it. The sous's answers and findings go by
 message, and the cook copies them into the journal; the sous never writes journals: `[gate] BKLG-004 Q3, see journal`. Messages vanish when
 a session is cleared; the journal doesn't. When a sous starts, its `[hello]` asks every
-cook to re-send whatever it's waiting on, so nothing sent during a restart is lost.
+cook to run `kitchen.sh here` again and to re-send a `[gate]`, `[plan]` or `[handoff]` it is waiting on, so nothing sent during a restart is lost.
 
 **Believe the cook.** When a cook says the sous's picture of its station is wrong, the cook
 is standing in the station and wins. The sous re-checks.

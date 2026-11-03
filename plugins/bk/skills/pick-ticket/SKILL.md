@@ -27,9 +27,9 @@ Someone is picking up a ticket cold. Give the context back, say whether the tick
 
 ## The one rule
 
-**Read freely. Anything that changes something outside this conversation waits for a yes in this run**, except in a line-cook session, where **the sous's brief is the yes**: nobody watches a cook's terminal for a dialog, so claim with `[rail] claim` without asking. That covers claiming, editing a ticket, closing it, commenting, and messaging another session. Propose it, show exactly what you'd write, wait.
+**Read freely. Anything that changes something outside this conversation waits for a yes in this run**, except in a line-cook session, where **the sous's brief is the yes**: nobody watches a cook's terminal for a dialog, so claim with `kitchen.sh rail claim` without asking. That covers claiming, editing a ticket, closing it, commenting, and messaging another session. Propose it, show exactly what you'd write, wait.
 
-This skill writes no file itself: a claim goes through `/bk:rail` (sous or solo) or a `[rail]` message (cook).
+This skill writes no file itself: a claim goes through `/bk:rail` (sous or solo) or `kitchen.sh rail claim` (cook; a `[rail]` message only if the script refuses).
 
 ## Step 0 — Resolve the ticket
 
@@ -137,7 +137,7 @@ Code read at `origin/<trunk>` <sha>
 
 **(b) Claim it — on a yes (solo), on the head chef's "fire it" (sous), or straight away on a brief (cook).** The claim for lane A/B is `todo` (it's set again by `create-plan`, harmlessly); for lane C it's `in-progress`, because nothing comes between picking and implementing.
 
-- **In a line-cook session:** you don't write the rail. Send the sous `[rail] claim <ID> <status> cook=<station>` and wait for `[heard]`. The sous may refuse because another station owns it — believe it and stop.
+- **In a line-cook session:** the rail's routine writes are a script, not a message (Contract 3): run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" rail claim <ID> <status>`. It checks the sous's brief and that the ticket is free, and writes the claim. If it refuses because another station owns the ticket, believe it and stop; if it says there is no brief or the rail is one it cannot write, send the sous `[rail] claim <ID> <status> cook=<station>` and wait for `[heard]`.
 - **In a sous or solo session:** run `/bk:rail claim <ID> <status> <cook>`, which does the edit and the commit per `rail.commit`.
 
 Then restate the ids for downstream: ticket `<ID>`, branch `<lowercase id>-<slug>`.
@@ -149,7 +149,7 @@ Close, body rewrite and comment offers follow the same rule: show the text, wait
 - Don't act without a yes in this run (a cook's brief counts as one).
 - Don't judge against the working tree or an open PR. Don't run `git grep` without a ref.
 - Don't claim a ticket in `todo`, `in-progress` or `rfr` that isn't yours.
-- Don't write the rail from a cook session. Ask the sous.
+- Don't write the rail from a cook session, except your own briefed ticket's claim (`kitchen.sh rail claim`). Ask the sous for the rest.
 - Don't produce a verdict without evidence; that's what `Unclear` is for.
 - Don't send a backlog item that is none of `kind: bug`, `kind: chore` or `kind: precedent` to `/bk:create-plan`, and don't claim it.
 - Don't run the next skill yourself. The human (or, in a station, the brief) fires it.

@@ -10,4 +10,5 @@
 | [62-budget-sous-role.md](62-budget-sous-role.md) | budget: every session in the main checkout is counted as the sous (role by directory, not by the recorded sous name) | #62 |
 | [63-generated-index.md](63-generated-index.md) | record: generate the INDEX.md tables from frontmatter, so concurrent tickets stop conflicting | #63 |
 | [64-record-protected-trunk.md](64-record-protected-trunk.md) | handoff / release: the record can't reach a protected trunk, and every docs-only change needs a release | #64 |
+| [65-routine-kinds-script.md](65-routine-kinds-script.md) | sous-chef / budget: routine message kinds cost a sous turn each; route them to script and measure sous turns per ticket by kind | #65 |
 | [66-check-tree-hash.md](66-check-tree-hash.md) | kitchen: the check re-runs three to four times per pass on an unchanged tree; record a tree hash with each result | #66 |

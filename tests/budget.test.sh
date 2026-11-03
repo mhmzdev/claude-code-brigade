@@ -400,5 +400,125 @@ ok "budget from a station reports the whole kitchen" has "$(cd "$APP/stations/st
 ok "without node it says what to install" has "$(PATH="$TMP/nonode" "$K" budget 2>&1)" "needs node 20"
 
 # =============================================================================
+section "ticket ids from the rail's own form (#59)"
+# A github rail: #13, branch issue-13-…; a jira rail: PROJ-7; the markdown ids still work on both.
+mkrail() { # <dir> <config body> → a kitchen with one station and its Claude project dir
+  git init -q "$1"; git -C "$1" checkout -q -b main
+  mkdir -p "$1/.claude" "$1/stations/station-1/.git"
+  printf -- '---\ntrunk: main\nkitchen_mode: clone\n%s\n---\n' "$2" > "$1/.claude/brigade.md"
+  git -C "$1" add -A; git -C "$1" commit -qm init
+  mkdir -p "$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$1/stations/station-1" && pwd -P)")"
+}
+APPG="$TMP/appg"; APPJ="$TMP/appj"
+mkrail "$APPG" 'rail:
+  adapter: github'
+mkrail "$APPJ" 'rail:
+  adapter: jira'
+mkdir -p "$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APPG" && pwd -P)")"
+node - "$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APPG/stations/station-1" && pwd -P)")" "$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APPJ/stations/station-1" && pwd -P)")" "$CLAUDE_CONFIG_DIR/projects/$(slug "$(cd "$APPG" && pwd -P)")" <<'EOF'
+const fs = require('fs'), path = require('path');
+const [gdir, jdir, sdir] = process.argv.slice(2);
+const d = new Date(); d.setHours(9, 0, 0, 0); const T0 = d.getTime();
+const at = (min) => new Date(T0 + min * 60000).toISOString();
+let n = 0;
+const usage = (u) => ({ input_tokens: u.in || 0, output_tokens: u.out || 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 });
+const asst = (min, u, content) => ({ type: 'assistant', timestamp: at(min), message: { id: `g_${++n}`, model: 'claude-opus-5-5', usage: usage(u), content } });
+const peer = (min, text, from = 'app-sous') => ({ type: 'user', timestamp: at(min), isMeta: true, message: { role: 'user', content: [{ type: 'text', text: `Another Claude session sent a message:\n<cross-session-message from="uds:/tmp/x.sock" from-name="${from}" from-mode="prompting">\n${text}` }] } });
+const typed = (min, text) => ({ type: 'user', timestamp: at(min), message: { role: 'user', content: text } });
+const send = (message) => ({ type: 'tool_use', id: `tu_${++n}`, name: 'SendMessage', input: { to: 'sous', message } });
+const write = (file, lines) => fs.writeFileSync(file, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+// #13 is briefed, planned, served; #14 is named only inside a URL and a word (no ticket); BKLG-005 is a markdown id on a github rail.
+write(path.join(gdir, 'g1.jsonl'), [
+  peer(0, '[brief] #13 Fix the thing. Bug: I sign the plan. See https://example.test/issues/14 and utf-8.'),
+  asst(1, { out: 1000 }, [send('[plan] #13 ready: /x/docs/plans/gh-13-fix.md')]),
+  peer(2, '[approved] #13: /x/docs/plans/gh-13-fix.md · sous, per gates.plan_approval.bug'),
+  asst(3, { out: 1000 }, [send('[handoff] #13 ready for the pass')]),
+  peer(4, '[go] commit and open the PR'),
+  asst(5, { out: 1000 }, [send('[served] #13 https://example.test/pull/9')]),
+  peer(6, '[findings] #13 main moved: bring it in'),
+  asst(7, { out: 100 }, [send('[served] #13 https://example.test/pull/9')]),
+]);
+// A cook that opens with a stray mention of an earlier ticket and a PR number, then is briefed on #15.
+write(path.join(gdir, 'g3.jsonl'), [
+  asst(19, { out: 100 }, [send('[check-in] station-2, fresh; the last PR #76 was merged')]),
+  peer(20, '[brief] #15 A new thing.'),
+  asst(21, { out: 2000 }, [send('[plan] #15 ready: /x/docs/plans/gh-15.md')]),
+]);
+// A stray mention of another ticket before the brief: the brief still starts its own ticket.
+write(path.join(gdir, 'g4.jsonl'), [
+  asst(29, { out: 100 }, [send('[check-in] station-2, fresh; my last ticket was #12')]),
+  peer(30, '[brief] #16 Another new thing.'),
+  asst(31, { out: 2000 }, [send('[plan] #16 ready: /x/docs/plans/gh-16.md')]),
+]);
+// Served once, then the pass comes back (findings) with no second [served] yet: still a round.
+write(path.join(gdir, 'g5.jsonl'), [
+  peer(40, '[brief] #17 A last thing.'),
+  asst(41, { out: 100 }, [send('[served] #17 https://example.test/pull/11')]),
+  peer(42, '[findings] #17 main moved: bring it in'),
+]);
+write(path.join(gdir, 'g2.jsonl'), [
+  peer(10, '[brief] BKLG-005 A markdown id on a github rail.'),
+  asst(11, { out: 500 }, [send('[served] BKLG-005 https://example.test/pull/10')]),
+  asst(12, { out: 100 }, [send('[served] BKLG-005 https://example.test/pull/10')]),
+  asst(13, { out: 100 }, [send('[served] BKLG-005 https://example.test/pull/10')]),
+]);
+// The sous: every turn is woken by something. #13 gets a mix of kinds (5 of 11 turns are relays); #15 only relays
+// (8 of 9); #16 seven relays (below the floor of eight turns). A turn nobody named a ticket for is not counted.
+const cook1 = 'app-cook-1', cook2 = 'app-cook-2';
+const sturns = (start, n, text = 'ok') => Array.from({ length: n }, (_, i) => asst(start + i * 0.01, { out: 10 }, [{ type: 'text', text }]));
+write(path.join(sdir, 'sous.jsonl'), [
+  asst(-1, { out: 10 }, [send('[brief] #13 Fix the thing.')]),
+  typed(0, 'run the kitchen'), ...sturns(0.1, 1),
+  peer(1, '[check-in] station-1 mid-ticket on #13', cook1), ...sturns(1.1, 1),
+  peer(2, '[rail] claim #13 todo cook=station-1', cook1), ...sturns(2.1, 2),
+  peer(3, '[status] implement started', cook1), ...sturns(3.1, 1),
+  peer(4, '[heard] ok', cook1), ...sturns(4.1, 1),
+  peer(5, '[gate] #13 Q1, see journal. commis: nothing', cook1), ...sturns(5.1, 2),
+  peer(6.5, '[plan] #13 ready: /x', cook1), ...sturns(6.6, 1),
+  peer(7.5, '[handoff] #13 ready for the pass', cook1), ...sturns(7.6, 2),
+  peer(8.5, '[served] #13 https://example.test/pull/9', cook1), ...sturns(8.6, 1),
+  peer(20, '[rail] claim #15 todo cook=station-2', cook2), ...sturns(20.1, 4),
+  peer(21, '[check-in] station-2 on #15', cook2), ...sturns(21.1, 4),
+  peer(22, '[gate] #15 Q1, see journal. commis: nothing', cook2), ...sturns(22.1, 1),
+  peer(30, '[rail] claim #16 todo cook=station-1', cook1), ...sturns(30.1, 4),
+  peer(31, '[status] plan written', cook1), ...sturns(31.1, 3),
+]);
+write(path.join(jdir, 'j1.jsonl'), [
+  peer(0, '[brief] PROJ-7 Fix the thing.'),
+  asst(1, { out: 1000 }, [send('[plan] PROJ-7 ready: /x/docs/plans/proj-7-fix.md')]),
+  asst(2, { out: 1000 }, [send('[served] PROJ-7 https://example.test/pull/3')]),
+]);
+EOF
+GJ="$(cd "$APPG" && "$K" budget --json)"
+ok "a github rail attributes spend to #13, and a PR number in a check-in is not a ticket" [ "$(field "$GJ" 'b.tickets.map(t=>t.id).sort().join(",")')" = "#12,#13,#15,#16,#17,BKLG-005" ]
+ok "a brief starts its own ticket even after a stray mention of another" [ "$(field "$GJ" 'b.tickets.find(t=>t.id==="#16").tokens.out')" = 2000 ]
+ok "…as a served ticket with its phases" [ "$(field "$GJ" 'b.tickets.find(t=>t.id==="#13").status + "," + (b.tickets.find(t=>t.id==="#13").phases.plan != null)')" = "served,true" ]
+ok "a number inside a URL, and a word like utf-8, name no ticket" [ "$(field "$GJ" 'b.tickets.length')" = 6 ]
+ok "--ticket 13 shows that ticket's spend" has "$(cd "$APPG" && "$K" budget --ticket 13)" "^#13 +served"
+ok "--ticket '#13' shows the same" has "$(cd "$APPG" && "$K" budget --ticket '#13')" "^#13 +served"
+ok "the ticket list names it" has "$(cd "$APPG" && "$K" budget)" "#13 +station-1 +served"
+ok "a jira rail reads PROJ-7" [ "$(field "$(cd "$APPJ" && "$K" budget --json)" 'b.tickets.map(t=>t.id).join(",")')" = "PROJ-7" ]
+ok "…and --ticket proj-7 finds it" has "$(cd "$APPJ" && "$K" budget --ticket proj-7)" "^PROJ-7 +served"
+ok "a markdown rail still ignores #13 and PROJ-7" [ "$(field "$(cd "$APP" && "$K" budget --json)" 'b.tickets.filter(t=>t.id==="#13"||t.id==="PROJ-7").length')" = 0 ]
+ok "the journal line works for a github ticket" has "$(cd "$APPG" && "$K" budget --ticket 13 --journal-line --session app-cook-1)" "app-cook-1 · cost:"
+# the sous's turns by the kind of message that woke them
+S13="$(cd "$APPG" && "$K" budget --ticket 13 --json)"
+ok "the sous's turns on #13, by kind" [ "$(field "$S13" 'JSON.stringify(b.sousTurns)')" = '{"total":11,"byKind":{"check-in":1,"rail":2,"status":1,"heard":1,"gate":2,"plan":1,"handoff":2,"served":1},"routine":5}' ]
+ok "a status with no id belongs to the ticket its sender named last" [ "$(field "$(cd "$APPG" && "$K" budget --ticket 16 --json)" 'b.sousTurns.byKind.status')" = 3 ]
+ok "a turn woken by the head chef typing counts for no ticket" [ "$(field "$GJ" 'b.tickets.reduce((a,t)=>a+(t.sousTurns?t.sousTurns.total:0),0)')" = "$((11 + 9 + 7))" ]
+OUT="$(cd "$APPG" && "$K" budget --ticket 13)"
+ok "the ticket report prints them" has "$OUT" "sous turns  11 \\(.*rail 2.*\\) · 5 relays"
+ok "…and the rounds after the first [served]" has "$OUT" "1 round after the first \\[served\\]"
+ok "the ledger row carries them" has "$(cat "$APPG/.claude/budget.jsonl")" '"sousTurns":\{"total":11'
+DB="$(cd "$APPG" && "$K" debrief --json)"
+ok "relay-heavy trips on the ticket whose sous turns were mostly relays" [ "$(field "$DB" 'b.find(r=>r.key==="relay-heavy").hits.map(h=>h.id).join(",")')" = "#15" ]
+ok "…not on seven relays (under the floor), nor on a mixed ticket" [ "$(field "$DB" 'b.find(r=>r.key==="relay-heavy").count')" = 1 ]
+ok "ship-rounds is DUE on two tickets pushed again after the first [served]" [ "$(field "$DB" 'b.find(r=>r.key==="ship-rounds").hits.map(h=>h.id).sort().join(",") + "," + b.find(r=>r.key==="ship-rounds").status')" = "#13,#17,BKLG-005,DUE" ]
+ok "…and says what the fix is" has "$(cd "$APPG" && "$K" debrief)" "assign the version at merge"
+ok "the existing markdown fixtures trip neither rule" [ "$(field "$("$K" debrief --json)" 'b.filter(r=>r.key==="relay-heavy"||r.key==="ship-rounds").length')" = 0 ]
+# the Window's branch reader
+ok "issue-13-fix reads as #13 on github" [ "$(node --input-type=module -e "import { idOfBranch } from '$REPO/plugins/bk/window/server/live/ticket-id.js'; console.log([idOfBranch('issue-13-fix','github'), idOfBranch('issue-13-fix','markdown'), idOfBranch('bklg-004-x','github'), idOfBranch('proj-7-x','jira'), idOfBranch(null,'github')].join('|'))")" = "#13||BKLG-004|PROJ-7|" ]
+
+# =============================================================================
 echo "# passed $PASS · failed $FAIL · total $N"
 [[ $FAIL -eq 0 ]]

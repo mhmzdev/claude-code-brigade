@@ -12,6 +12,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readCheckLog } from './checklog.js';
+import { idOf, canon } from './ticket-id.js';
 
 // ---------- prices ----------
 // USD per million tokens, Anthropic list prices as of PRICES_AS_OF. `read` is a cache read;
@@ -70,7 +71,7 @@ export function readCaps(root) {
 }
 
 // ---------- reading one transcript ----------
-const TICKET = /\b(S\d{3}-\d{2}|BKLG-\d{3}|HYG-\d{3})\b/i;
+// Ticket ids are read in the rail's own form (live/ticket-id.js), the adapter coming from the config.
 const KIND = /^\s*\[([a-z-]+)\]/i;
 const zero = () => ({ in: 0, out: 0, read: 0, w5: 0, w1: 0 });
 const add = (a, b) => { a.in += b.in; a.out += b.out; a.read += b.read; a.w5 += b.w5; a.w1 += b.w1; return a; };
@@ -87,10 +88,10 @@ function usageOf(msg) {
 // Reads a transcript incrementally. `st` is the per-file state kept between calls (offset,
 // the partial last line, the turns seen so far). One API turn is written as several lines
 // that share message.id, each carrying the whole turn's usage, so it is counted once.
-export function scanTranscript(file, st = null) {
-  st ||= { offset: 0, rest: '', byId: new Map(), turns: [], marks: [], agents: new Map(), pendingAgents: new Map(), first: null, last: null, size: 0, lastText: '' };
+export function scanTranscript(file, st = null, adapter = 'markdown') {
+  st ||= { adapter, offset: 0, rest: '', byId: new Map(), turns: [], marks: [], wakes: [], agents: new Map(), pendingAgents: new Map(), first: null, last: null, size: 0, lastText: '' };
   let size; try { size = fs.statSync(file).size; } catch { return st; }
-  if (size < st.offset) Object.assign(st, { offset: 0, rest: '', byId: new Map(), turns: [], marks: [], first: null, last: null });
+  if (size < st.offset) Object.assign(st, { offset: 0, rest: '', byId: new Map(), turns: [], marks: [], wakes: [], first: null, last: null });
   if (size === st.offset) return st;
   const fd = fs.openSync(file, 'r');
   let text;
@@ -114,22 +115,44 @@ export function scanTranscript(file, st = null) {
         if (b.type !== 'tool_use') continue;
         const inp = b.input || {};
         if (b.name === 'Agent') st.pendingAgents.set(b.id, { kind: String(inp.subagent_type || 'agent').replace(/^bk:/, ''), note: `${inp.description || ''} ${inp.prompt || ''}` });
-        else if (b.name === 'SendMessage') { const text = String(inp.message || inp.content || inp.summary || ''); st.marks.push({ t, dir: 'out', kind: (text.match(KIND) || [])[1] || 'note', ticket: (text.match(TICKET) || [])[1]?.toUpperCase() || null, text: text.slice(0, 400) }); }
+        else if (b.name === 'SendMessage') { const text = String(inp.message || inp.content || inp.summary || ''); st.marks.push({ t, dir: 'out', kind: (text.match(KIND) || [])[1] || 'note', ticket: idOf(text, st.adapter), text: text.slice(0, 400) }); }
       }
     } else {
       for (const b of content) {
         if (b.type !== 'tool_result') continue;
         const a = st.pendingAgents.get(b.tool_use_id);
-        if (a) { st.pendingAgents.delete(b.tool_use_id); const agentId = o.toolUseResult?.agentId; if (agentId) st.agents.set(agentId, { ...a, ticket: (a.note.match(TICKET) || [])[1]?.toUpperCase() || null }); }
+        if (a) { st.pendingAgents.delete(b.tool_use_id); const agentId = o.toolUseResult?.agentId; if (agentId) st.agents.set(agentId, { ...a, ticket: idOf(a.note, st.adapter) }); }
       }
       // Text the session was sent: the head chef's prompt, or a message from another session.
       // A message from another session arrives wrapped: "Another Claude session sent a message:\n<cross-session-message …>\n[kind] …".
       const raw = typeof msg.content === 'string' ? msg.content : content.filter((b) => b.type === 'text').map((b) => b.text).join(' ');
       const typed = raw.replace(/^[^<]*<cross-session-message[^>]*>\s*/, '');
-      if (typed && !content.some((b) => b.type === 'tool_result')) { const k = (typed.match(KIND) || [])[1]; if (k) st.marks.push({ t, dir: 'in', kind: k, ticket: (typed.match(TICKET) || [])[1]?.toUpperCase() || null, text: typed.slice(0, 400) }); }
+      if (typed && !content.some((b) => b.type === 'tool_result')) {
+        const k = (typed.match(KIND) || [])[1], from = (raw.match(/<cross-session-message[^>]*\bfrom-name="([^"]*)"/) || [])[1] || null;
+        st.wakes.push({ t, kind: k ? k.toLowerCase() : 'other', ticket: idOf(typed, st.adapter), from });   // what woke this session, for the sous's turns by kind
+        if (k) st.marks.push({ t, dir: 'in', kind: k, ticket: idOf(typed, st.adapter), text: typed.slice(0, 400), from }); }
     }
   }
   return st;
+}
+
+// ---------- the sous's turns, by what woke them ----------
+// Every message a cook sends wakes the sous for a turn. A sous turn belongs to the latest input it
+// was sent before it (a message of kind K, or something typed: 'other'); that input's ticket is the id
+// in its text, else the last ticket the same sender named. Returns ticket → { total, byKind, routine },
+// where routine counts the kinds that need no judgement (Contract 6: they are meant to go to script).
+export const ROUTINE = new Set(['heard', 'status', 'check-in', 'rail']);
+export function sousTurnsOf(turns, wakes) {
+  const out = new Map(), ws = [...wakes].sort((a, b) => (a.t || 0) - (b.t || 0)), last = {};
+  let i = 0, cur = null;
+  for (const turn of [...turns].sort((a, b) => (a.t || 0) - (b.t || 0))) {
+    while (i < ws.length && (ws[i].t || 0) <= (turn.t || 0)) { cur = ws[i++]; if (cur.ticket && cur.from) last[cur.from] = cur.ticket; }
+    const ticket = cur && (cur.ticket || (cur.from && last[cur.from]));
+    if (!ticket) continue;
+    const x = out.get(ticket) || out.set(ticket, { total: 0, byKind: {}, routine: 0 }).get(ticket);
+    x.total++; x.byKind[cur.kind] = (x.byKind[cur.kind] || 0) + 1; if (ROUTINE.has(cur.kind)) x.routine++;
+  }
+  return out;
 }
 
 // ---------- asks ----------
@@ -207,7 +230,7 @@ const IDLE_GAP = 5 * 60 * 1000; // a gap longer than this is the session waiting
 export const CONTEXT_LINE = 150000; // cache-read tokens per turn above which a session is carrying too much
 const PHASES = [['plan', 'brief', 'plan'], ['wait', 'plan', 'approved'], ['build', 'approved', 'handoff'], ['pass', 'handoff', 'go'], ['ship', 'go', 'served']];
 
-export function createBudget({ root, stations = () => [], ledgerFile = path.join(root, '.claude', 'budget.jsonl'), now = Date.now } = {}) {
+export function createBudget({ root, stations = () => [], adapter = 'markdown', ledgerFile = path.join(root, '.claude', 'budget.jsonl'), now = Date.now } = {}) {
   const states = new Map();   // file → scan state
   const overrides = readPriceOverrides(root);
   const unknown = new Set();
@@ -223,7 +246,7 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
 
   // One session: its own turns, its sub-agents (each priced on its own model), its ticket spans.
   function session({ file, dir, role, sessionId }) {
-    const st = scanTranscript(file, states.get(file)); states.set(file, st);
+    const st = scanTranscript(file, states.get(file), adapter); states.set(file, st);
     if (role === 'main') role = sessionId === sousId || st.marks.some((m) => m.dir === 'out' && SOUS_ONLY.has(m.kind)) ? 'sous' : HEAD_CHEF;
     const own = sum(st.turns);
     const helpers = {};
@@ -231,7 +254,7 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
     const agentRuns = [];
     for (const f of agentFiles) {
       const af = path.join(dir, sessionId, 'subagents', f);
-      const as = scanTranscript(af, states.get(af)); states.set(af, as);
+      const as = scanTranscript(af, states.get(af), adapter); states.set(af, as);
       const meta = st.agents.get(f.replace(/^agent-|\.jsonl$/g, '')) || { kind: 'agent', ticket: null };
       const s = sum(as.turns);
       const run = { kind: meta.kind, ticket: meta.ticket, t: as.first, secs: as.first && as.last ? Math.round((as.last - as.first) / 1000) : 0, note: String(meta.note || '').trim().split(/\s+do\s+/)[0].slice(0, 80), ok: meta.kind === 'runner' ? verdict(as.lastText) : null, ...s };
@@ -246,7 +269,7 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
       helpers, helperCost: round(helperCost), helperTotal, allCost: round(own.cost + helperCost), allTotal: own.total + helperTotal,
       secs: st.first && st.last ? Math.round((st.last - st.first) / 1000) : 0, activeSecs: activeSecs(st.turns),
       context: contextOf(st.turns),
-      _turns: st.turns, _marks: st.marks, _agents: agentRuns,
+      _turns: st.turns, _marks: st.marks, _wakes: st.wakes, _agents: agentRuns,
     };
   }
 
@@ -254,17 +277,19 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
   // last ten turns' average, and how many turns sat above the line a session should have been cleared at.
   const contextOf = (turns) => { const last = turns.slice(-10); const avg = last.length ? Math.round(last.reduce((a, t) => a + t.u.read, 0) / last.length) : 0; return { lastRead: avg, over: turns.filter((t) => t.u.read > CONTEXT_LINE).length, turns: turns.length }; };
   // A cook's ticket spans: from the brief (or the first message naming the ticket) to [served].
+  // A brief is the ticket's start, whatever an earlier stray mention in the conversation named.
   function spans(s) {
     const out = []; let cur = null;
     const marks = [...s._marks].sort((a, b) => (a.t || 0) - (b.t || 0));
     for (const m of marks) {
-      if (m.ticket && (!cur || (cur.id !== m.ticket && cur.servedAt))) { cur = { id: m.ticket, cook: s.role, session: s.id, from: m.t, servedAt: null, marks: {}, _asks: [] }; out.push(cur); }
+      if (m.ticket && (!cur || (cur.id !== m.ticket && (cur.servedAt || (m.kind === 'brief' && m.dir === 'in'))))) { cur = { id: m.ticket, cook: s.role, session: s.id, from: m.t, servedAt: null, served: 0, findingsAfterServed: 0, marks: {}, _asks: [] }; out.push(cur); }
       if (!cur) continue;
       if (m.kind === 'brief' && m.dir === 'in' && (!m.ticket || m.ticket === cur.id)) cur.marks.brief ||= m.t;
       if (['plan', 'handoff', 'served'].includes(m.kind) && m.dir === 'out') cur.marks[m.kind] ||= m.t;
       if (['approved', 'go'].includes(m.kind) && m.dir === 'in') cur.marks[m.kind] ||= m.t;
       if (m.kind === 'approved' && m.dir === 'in') cur.approvedText ||= m.text;   // who signed, and why it was theirs (the over-ask rule)
-      if (m.kind === 'served' && m.dir === 'out') cur.servedAt = m.t;
+      if (m.kind === 'served' && m.dir === 'out') { cur.servedAt = m.t; cur.served++; }
+      if (m.kind === 'findings' && m.dir === 'in' && cur.servedAt) cur.findingsAfterServed++;   // the pass again after the PR is up: a round
       if (m.kind === 'gate' && m.dir === 'out') cur._asks.push({ t: m.t, q: (m.text.match(/\bQ\d+\b/) || [])[0] || null, commis: commisOf(m.text), text: m.text.replace(/^\[gate\]\s*/i, '').slice(0, 160), answeredAt: null, by: null, secs: null });
       if (m.kind === 'heard' && m.dir === 'in') {
         const open = cur._asks.filter((a) => !a.answeredAt);
@@ -289,7 +314,7 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
   const merge = (a, b) => {
     const [x, y] = (a.startedAt || 0) <= (b.startedAt || 0) ? [a, b] : [b, a];
     const marks = { ...y.marks, ...x.marks }; if (y.marks.served) marks.served = y.marks.served;
-    const m = { ...x, marks, approvedText: x.approvedText || y.approvedText || null, session: y.session, servedAt: y.servedAt || x.servedAt, status: y.servedAt || x.servedAt ? 'served' : 'open', tokens: add(zero(), x.tokens), total: x.total + y.total, cost: round(x.cost + y.cost), _runs: [...x._runs, ...y._runs], _turns: [...x._turns, ...y._turns], _asks: [...(x._asks || []), ...(y._asks || [])], model: y.model || x.model };
+    const m = { ...x, marks, approvedText: x.approvedText || y.approvedText || null, session: y.session, servedAt: y.servedAt || x.servedAt, served: (x.served || 0) + (y.served || 0), findingsAfterServed: (x.findingsAfterServed || 0) + (y.findingsAfterServed || 0), status: y.servedAt || x.servedAt ? 'served' : 'open', tokens: add(zero(), x.tokens), total: x.total + y.total, cost: round(x.cost + y.cost), _runs: [...x._runs, ...y._runs], _turns: [...x._turns, ...y._turns], _asks: [...(x._asks || []), ...(y._asks || [])], model: y.model || x.model };
     add(m.tokens, y.tokens);
     m.secs = Math.max(0, Math.round(((m.servedAt || now()) - m.startedAt) / 1000));
     m.phases = Object.fromEntries(PHASES.map(([name, p, q]) => [name, marks[p] && marks[q] ? Math.max(0, Math.round((marks[q] - marks[p]) / 1000)) : null]));
@@ -363,6 +388,12 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
     for (const s of all) if (s.role !== 'sous' && s.role !== HEAD_CHEF) for (const sp of spans(s)) { const prev = byId.get(sp.id); byId.set(sp.id, prev ? merge(prev, sp) : sp); }
     // The sous's helpers that name a ticket (the taster at the pass) are that ticket's.
     for (const s of all) if (s.role === 'sous') for (const a of s._agents) { const sp = a.ticket && byId.get(a.ticket); if (sp && a.t >= sp.startedAt && (!sp.servedAt || a.t <= sp.servedAt + 60000)) { sp._runs.push(a); finish(sp); } }
+    // The sous's turns on each ticket, by the kind of message that woke them.
+    for (const s of all) if (s.role === 'sous') for (const [id, x] of sousTurnsOf(s._turns, s._wakes)) {
+      const sp = byId.get(id); if (!sp) continue;
+      const have = sp.sousTurns || (sp.sousTurns = { total: 0, byKind: {}, routine: 0 });
+      have.total += x.total; have.routine += x.routine; for (const [k, n] of Object.entries(x.byKind)) have.byKind[k] = (have.byKind[k] || 0) + n;
+    }
     for (const [id, o] of ledger.tickets) if (!byId.has(id)) byId.set(id, { ...o, fromLedger: true });
     for (const [id, c] of ledger.ci) { const sp = byId.get(id); if (sp) sp.ci = { minutes: c.minutes, cost: c.cost, runs: c.runs, branch: c.branch, at: c.t, public: c.public }; }
     if (write) for (const sp of byId.values()) if (sp.status === 'served' && !sp.fromLedger && !ledger.tickets.has(sp.id)) append({ kind: 'ticket', t: sp.servedAt, ...strip(sp) });
@@ -381,7 +412,7 @@ export function createBudget({ root, stations = () => [], ledgerFile = path.join
     const headChef = { sessions: chef.length, cost: round(chef.reduce((a, s) => a + s.allCost, 0)), total: chef.reduce((a, s) => a + s.allTotal, 0), activeSecs: chef.reduce((a, s) => a + s.activeSecs, 0) };
     return { asOf: PRICES_AS_OF, since, computedAt: now(), shift, headChef, sessions: sessions.map(pub), tickets, actors, unknownModels: [...unknown], windows, caps: readCaps(root) };
   }
-  const pub = (s) => { const { _turns, _marks, _agents, file, ...rest } = s; return rest; };
+  const pub = (s) => { const { _turns, _marks, _wakes, _agents, file, ...rest } = s; return rest; };
   const strip = (sp) => { const { marks, fromLedger, _runs, _turns, _asks, ...rest } = sp; return rest; };
 
   // CI minutes for one ticket's branch, through gh; written to the ledger. Returns the record or null.
@@ -435,6 +466,12 @@ export const DEBRIEF_RULES = [
   { key: 'over-ask', scope: 'plugin', unit: 'ticket', about: 'the head chef signed a plan with no reason that made it theirs (Contract 5: a feature, a migration, a walk-in resource, a production write, a protected path, or a change to the ticket)',
     fix: 'the sous signs that kind itself and tells the head chef in one line; only a line that changes the ticket goes up, alone, with a recommendation',
     test: (t) => { const a = t.approvedText || ''; if (!/head chef/i.test(a)) return null; return APPROVED_WHY.test(a) ? null : 'a head chef [approved] with no why:'; } },
+  { key: 'relay-heavy', scope: 'plugin', unit: 'ticket', about: 'more than half the sous\'s turns on a ticket were relays ([heard], [status], [check-in], [rail]), from eight turns up',
+    fix: 'make the kind mechanical: a station status file for [status] and [check-in] (kitchen.sh here), kitchen.sh rail claim and move for the rail',
+    test: (t) => { const s = t.sousTurns; return s && s.total >= 8 && s.routine / s.total > 0.5 ? `${s.routine} of ${s.total} sous turns were relays` : null; } },
+  { key: 'ship-rounds', scope: 'plugin', unit: 'ticket', about: 'a ticket was pushed again after its first [served] (trunk moved under it, or the pass came back)',
+    fix: 'merge sooner, and assign the version at merge (a changelog fragment) so a moved main does not cost a round',
+    test: (t) => { const n = Math.max(t.findingsAfterServed || 0, (t.served || 0) - 1); return n >= 1 ? `${n} round${n > 1 ? 's' : ''} after the first [served]` : null; } },
   { key: 'context-bloat', scope: 'plugin', unit: 'session', about: `a session's last turns averaged more than ${CONTEXT_LINE / 1000}k cache-read tokens each`,
     fix: 'hand off and clear sooner: the sous after about three passes, a cook between the plan and implement when the plan took long',
     test: (s) => s.context && s.context.lastRead > CONTEXT_LINE ? `${fmtTokens(s.context.lastRead)} per turn over the last ${Math.min(10, s.context.turns)}, ${s.context.over} turns over the line` : null },
@@ -484,6 +521,14 @@ export function journalLine(t, session = '') {
   const ph = Object.entries(t.phases || {}).filter(([, v]) => v != null).map(([k, v]) => `${k} ${fmtSecs(v)}`).join(', ');
   return `- ${when} · ${session || t.session || t.cook} · cost: ${fmtUsd(t.allCost ?? t.cost)} · ${fmtTokens(t.total)} tokens (in ${fmtTokens(u.in)}, out ${fmtTokens(u.out)}, cache read ${fmtTokens(u.read)}, cache write ${fmtTokens(u.w5 + u.w1)}) · ${t.status === 'served' ? 'brief→served' : 'brief→PR'} ${fmtSecs(t.secs)}${ph ? ` (${ph})` : ''} · helpers: ${helpersLine(t.helpers)}${t.ci ? ` · CI ${t.ci.minutes} min (${fmtUsd(t.ci.cost)})` : ''} · ${asksLine(t.asks)}`;
 }
+// "sous turns  14 (gate 4, rail 3, …), 9 relays", or "sous turns  none".
+export const sousLine = (x, t = {}) => {
+  const rounds = Math.max(t.findingsAfterServed || 0, (t.served || 0) - 1);
+  const tail = rounds ? ` · ${rounds} round${rounds > 1 ? 's' : ''} after the first [served]` : '';
+  if (!x || !x.total) return `sous turns  none${tail}`;
+  const kinds = Object.entries(x.byKind).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ');
+  return `sous turns  ${x.total} (${kinds}) · ${x.routine} relay${x.routine === 1 ? '' : 's'}${tail}`;
+};
 // "asks: 2 (1 to the head chef, waited 3m)", or "asks: none". The gaps come from the ask log.
 export const asksLine = (a) => {
   if (!a || (!a.gates && !a.logged)) return 'asks: none';
@@ -510,6 +555,7 @@ export function report(b, { ticket = null } = {}) {
     lines.push(`  helpers   ${helpersLine(t.helpers)}`);
     lines.push(`  CI        ${t.ci ? `${t.ci.minutes} min over ${t.ci.runs} runs on ${t.ci.branch} (${t.ci.public ? 'public repo, free' : fmtUsd(t.ci.cost)})` : 'not fetched (kitchen.sh budget --ci)'}`);
     lines.push(`  ${asksLine(t.asks).replace(/^asks: /, 'asks      ')}`);
+    lines.push(`  ${sousLine(t.sousTurns, t)}`);
     for (const a of t.asks?.items || []) lines.push(`    ${hhmm(a.t)} ${a.q || '-'} ${a.answeredAt ? `→ ${a.by}, ${fmtSecs(a.secs)}` : '→ unanswered'}${a.commis ? ` · commis: ${a.commis}` : ''} · ${a.text}`);
     return lines.join('\n');
   }
@@ -541,8 +587,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const cfg = readConfig(path.resolve(flag('--root', process.cwd())));
   const sinceArg = flag('--since', 'today');
   const since = sinceArg === '7d' || sinceArg === 'week' ? Date.now() - 7 * 86400000 : startOfToday();
-  const budget = createBudget({ root: cfg.root, stations: cfg.stations });
-  const ticket = flag('--ticket', null);
+  const budget = createBudget({ root: cfg.root, stations: cfg.stations, adapter: cfg.railAdapter });
+  const ticket = flag('--ticket', null) && canon(flag('--ticket', null), cfg.railAdapter);
   if (args.includes('--ci')) {
     const b0 = budget.compute({ since: ticket ? 0 : since, write: true });
     const ids = ticket ? [ticket.toUpperCase()] : b0.tickets.map((t) => t.id);

@@ -2,9 +2,9 @@
 // branch name carries. Cheap, serialized, every few seconds.
 import { execFile } from 'node:child_process';
 import path from 'node:path';
+import { idOfBranch } from './ticket-id.js';
 
 const run = (cwd, args) => new Promise((res) => execFile('git', ['-C', cwd, ...args], { encoding: 'utf8' }, (e, out) => res(e ? '' : out.trim())));
-const TICKET = /^(s\d{3}-\d{2}|bklg-\d{3}|hyg-\d{3})/i;
 
 export function watchStations(cfg, store, every = 5000) {
   let running = false, stopped = false;
@@ -19,8 +19,7 @@ export function watchStations(cfg, store, every = 5000) {
           run(dir, ['rev-parse', '--abbrev-ref', 'HEAD']), run(dir, ['status', '--porcelain']), run(dir, ['rev-list', '--count', `origin/${cfg.trunk}..HEAD`]),
         ]);
         const detached = branch === 'HEAD' || !branch;
-        const m = !detached && branch.match(TICKET);
-        store.upsertStation(id, { name: id, path: dir, branch: detached ? null : branch, dirty: porcelain.length > 0, ahead: Number(ahead) || 0, ticket: m ? m[1].toUpperCase() : null });
+        store.upsertStation(id, { name: id, path: dir, branch: detached ? null : branch, dirty: porcelain.length > 0, ahead: Number(ahead) || 0, ticket: detached ? null : idOfBranch(branch, cfg.railAdapter) });
       }
     } finally { running = false; }
   }

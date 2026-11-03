@@ -72,7 +72,7 @@ export function startLive(store, startDir, control = null) {
 // served tickets written to the ledger; CI minutes asked of gh in a child process, so a slow
 // network never stalls the Window.
 function watchBudget(cfg, store, every = 10000, ciEvery = 10 * 60000) {
-  const budget = createBudget({ root: cfg.root, stations: cfg.stations });
+  const budget = createBudget({ root: cfg.root, stations: cfg.stations, adapter: cfg.railAdapter });
   // A week of sessions and tickets; the chip and the Ledger narrow it to the shift or today themselves.
   const tick = () => { try { store.setBudget(budget.compute({ since: Date.now() - 7 * 86400000, write: true })); } catch (e) { console.log(`budget: ${e.message}`); } };
   tick(); const t = setInterval(tick, every); t.unref?.();

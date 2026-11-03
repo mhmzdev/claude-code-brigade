@@ -46,6 +46,23 @@
 #                                         (markdown rail only): priority, whether each
 #                                         free ticket is ready (or still needs a spec),
 #                                         and its open blockers
+#   kitchen.sh rail brief <ID> station-N  the sous, as it sends a [brief]: record that the station is
+#                                         briefed on the ticket (.claude/briefs, out of git). Refuses
+#                                         a ticket somebody else holds
+#   kitchen.sh rail claim <ID> <todo|in-progress>
+#   kitchen.sh rail move <ID> <in-progress|rfr>
+#                                         a cook claims, then moves, the ticket briefed to it: todo →
+#                                         in-progress → rfr (and rfr → in-progress). Free tickets only;
+#                                         a claim is never overwritten (Contract 3). A markdown rail is
+#                                         written as a commit built on origin/<trunk>, never touching
+#                                         the main checkout; a github rail through gh project
+#                                         item-edit. Every refusal exits 1, writes nothing and says
+#                                         to send the sous [rail]. (From the main checkout the sous
+#                                         names the station: rail claim <ID> <status> station-N)
+#   kitchen.sh here [--fresh|--spent] [--waiting "<what>"] [--note "<text>"] [-m <model>]
+#                                         a cook's state, by script, in place of a [check-in] or
+#                                         [status] message: <station>/.claude/here (out of git), read
+#                                         by board. A free cook still sends one [check-in] message
 #   kitchen.sh board                      status, files, rail, open questions and the
 #                                         record's counts (decisions, inbox, asks, gaps) in one
 #                                         go; from the main checkout it also writes them
@@ -279,6 +296,10 @@ CI=false          # --ci, for budget
 JSON=false        # --json, for budget
 JOURNAL_LINE=false # --journal-line, for budget
 FORCE=false       # --force, for check
+POS=()            # the words after rail brief|claim|move
+HERE_SESSION=""   # --fresh | --spent, for here
+HERE_WAITING=""   # --waiting, for here
+HERE_NOTE=""      # --note, for here
 SESSION_NAME=""   # --session, for budget --journal-line
 CLEAR_WHO=""      # station-N | sous, for clear
 SHIP_PR=""        # a PR number, for ship
@@ -289,6 +310,8 @@ ARGV=()   # set by native_argv
 usage() { awk 'NR>2 { if (/^# =+$/) exit; sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"; exit 1; }
 
 CMD="${1:-}"; shift || true
+# rail brief|claim|move take bare words (ids, statuses, station names) the flag parser below would read as other commands's
+if [[ "$CMD" == rail && "${1:-}" =~ ^(brief|claim|move)$ ]]; then POS=("$@"); set --; fi
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -n) N="$2"; N_GIVEN=true; shift 2 ;;
@@ -311,6 +334,10 @@ while [[ $# -gt 0 ]]; do
     --json) JSON=true; shift ;;
     --journal-line) JOURNAL_LINE=true; shift ;;
     --force) FORCE=true; shift ;;
+    --fresh) HERE_SESSION=fresh; shift ;;
+    --spent) HERE_SESSION=spent; shift ;;
+    --waiting) HERE_WAITING="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
+    --note) HERE_NOTE="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
     --session) SESSION_NAME="$2"; shift 2 ;;
     sous|station-*) CLEAR_WHO="$1"; shift ;;
     [0-9]*|'#'[0-9]*) SHIP_PR="${1#\#}"; shift ;;
@@ -935,9 +962,25 @@ cmd_files() {
 # ---------------------------------------------------------------------------
 # rail — the board, computed from ticket frontmatter
 # ---------------------------------------------------------------------------
+# The board reads the tickets as origin/<trunk> has them: a cook's claim (kitchen.sh rail claim) is a commit
+# on origin that the sous's checkout has not pulled yet, so the working tree would show that ticket still
+# free. A quiet fetch, then the ticket folders exported to a temp dir. Not on a daily-pr rail (its changes
+# live on a rail/ branch, in the working tree), and not without a remote or a trunk on it.
+rail_origin_tree() {  # → the temp dir with docs/specs and docs/backlog as origin/<trunk> has them, or exit 1
+  local tmp spec
+  [[ "$(cfg_rail commit)" == daily-pr ]] && return 1
+  git -C "$ROOT" fetch --quiet origin "$TRUNK" 2>/dev/null
+  git -C "$ROOT" rev-parse -q --verify "origin/$TRUNK" >/dev/null 2>&1 || return 1
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/brigade-rail.XXXXXX")" || return 1
+  for spec in "$(cfg_docs specs)" "$(cfg_docs backlog)"; do
+    git -C "$ROOT" cat-file -e "origin/$TRUNK:$spec" 2>/dev/null && git -C "$ROOT" archive "origin/$TRUNK" "$spec" 2>/dev/null | tar -x -C "$tmp" 2>/dev/null
+  done
+  echo "$tmp"
+}
+
 cmd_rail() {
-  local specs backlog
-  specs="$ROOT/$(cfg_docs specs)"; backlog="$ROOT/$(cfg_docs backlog)"
+  local specs backlog base="${RAIL_BASE:-$ROOT}"   # RAIL_BASE: set by board, to the tickets as origin has them
+  specs="$base/$(cfg_docs specs)"; backlog="$base/$(cfg_docs backlog)"
   if [[ -f "$CONFIG" ]] && ! awk '/^rail:/{r=1;next} r&&/^[^ ]/{exit} r&&/adapter:[ ]*(markdown|mixed)/{f=1} END{exit !f}' "$CONFIG"; then
     grep -q '^rail:' "$CONFIG" && { echo "This repo's rail isn't markdown — use the tracker's board (or /bk:rail list)."; return 0; }
   fi
@@ -991,23 +1034,317 @@ cmd_rail() {
 }
 
 # ---------------------------------------------------------------------------
+# rail brief | claim | move — the routine rail writes by script (Contract 3 and 6).
+#
+#   rail brief <ID> station-N     the sous, in the main checkout, in the turn it sends the
+#                                 [brief]: records that station-N is briefed on <ID>
+#                                 (.claude/briefs, out of git). Refuses a ticket somebody
+#                                 else holds.
+#   rail claim <ID> <todo|in-progress>   a cook, in its station: claims the ticket briefed
+#                                 to it. Only a free ticket (backlog, blocked) or its own.
+#   rail move <ID> <in-progress|rfr>     a cook: todo → in-progress → rfr, and rfr →
+#                                 in-progress for the pass's [findings]. Its own ticket only.
+#   From the main checkout: rail claim <ID> <status> station-N and rail move <ID> <status>
+#   skip the brief check (the sous is the rail's writer).
+# A markdown rail is written without touching the main checkout: a commit built with git
+# plumbing on origin/<trunk> (read the ticket there, edit status: and cook:, push). A github
+# rail goes through gh, as /bk:rail does. Every refusal names the status and whose claim it
+# is, exits 1 and writes nothing; the cook then sends the sous a [rail] message instead.
+# ---------------------------------------------------------------------------
+cfg_rail() {  # cfg_rail <key> → rail.<key> (adapter, commit, github.owner …) from the config, "" if absent
+  local blk key="$1" v=""
+  [[ -f "$CONFIG" ]] || return 0
+  blk="$(awk 'NR==1 && $0=="---" { inside=1; next } inside && $0=="---" { exit } inside && /^rail:/ { r=1; next } inside && r && /^[^ ]/ { r=0 } inside && r { print }' "$CONFIG")"
+  case "$key" in
+    github.*)
+      key="${key#github.}"
+      v="$(printf '%s\n' "$blk" | sed -n 's/^  github:[ ]*{\(.*\)}.*/\1/p' | tr ',' '\n' | sed -n "s/^[ ]*$key:[ ]*//p" | head -1)"
+      [[ -n "$v" ]] || v="$(printf '%s\n' "$blk" | sed -n "s/^    $key:[ ]*//p" | head -1)" ;;
+    *) v="$(printf '%s\n' "$blk" | sed -n "s/^  $key:[ ]*//p" | head -1)" ;;
+  esac
+  v="$(printf '%s' "$v" | sed 's/[ ]*#.*$//; s/[ ]*$//; s/^"//; s/"$//')"
+  printf '%s' "$v"
+}
+
+rail_backend() {  # markdown | github | none (jira, or a config this can't write)
+  case "$(cfg_rail adapter)" in
+    ""|markdown) echo markdown ;;
+    github) echo github ;;
+    mixed) [[ -n "$(cfg_rail github.project)" ]] && echo github || echo none ;;
+    *) echo none ;;
+  esac
+}
+
+rail_id() {  # rail_id <as typed> → the canonical id: 65 and #65 are #65 on a github rail, the rest upper-case
+  local v="${1#\#}"
+  if [[ "$(rail_backend)" == github && "$v" =~ ^[0-9]+$ ]]; then printf '#%s' "$v"; else printf '%s' "$1" | tr '[:lower:]' '[:upper:]'; fi
+}
+
+rail_actor() {  # the station this runs in (station-N), or "" in the main checkout
+  local here_real; here_real="$(cd "$HERE" && pwd -P)"
+  [[ "$here_real" == "$ROOT_REAL" ]] && return 0
+  basename "$here_real"
+}
+
+rail_free() { [[ "$1" == backlog || "$1" == blocked ]]; }
+
+rail_fail() { echo "$*" >&2; return 1; }
+
+briefs_file() { echo "$ROOT/.claude/briefs"; }
+brief_of() { awk -F'\t' -v id="$1" '$1==id { s=$2 } END { if (s != "") print s }' "$(briefs_file)" 2>/dev/null; }
+
+# ---- the markdown adapter: read and write origin/<trunk>, never the main checkout ----
+md_fetch() { git -C "$HERE" fetch --quiet origin "$TRUNK" 2>/dev/null || rail_fail "Could not fetch origin/$TRUNK."; }
+
+md_path() {  # md_path <ID> → the ticket's path at origin/<trunk>, or nothing
+  local id="$1" backlog specs n t
+  backlog="$(cfg_docs backlog)"; specs="$(cfg_docs specs)"
+  if [[ "$id" =~ ^S([0-9]{3})-([0-9]{2})$ ]]; then
+    n="${BASH_REMATCH[1]}"; t="${BASH_REMATCH[2]}"
+    git -C "$HERE" ls-tree -r --name-only "origin/$TRUNK" -- "$specs" 2>/dev/null | grep -E "^$specs/$n-[^/]*/$t-[^/]*\.md$" | head -1
+  else
+    git -C "$HERE" ls-tree -r --name-only "origin/$TRUNK" -- "$backlog" 2>/dev/null | grep -E "^$backlog/$id(-[^/]*)?\.md$" | head -1
+  fi
+}
+
+fm_text_get() {  # fm_text_get <key> < a ticket's text → its frontmatter value
+  awk -v k="$1" 'NR==1 && $0=="---" { fm=1; next } fm && $0=="---" { exit } fm && $0 ~ "^" k ":" { sub("^" k ":[ ]*", ""); sub(/[ ]+#.*$/, ""); gsub(/^"|"$/, ""); print; exit }'
+}
+
+md_edit() {  # md_edit <status> <cook or ""> < a ticket's text → the text with status: (and cook:) set
+  awk -v st="$1" -v ck="$2" '
+    NR==1 && $0=="---" { fm=1; print; next }
+    fm && $0=="---" { if (!ds) print "status: " st; if (!dc && ck != "") print "cook: " ck; fm=0; print; next }
+    fm && /^status:/ { print "status: " st; ds=1; next }
+    fm && /^cook:/ { if (ck != "") print "cook: " ck; else print; dc=1; next }
+    { print }'
+}
+
+md_write() {  # md_write <ID> <status> <cook> <who> <claim|move> → 0 written/no-op, 1 refused
+  local id="$1" to="$2" cook="$3" who="$4" kind="$5" path text cur holder blob idx tree commit
+  [[ "$(cfg_rail commit)" == daily-pr ]] && { rail_fail "This rail commits through a daily PR: send the sous [rail] $kind $id $to."; return 1; }
+  for _ in 1 2; do
+    md_fetch || return 1
+    path="$(md_path "$id")"
+    [[ -n "$path" ]] || { rail_fail "No ticket $id at origin/$TRUNK (is it merged to $TRUNK?)."; return 1; }
+    text="$(git -C "$HERE" show "origin/$TRUNK:$path")"
+    cur="$(printf '%s\n' "$text" | fm_text_get status)"; holder="$(printf '%s\n' "$text" | fm_text_get cook)"; [[ "$holder" == null ]] && holder=""
+    rail_check "$id" "$kind" "$cur" "$to" "$who" "$holder" || { [[ $? == 2 ]] && return 0; return 1; }
+    blob="$(printf '%s\n' "$text" | md_edit "$to" "$cook" | git -C "$HERE" hash-object -w --stdin)"
+    idx="$(mktemp "${TMPDIR:-/tmp}/brigade-rail.XXXXXX")" || return 1; rm -f "$idx"
+    if GIT_INDEX_FILE="$idx" git -C "$HERE" read-tree "origin/$TRUNK" \
+       && GIT_INDEX_FILE="$idx" git -C "$HERE" update-index --cacheinfo "100644,$blob,$path" \
+       && tree="$(GIT_INDEX_FILE="$idx" git -C "$HERE" write-tree)" \
+       && commit="$(git -C "$HERE" commit-tree "$tree" -p "origin/$TRUNK" -m "rail: $id → $to")"; then
+      rm -f "$idx"
+      git -C "$HERE" push --quiet origin "$commit:refs/heads/$TRUNK" 2>/dev/null && return 0
+    else rm -f "$idx"; rail_fail "Could not build the rail commit."; return 1; fi
+  done
+  rail_fail "Could not push the rail change for $id (trunk keeps moving, or the push is refused). Send the sous [rail] $kind $id $to."
+}
+
+# ---- the github adapter: gh project item-edit, as /bk:rail does ----
+gh_col() {  # gh_col <status> → the board's column names to try, in order
+  case "$1" in
+    backlog) echo "Backlog" ;; todo) echo "Todo|To do" ;; in-progress) echo "In Progress|In progress" ;;
+    rfr) echo "Ready for review|In review" ;; blocked) echo "Blocked" ;; done) echo "Done" ;;
+  esac
+}
+gh_col_status() {  # gh_col_status <column name> → the status
+  case "$1" in
+    Backlog) echo backlog ;; Todo|"To do") echo todo ;; "In Progress"|"In progress") echo in-progress ;;
+    "Ready for review"|"In review") echo rfr ;; Blocked) echo blocked ;; Done) echo "done" ;; *) echo "$1" ;;
+  esac
+}
+
+gh_item() {  # gh_item <ID> → sets GH_ITEM (the project item id) and GH_COL (its Status column); 1 and a message if it can't
+  local n="${1#\#}" owner proj fld low line count
+  command -v gh >/dev/null 2>&1 || { rail_fail "The github rail needs the gh CLI on your PATH, logged in."; return 1; }
+  owner="$(cfg_rail github.owner)"; proj="$(cfg_rail github.project)"; fld="$(cfg_rail github.status_field)"; fld="${fld:-Status}"
+  [[ -n "$owner" && -n "$proj" ]] || { rail_fail "rail.github needs owner and project in .claude/brigade.md."; return 1; }
+  low="$(printf '%s' "$fld" | tr '[:upper:]' '[:lower:]')"
+  line="$(cd "$ROOT" && gh project item-list "$proj" --owner "$owner" --format json --limit 500 \
+    --jq "(.items|length) as \$len | ([.items[]|select(.content.number==$n)]|first) as \$i | [\$len, (\$i.id // \"\"), (\$i[\"$low\"] // \"\")] | join(\"|\")" 2>&1)" \
+    || { rail_fail "gh could not list project $proj: $line"; return 1; }
+  IFS='|' read -r count GH_ITEM GH_COL <<<"$line"
+  if [[ -z "$GH_ITEM" ]]; then
+    if (( ${count:-0} >= 500 )); then rail_fail "Project $proj has 500 items or more: gh cannot list them all, so #$n may be on the rail but out of sight."
+    else rail_fail "#$n is not an item of project $proj."; fi
+    return 1
+  fi
+}
+
+gh_write() {  # gh_write <ID> <status> <cook> <who> <kind> → 0 written/no-op, 1 refused
+  local id="$1" to="$2" cook="$3" who="$4" kind="$5" n owner proj fld cur out err fid pid opt col_try login
+  n="${id#\#}"; owner="$(cfg_rail github.owner)"; proj="$(cfg_rail github.project)"; fld="$(cfg_rail github.status_field)"; fld="${fld:-Status}"
+  gh_item "$id" || { echo "Send the sous [rail] $kind $id $to." >&2; return 1; }
+  cur="$(gh_col_status "$GH_COL")"
+  rail_check "$id" "$kind" "$cur" "$to" "$who" "" || { [[ $? == 2 ]] && return 0; return 1; }
+  out="$(cd "$ROOT" && gh project field-list "$proj" --owner "$owner" --format json \
+    --jq ".fields[] | select(.name==\"$fld\") | (\"FIELD|\" + .id), (.options[]? | \"OPT|\" + .name + \"|\" + .id)" 2>&1)" \
+    || { rail_fail "gh could not read project $proj's fields: $out. Send the sous [rail] $kind $id $to."; return 1; }
+  fid="$(printf '%s\n' "$out" | sed -n 's/^FIELD|//p' | head -1)"
+  [[ -n "$fid" ]] || { rail_fail "Project $proj has no field called $fld (rail.github.status_field). Send the sous [rail] $kind $id $to."; return 1; }
+  opt=""
+  while IFS= read -r col_try; do
+    opt="$(printf '%s\n' "$out" | sed -n "s/^OPT|$col_try|//p" | head -1)"; [[ -n "$opt" ]] && break
+  done < <(gh_col "$to" | tr '|' '\n')
+  [[ -n "$opt" ]] || { rail_fail "Project $proj's $fld field has no column for $to (tried: $(gh_col "$to" | tr '|' ',')). Name it like one of those, or send the sous [rail] $kind $id $to."; return 1; }
+  pid="$(cd "$ROOT" && gh project view "$proj" --owner "$owner" --format json --jq .id 2>&1)" || { rail_fail "gh could not read project $proj: $pid. Send the sous [rail] $kind $id $to."; return 1; }
+  err="$(cd "$ROOT" && gh project item-edit --id "$GH_ITEM" --project-id "$pid" --field-id "$fid" --single-select-option-id "$opt" 2>&1 >/dev/null)" \
+    || { rail_fail "gh could not set $id to $to: $err. Send the sous [rail] $kind $id $to."; return 1; }
+  if [[ "$kind" == claim && -n "$cook" ]]; then
+    login="$(cd "$ROOT" && gh api user --jq .login 2>/dev/null)"
+    [[ -n "$login" ]] && (cd "$ROOT" && gh issue edit "$n" --add-assignee "$login" >/dev/null 2>&1)
+    (cd "$ROOT" && gh issue comment "$n" --body "claimed by $cook (kitchen.sh rail claim)" >/dev/null 2>&1) || true
+  fi
+  return 0
+}
+
+# The legal moves (Contract 3), shared by both adapters. Returns 0 to go on, 1 refused (message
+# printed), 2 nothing to write (already so).
+rail_check() {  # rail_check <ID> <kind> <current> <to> <who: the station acting, "" for the sous> <holder: the ticket's cook, "" if unknown>
+  local id="$1" kind="$2" cur="$3" to="$4" who="$5" holder="$6"
+  if [[ "$kind" == claim ]]; then
+    rail_free "$cur" && return 0
+    # the claim's own station asking again, at this status or a later one (a resumed cook re-running pick-ticket): nothing to write
+    if [[ "$cur" =~ ^(todo|in-progress|rfr)$ && -n "$who" && ( "$holder" == "$who" || ( -z "$holder" && "$(brief_of "$id")" == "$who" ) ) ]]; then echo "$id is already $cur."; return 2; fi
+    rail_fail "Not claimed: $id is $cur, and that is ${holder:-somebody else}'s claim (Contract 3: a claim is never overwritten). Ask the sous."; return 1
+  fi
+  [[ -z "$holder" || -z "$who" || "$holder" == "$who" ]] || { rail_fail "Not moved: $id is $cur and belongs to $holder, not $who."; return 1; }
+  if [[ "$cur" == "$to" ]]; then echo "$id is already $to."; return 2; fi
+  case "$cur>$to" in
+    todo\>in-progress|in-progress\>rfr|rfr\>in-progress) return 0 ;;
+    *) rail_fail "Not moved: $id is $cur and a cook cannot move it to $to (cooks move todo → in-progress → rfr, and rfr → in-progress; the sous does the rest: send [rail])."; return 1 ;;
+  esac
+}
+
+rail_write() {
+  local op="${POS[0]:-}" raw="${POS[1]:-}" arg="${POS[2]:-}" id actor cook="" backend to
+  id="$(rail_id "$raw")"; actor="$(rail_actor)"; backend="$(rail_backend)"
+  [[ -n "$raw" ]] || { echo "Usage: kitchen.sh rail brief <ID> station-N | claim <ID> <todo|in-progress> | move <ID> <in-progress|rfr>" >&2; return 1; }
+  [[ "$backend" != none ]] || { rail_fail "kitchen.sh rail $op writes a markdown or a github rail; this one is $(cfg_rail adapter). Send the sous [rail] instead."; return 1; }
+  case "$op" in
+    brief)
+      [[ -z "$actor" ]] || { rail_fail "Only the sous briefs, from the main checkout ($ROOT_REAL)."; return 1; }
+      [[ "$arg" =~ ^station-[0-9]+$ ]] || { rail_fail "Usage: kitchen.sh rail brief <ID> station-N"; return 1; }
+      rail_brief "$id" "$arg" ;;
+    claim|move)
+      if [[ -n "$actor" ]]; then
+        to="$arg"; cook="$actor"
+        [[ "$(brief_of "$id")" == "$actor" ]] || { rail_fail "No brief for $actor on $id: the sous briefs a ticket (kitchen.sh rail brief) before a cook claims it. Send the sous [rail] $op $id $to."; return 1; }
+      else
+        if [[ "$op" == claim ]]; then to="$arg"; cook="${POS[3]:-}"; [[ "$cook" =~ ^station-[0-9]+$ ]] || { rail_fail "Usage: kitchen.sh rail claim <ID> <status> station-N (from the main checkout)"; return 1; }
+        else to="$arg"; fi
+      fi
+      if [[ "$op" == claim ]]; then case "$to" in todo|in-progress) ;; *) rail_fail "A claim goes to todo or in-progress (lane C), not $to."; return 1 ;; esac
+      else case "$to" in in-progress|rfr) ;; *) rail_fail "A cook moves a ticket to in-progress or rfr, not ${to:-nothing}; the sous does the rest: send [rail]."; return 1 ;; esac; fi
+      if [[ "$backend" == markdown ]]; then md_write "$id" "$to" "$cook" "${actor:-$cook}" "$op" || return 1
+      else gh_write "$id" "$to" "$cook" "${actor:-$cook}" "$op" || return 1; fi
+      echo "$id → $to${cook:+ ($cook)}" ;;
+  esac
+}
+
+rail_brief() {  # rail_brief <ID> <station-N>
+  local id="$1" st="$2" cur holder text path out fresh
+  if [[ "$(rail_backend)" == markdown ]]; then
+    md_fetch || return 1
+    path="$(md_path "$id")"; [[ -n "$path" ]] || { rail_fail "No ticket $id at origin/$TRUNK."; return 1; }
+    text="$(git -C "$HERE" show "origin/$TRUNK:$path")"
+    cur="$(printf '%s\n' "$text" | fm_text_get status)"; holder="$(printf '%s\n' "$text" | fm_text_get cook)"; [[ "$holder" == null ]] && holder=""
+  else
+    gh_item "$id" || return 1
+    cur="$(gh_col_status "$GH_COL")"; holder="$(brief_of "$id")"
+  fi
+  if ! rail_free "$cur" && [[ "$holder" != "$st" ]]; then
+    if [[ "$cur" == "done" ]]; then rail_fail "Not briefed: $id is done."; else rail_fail "Not briefed: $id is $cur, and that is ${holder:-somebody}'s claim (Contract 3). Pick another ticket."; fi
+    return 1
+  fi
+  mkdir -p "$ROOT/.claude"; exclude_locally .claude/briefs
+  fresh="$(awk -F'\t' -v id="$id" '$1!=id' "$(briefs_file)" 2>/dev/null)"
+  { [[ -n "$fresh" ]] && printf '%s\n' "$fresh"; printf '%s\t%s\t%s\n' "$id" "$st" "$(date +%s)"; } > "$(briefs_file).tmp" && mv "$(briefs_file).tmp" "$(briefs_file)"
+  echo "$id briefed to $st."
+}
+
+cmd_rail_dispatch() { case "${POS[0]:-}" in brief|claim|move) rail_write ;; *) cmd_rail ;; esac; }
+
+# ---------------------------------------------------------------------------
+# here — a cook's state, by script, in place of a [check-in] or [status] message
+# (Contract 6). Written to <station>/.claude/here (the station's own folder, kept out of
+# git); the sous reads it in `kitchen.sh board`. A free cook (no ticket, clean, fresh) still
+# sends one [check-in] message: a file cannot wake an idle sous.
+#   kitchen.sh here [--fresh|--spent] [--waiting "<what>"] [--note "<text>"] [--model <m>]
+# ---------------------------------------------------------------------------
+branch_ticket() {  # the ticket id a branch name carries (the shell twin of live/ticket-id.js), or -
+  local b="$1" lb
+  lb="$(printf '%s' "$b" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$lb" =~ ^(s[0-9]{3}-[0-9]{2}|bklg-[0-9]{3}|hyg-[0-9]{3})($|[^0-9]) ]]; then printf '%s' "${BASH_REMATCH[1]}" | tr '[:lower:]' '[:upper:]'
+  elif [[ "$lb" =~ ^issue-([0-9]+)(-|$) ]]; then printf '#%s' "${BASH_REMATCH[1]}"
+  elif [[ "$(cfg_rail adapter)" == jira && "$lb" =~ ^([a-z][a-z0-9]+-[0-9]+)(-|$) ]]; then printf '%s' "${BASH_REMATCH[1]}" | tr '[:lower:]' '[:upper:]'
+  else printf -- '-'; fi
+}
+
+cmd_here() {
+  local st dir branch dirty now log
+  st="$(rail_actor)"
+  [[ -n "$st" ]] || { echo "kitchen.sh here is a cook's: run it in a station. The sous reads the cooks with kitchen.sh board." >&2; return 1; }
+  dir="$HERE/.claude"; mkdir -p "$dir"; exclude_locally .claude/here "$HERE"; exclude_locally .claude/here.log "$HERE"
+  branch="$(git -C "$HERE" branch --show-current 2>/dev/null)"; now="$(date +%s)"
+  dirty=clean; [[ -n "$(git -C "$HERE" status --porcelain 2>/dev/null)" ]] && dirty=dirty
+  {
+    echo "at: $now"
+    echo "station: $st"
+    echo "branch: ${branch:-detached}"
+    echo "dirty: $dirty"
+    echo "ticket: $([[ -n "$branch" ]] && branch_ticket "$branch" || echo -)"
+    echo "session: ${HERE_SESSION:--}"
+    echo "waiting: ${HERE_WAITING:-nothing}"
+    echo "model: ${MODELS[0]:--}"
+  } > "$dir/here.tmp" && mv "$dir/here.tmp" "$dir/here"
+  if [[ -n "$HERE_NOTE" ]]; then
+    log="$dir/here.log"; printf '%s %s\n' "$now" "$HERE_NOTE" >> "$log"
+    tail -n 20 "$log" > "$log.tmp" && mv "$log.tmp" "$log"
+  fi
+  cat "$dir/here"
+}
+
+cmd_here_board_lines() {  # one line per station from its here file, then its last note
+  local s name f now at age line found=false
+  now="$(date +%s)"
+  while IFS= read -r s; do
+    found=true; name="$(basename "$s")"; f="$s/.claude/here"
+    if [[ ! -f "$f" ]]; then printf '  %-11s no check-in yet\n' "$name"; continue; fi
+    at="$(sed -n 's/^at: //p' "$f" | head -1)"; age=$(( (now - ${at:-$now}) / 60 ))
+    printf '  %-11s %3sm ago  %s · %s · %s · %s · waiting: %s · %s\n' "$name" "$age" \
+      "$(sed -n 's/^branch: //p' "$f")" "$(sed -n 's/^dirty: //p' "$f")" "$(sed -n 's/^ticket: //p' "$f")" \
+      "$(sed -n 's/^session: //p' "$f")" "$(sed -n 's/^waiting: //p' "$f")" "$(sed -n 's/^model: //p' "$f")"
+    line="$(tail -n 1 "$s/.claude/here.log" 2>/dev/null | sed 's/^[0-9]* //')"
+    [[ -n "$line" ]] && printf '  %-11s note: %s\n' "" "$line"
+  done < <(stations)
+  $found || echo "  (no stations)"
+}
+
+# ---------------------------------------------------------------------------
 # board — everything the sous reads, in one snapshot. Run from the main checkout
 # it is also written to .claude/board.md, for a human to keep open. The file is
 # generated, never edited, and never committed: it goes in .git/info/exclude so
 # no tracked file changes.
 # ---------------------------------------------------------------------------
 cmd_board() {
-  local here_real text
+  local here_real text rt=""
+  rt="$(rail_origin_tree)" && export RAIL_BASE="$rt"
   text="$(echo "# The board: $REPO_NAME"
     echo ""
     echo "Generated $(date '+%Y-%m-%d %H:%M') by \`kitchen.sh board\`. Rewritten each time; don't edit it."
     echo ""; echo '```'
     cmd_status; cmd_files
+    echo ""; echo "The cooks (kitchen.sh here):"; cmd_here_board_lines
     echo ""; echo "The rail:"; cmd_rail
     echo ""; echo "Open questions:"; cmd_questions
     echo ""; echo "Decisions to file: $(cmd_decisions | grep -c ' DUE ' || true) · Inbox: $(inbox_count) unfiled · Asks open: $(asks_count open) · Gaps to fix: $(cmd_gaps | grep -c '^  ' || true)"
     context_warning
     echo '```')"
+  [[ -n "$rt" ]] && { rm -rf "$rt"; unset RAIL_BASE; }
   printf '%s\n' "$text"
   here_real="$(cd "$HERE" && pwd -P)"
   [[ "$here_real" == "$ROOT_REAL" && -d "$ROOT/.claude" ]] || return 0
@@ -2094,7 +2431,7 @@ esac
 
 case "$CMD" in
   setup) cmd_setup ;; open) cmd_open ;; sync) cmd_sync ;; status) cmd_status ;;
-  files) cmd_files ;; rail) cmd_rail ;; board) cmd_board ;; leaks) cmd_leaks ;; remove) cmd_remove ;;
+  files) cmd_files ;; rail) cmd_rail_dispatch ;; here) cmd_here ;; board) cmd_board ;; leaks) cmd_leaks ;; remove) cmd_remove ;;
   role) cmd_role ;; sous) cmd_sous ;; lessons) cmd_lessons ;; questions) cmd_questions ;;
   decisions) cmd_decisions ;; inbox) cmd_inbox ;; asks) cmd_asks ;; gaps) cmd_gaps ;; doctor) cmd_doctor ;; index) cmd_index ;;
   record-pr) cmd_record_pr ;;
