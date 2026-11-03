@@ -322,14 +322,18 @@ one to a cook.
 ## Handoffs and clearing sessions
 
 **Is a handoff a hook or a skill?** A skill: `/bk:handoff`. Nothing runs automatically
-before `/clear`, and no skill ever clears a session; `/clear` is always yours.
+before `/clear`, and no skill clears a session by itself. **The sous clears sessions**, with
+`kitchen.sh clear <station|sous>`: it types `/clear` into the pane (then `/bk:line-cook`
+for a cook) and refuses unless the session is idle, its handoff is newer than its last turn
+and nothing it sent still waits for an answer. Those three checks need no judgement, so the
+job is the sous's; you can still clear any session by hand.
 
 `/bk:handoff` works out its role from the directory it runs in:
 
 | Where | Writes | When |
 |---|---|---|
-| a station (cook) | a `## Handoff` section appended to the ticket's journal: stage, uncommitted files, next step, pending questions, follow-ups, lessons | automatically on `[go]`, before the PR. Any other time, you ask for it, for example before clearing a cook that is waiting on a sign-off |
-| the main checkout (sous) | first it counts the lessons and runs the debrief (due ones become chores or plugin issues), files the record (decisions you made into ADRs, questions you haven't answered into question files, every answered question's gap into its fix, the inbox into the docs) and fetches CI minutes into the budget, then `.claude/sous-handoff.md`, gitignored, overwritten each time: your standing instructions, what it meant to assign next, walk-in holds, which session is which cook | when you say "handoff" before clearing the sous |
+| a station (cook) | a `## Handoff` section appended to the ticket's journal: stage, uncommitted files, next step, pending questions, follow-ups, lessons | automatically on `[go]`, before the PR. Any other time, the sous (or you) asks for it, for example before clearing a cook that is waiting on a sign-off |
+| the main checkout (sous) | first it counts the lessons and runs the debrief (due ones become chores or plugin issues), files the record (decisions you made into ADRs, questions you haven't answered into question files, every answered question's gap into its fix, the inbox into the docs) and fetches CI minutes into the budget, then `.claude/sous-handoff.md`, gitignored, overwritten each time: your standing instructions, what it meant to assign next, walk-in holds, which session is which cook | by itself after about three passes or when the board's `Context:` line says its turns are too heavy, then `kitchen.sh clear sous`; or when you say "handoff" |
 
 A cook cleared before `[go]` without being asked for a handoff leaves none. The journal
 still has its questions, answers and decisions, and the station still has the files.
@@ -340,7 +344,9 @@ them. `bk open` later resumes the very same sessions, context and all, so this i
 rather than a clear; clear a session when its context is the problem, stop the kitchen when
 you are leaving.
 
-**What do I type after clearing the sous?** `/bk:sous-chef`. Nothing else. It reads the
+**What do I type after clearing the sous?** Usually nothing: the sous clears itself after
+its handoff, and its next turn is a fresh `/bk:sous-chef`. If you cleared it by hand, type
+`/bk:sous-chef`. Nothing else. It reads the
 handoff note first, then checks it against the rail, the stations and the journals, and
 reality wins over the note. Its `[hello]` asks every cook to re-send whatever it was
 waiting on. `/bk:pick-ticket` is not the way back in: that is a cook's step for one ticket.
@@ -515,7 +521,8 @@ still sees the sous. `.claude/cook "/bk:line-cook"` starts a fresh session inste
 | pause the whole kitchen, resumable | `bk stop`, later `bk open` | any terminal |
 | pick the Claude account a kitchen runs under | `bk open --profile NAME` (recorded in `.claude/bk-profile`) | main checkout |
 | start or restart the sous | `/bk:sous-chef` | main checkout |
-| restart a cleared cook | `/bk:line-cook` | its station |
+| clear a session | the sous does it: `kitchen.sh clear <station-N\|sous>` (refuses until the handoff is written and nothing waits) | sous, from the main checkout |
+| restart a cleared cook | `/bk:line-cook` (`kitchen.sh clear` types it for you) | its station |
 | see everything | open `.claude/board.md`, or `/bk:kitchen board` | main checkout |
 | watch the kitchen in a browser | `bk live` or `/bk:live` (again to close) | main checkout or a station |
 | see what the kitchen is waiting on you for | `/bk:kitchen questions` | main checkout |
@@ -524,5 +531,5 @@ still sees the sous. `.claude/cook "/bk:line-cook"` starts a fresh session inste
 | see what the shift costs | `bk budget` or `/bk:kitchen budget` (`--ticket ID`, `--since 7d`, `--ci`) | main checkout or a station |
 | capture an idea or a bug | tell the sous; it files a backlog item | sous |
 | turn an item into tickets | `/bk:grill-me` → `/bk:spec` → `/bk:file-tickets` | sous, or a cook the sous briefs for the grilling |
-| clear a session safely | "handoff", then `/clear` | that session |
+| clear a session by hand | "handoff", then `/clear`, then the role skill; normally the sous does this with `kitchen.sh clear` | that session |
 | work alone, no kitchen | any skill in the main checkout without `/bk:sous-chef`: you answer every gate | main checkout |

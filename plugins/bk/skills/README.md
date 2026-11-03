@@ -27,7 +27,7 @@ skill has a bug.
 
 | Role | Who | Does | Never does |
 |---|---|---|---|
-| **Head Chef** | the human | talks to **one** session, the sous: makes the decisions nobody has made yet (new features and flows, real forks), merges, deploys | relays messages between sessions, watches the cooks' terminals, or answers what the record already answers |
+| **Head Chef** | the human | talks to **one** session, the sous: makes the decisions nobody has made yet (new features and flows, real forks), merges, deploys, opens the kitchen | relays messages between sessions, watches the cooks' terminals, clears sessions as a routine (the sous does, by rule), or answers what the record already answers |
 | **Sous Chef** | one Claude Code session in the **main checkout**, running `/bk:sous-chef` | assigns tickets, answers every gate the record or routine can settle, signs off bug, chore, precedent and hygiene plans, brings feature plans and real forks to the head chef with a recommendation and relays the answer, keeps the record (Contract 12), reviews every diff before commit, **is the only writer of the rail** | writes code in a station, merges, deploys, decides a fork the record doesn't settle |
 | **Line Cook** | one Claude Code session per **station** (started by `kitchen open`, or any session in a station) | works one ticket from plan to PR; sends the commis before it sends a question | edits ticket files, touches another station, empties the walk-in without asking, settles a design fork on its own |
 | **Commis** | the `commis` sub-agent, spawned by a cook or the sous before any question goes up | searches the record for a decision already made, the code for a precedent (the same kind of thing, done twice already), or a fact already written, and returns a short verdict with its sources (the junior who fetches for the line) | holds any tool that can write; decides anything |
@@ -699,9 +699,12 @@ the ticket, and a checklist saying "the counter is zero" restates the check. Eve
 body names its counter (from `clean.counters`), the starting count, and the exact findings. The proof of done is the
 check passing and the counter going down.
 
-**One ticket per session.** When a cook's PR is open and has passed, the head chef clears
-that session (`/clear`) before its next ticket. A second ticket never goes onto a live
-context.
+**One ticket per session.** When a cook's PR is open and has passed, the sous clears
+that session before its next ticket: `kitchen.sh clear <station>`, which types `/clear`
+and then `/bk:line-cook` into the cook's pane, and refuses unless the cook is idle, its
+handoff is newer than its last turn and nothing it sent still waits for an answer.
+Clearing is deterministic, so it is the sous's, not the head chef's; the head chef still
+can. A second ticket never goes onto a live context.
 
 **Two tickets that touch the same files go to one cook, in sequence.** The `files:` field and
 `kitchen.sh files` are how the sous sees overlap.
@@ -777,7 +780,11 @@ what cooks are waiting on: `grep` across `<kitchen>/*/docs/journal/`.
   granted, and which session is which cook. A fresh `/bk:sous-chef` reads it first, then
   checks it against the rail, stations and journals; **reality wins over the note**.
 
-Neither handoff clears the session: `/clear` stays the human's.
+Neither handoff clears the session itself. The sous does, with `kitchen.sh clear`: a cook
+after its `[served]` and handoff, itself (`kitchen.sh clear sous`) after about three passes
+or when the board says its turns are over the context line, handoff first. The command
+refuses a busy session, a stale handoff or an open question, so nothing is lost by it; the
+head chef can still clear any session by hand.
 
 **Lessons are promoted mechanically, never by judgement.** A lesson is one tagged line in a
 journal, written at handoff:

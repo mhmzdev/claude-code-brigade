@@ -11,8 +11,11 @@ Honour the plugin contract: the `README.md` in this skill's parent folder, `${CL
 
 A context window is a cache, not the record. A handoff writes down the few things a fresh
 session couldn't rebuild from the rail, the stations, the journals and the PRs, so that the
-human can `/clear` this session and nothing is lost. **This skill never clears the session
-itself**: `/clear` is the human's. End by saying *"Handoff written: `<path>`. Ready to clear, then `/bk:sous-chef`"* (in a station: *"then `/bk:line-cook`"*), so the human knows the one command that picks the work back up.
+session can be cleared and nothing is lost. **This skill never clears the session
+itself**: the sous does, with `kitchen.sh clear <station|sous>` (Contract 5), which refuses
+until this handoff is on disk, and the human can. End by saying *"Handoff written: `<path>`.
+Ready to clear (`kitchen.sh clear <who>`), then `/bk:sous-chef`"* (in a station: *"then
+`/bk:line-cook`"*), so whoever clears knows the one command that picks the work back up.
 
 ## Contents
 
