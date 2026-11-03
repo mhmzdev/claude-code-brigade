@@ -2,10 +2,13 @@
 
 What changed in each version of the Brigade (`bk@claude-code-brigade`), newest first.
 
-Every merge to `main` is a release. It bumps `version` in
-[`plugins/bk/.claude-plugin/plugin.json`](plugins/bk/.claude-plugin/plugin.json), adds an
-entry here, and is tagged `vX.Y.Z` with a [GitHub release](https://github.com/mhmzdev/claude-code-brigade/releases)
-that carries the entry as its notes. To get a new version, see
+A release is its own PR. `main` is protected and nobody bumps the version in a feature PR:
+each PR that changes more than `docs/` adds a fragment to
+[`changelog.d/`](changelog.d/), and `scripts/release.sh` opens the release PR that turns
+every waiting fragment into one entry here, bumps `version` in
+[`plugins/bk/.claude-plugin/plugin.json`](plugins/bk/.claude-plugin/plugin.json) and deletes them. Merging it is
+the release: it is tagged `vX.Y.Z` with a [GitHub release](https://github.com/mhmzdev/claude-code-brigade/releases)
+that carries the entry as its notes. A change that only touches `docs/` is not a release. To get a new version, see
 [Update](README.md#update), then restart every session.
 
 Versions follow [semver](https://semver.org) loosely while the Brigade is `0.x`: the minor

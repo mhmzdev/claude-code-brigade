@@ -63,8 +63,8 @@ Run `"${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" role`.
 
 ## Sous handoff
 
-This is the one checkpoint that files the record (Contract 12), so steps 1 to 6 come before
-the note, and step 7 tops up the budget. They're mechanical lists; the judgement is only
+This is the one checkpoint that files the record (Contract 12), so steps 1 to 6 write it
+into the working tree, step 7 lands it, and step 8 tops up the budget before the note. They're mechanical lists; the judgement is only
 *where* each item goes.
 
 1. **The lesson count** (Contract 11, the only time it runs):
@@ -74,7 +74,7 @@ the note, and step 7 tops up the budget. They're mechanical lists; the judgement
    For each `DUE` row: a `repo` lesson → fire a `BKLG` ticket "promote lesson `<key>` into
    CLAUDE.md (or the config notes)" with the lesson lines as evidence, and add
    `` | `<key>` | repo | <ticket> | `` to the register, `docs.lessons` (default `docs/lessons.md`; create it with a header row if
-   missing; commit per `rail.commit`). A `plugin` lesson → run `/bk:feedback` with the
+   missing; step 7 lands the file). A `plugin` lesson → run `/bk:feedback` with the
    lesson lines as the note: it removes every repo-specific name, path and snippet, shows the
    head chef the draft, and **files it only on their yes**. Then add the key to
    the register either way (`filed #n` or `declined`).
@@ -106,7 +106,7 @@ the note, and step 7 tops up the budget. They're mechanical lists; the judgement
    knowledge doc instead, add it there, citing `<ID> An` in the text. **It doesn't** (it
    only settled this ticket's own detail) → add `` | `<ID> An` | kept | — | `` to the
    register, `docs.lessons`, so it isn't listed again. Several answers that together make
-   one decision → one file, several sources. Commit per `rail.commit`.
+   one decision → one file, several sources. Step 7 lands the files.
 4. **Open questions and asks**:
    ```bash
    "${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" questions
@@ -144,7 +144,9 @@ the note, and step 7 tops up the budget. They're mechanical lists; the judgement
    **access** → the head chef provides it; record where it lives in `brigade.local.md` and
    a one-line note in the config's notes. Then close each: `kitchen.sh asks --filed A3
    "<path, ticket or issue>"`, or set `fix:` in the question file. Tell the head chef in one
-   line per gap you couldn't close (an `access` gap is always theirs to provide).
+   line per gap you couldn't close (an `access` gap is always theirs to provide). That
+   config-notes line is not a record path: step 7 leaves it uncommitted in the working
+   tree, for the head chef to commit with the config.
 6. **The inbox**:
    ```bash
    "${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" inbox
@@ -155,13 +157,29 @@ the note, and step 7 tops up the budget. They're mechanical lists; the judgement
    `docs.decisions`; already in the record after all → nowhere. No type fits → add one
    (Contract 12, rule 4) and say so. Then delete the line from `.claude/inbox.md`. The
    inbox should be empty when you finish.
-7. **CI minutes** (Contract 2), so each ticket's budget is complete:
+7. **Land the record** (steps 1 to 6 wrote files and committed nothing):
+   ```bash
+   "${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" record-pr
+   ```
+   It commits exactly the record files (decisions, conventions, knowledge, questions, the
+   register), pushes them to trunk if `rail.commit` is `direct` and trunk takes the push, and
+   otherwise (a protected trunk, a refused push, or `daily-pr`) pushes a `record/<date>`
+   branch and opens a PR. Either way the record paths end clean on trunk. It files nothing
+   else, so an edit to the config's notes (step 5's `access` line) stays in the working tree
+   for the head chef: say so in the same line as the PR. Until that PR
+   merges, `lessons`, `decisions`, `questions`, `gaps` and `debrief` read the open record
+   branch like trunk, so what you just filed does not show as due again. If it says "Record PR:
+   <url>", tell the head chef in one line (it is theirs to merge, like any PR) and put the url
+   in the note's Notes. When a record PR is merged or closed, delete its branch: a closed one
+   counts until it is gone. Tickets and specs the rail wrote were already committed by
+   `/bk:rail`, per `rail.commit`; this step is the record only.
+8. **CI minutes** (Contract 2), so each ticket's budget is complete:
    ```bash
    "${CLAUDE_SKILL_DIR}/../kitchen/kitchen.sh" budget --ci --since 7d
    ```
    It asks `gh` for the runs on the PR branch of every ticket worked on this week and keeps
    the minutes in `.claude/budget.jsonl`. No `gh`, or no PR yet → it says so per ticket; go on.
-8. **Overwrite** `.claude/sous-handoff.md` (make sure `.gitignore` lists it) with only what
+9. **Overwrite** `.claude/sous-handoff.md` (make sure `.gitignore` lists it) with only what
    lives nowhere else:
    ```markdown
    # Sous handoff — <YYYY-MM-DD HH:MM> · <session name>
@@ -180,10 +198,11 @@ the note, and step 7 tops up the budget. They're mechanical lists; the judgement
 
    ## Notes
    - <anything a fresh sous would otherwise get wrong, at most five lines>
+   - record PR: <url, or "none">
    ```
    Don't copy the rail, the station status or the PR list into it: a fresh sous reads those
    live, and a copy would only drift.
-9. **Tell the cooks** in one line each: `[status] sous restarting; re-send anything pending
+10. **Tell the cooks** in one line each: `[status] sous restarting; re-send anything pending
    after my [hello]`.
 
 ## Reading a handoff on start

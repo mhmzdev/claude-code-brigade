@@ -292,6 +292,6 @@ repo's names, paths and secrets, and files nothing until you have read it and sa
 - The sous is a second fence, not a replacement for your review. By default it also merges what passed its pass and is green (`gates.merge: sous-chef`); set `head-chef` to keep the merge.
 - It costs more tokens than one session. Use it when the work is really parallel.
 
-Every merge to `main` is a release, tagged and listed in [`CHANGELOG.md`](CHANGELOG.md).
+Each release is tagged and listed in [`CHANGELOG.md`](CHANGELOG.md); changes wait on `main` for the next one.
 
 MIT © Muhammad Hamza

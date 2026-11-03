@@ -1,10 +1,14 @@
-# Every merge to main is a release. After check passes on main, tag the commit
-# v<version> (plugin.json) and publish a GitHub release whose notes are that
-# version's CHANGELOG.md entry. check.sh already refused any PR that didn't bump the
-# version or add the entry, so a tag that exists means this commit was released.
+# A merge that moves the version is a release. main is protected, so the version only moves
+# in a release PR (scripts/release.sh), which scripts/release-check.sh holds to that shape;
+# every other merge (a cook's PR with its changelog.d fragment, a docs-only change) leaves
+# the version alone. After check passes on main, tag the commit v<version> (plugin.json)
+# and publish a GitHub release whose notes are that version's CHANGELOG.md entry. If the
+# tag already exists, this merge did not move the version and there is nothing to tag.
 # Then the Homebrew tap (mhmzdev/homebrew-brigade) gets Formula/bk.rb with the tarball's
-# sha256 filled in, so `brew upgrade bk` picks the release up. That push needs TAP_TOKEN,
-# a fine-grained token with contents: write on the tap repo, in this repo's secrets.
+# sha256 filled in, so `brew upgrade bk` picks the release up (idempotent: a merge that did
+# not release leaves the tap as it is, and a push that failed earlier is retried). That push
+# needs TAP_TOKEN, a fine-grained token with contents: write on the tap repo, in this repo's
+# secrets.
 name: release
 
 on:
@@ -38,7 +42,7 @@ jobs:
           version=$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' plugins/bk/.claude-plugin/plugin.json | head -1)
           tag="v$version"
           if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-            echo "$tag already exists at $(git rev-list -n1 "$tag"); nothing to release"
+            echo "$tag already exists at $(git rev-list -n1 "$tag"): this merge did not move the version, nothing to tag"
             exit 0
           fi
           awk -v h="## [$version]" 'index($0, h) == 1 {on=1; next} on && /^## \[/ {exit} on' CHANGELOG.md > notes.md
